@@ -1717,13 +1717,14 @@ end
 
 panicButton.MouseButton1Click:Connect(panic)
 
--- KEYBINDS
+--keybinds
 table.insert(connections, UserInputService.InputBegan:Connect(
     function(input, gameProcessed)
         if destroyed or gameProcessed then
             return
         end
-
+    end
+))
 
 -- KEEP THE MENU HIDDEN/SHOWN ACCORDING TO ITS STATE.
 main.Visible = menuOpen
