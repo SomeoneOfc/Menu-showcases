@@ -1725,19 +1725,6 @@ table.insert(connections, UserInputService.InputBegan:Connect(
         end
 
 
-if input.KeyCode == menuToggleKey then
-    toggleMenu()
-    return
-end
-
-if input.KeyCode == espToggleKey then
-    toggleESP()
-    return
-end
-
-    end
-))
-
 -- KEEP THE MENU HIDDEN/SHOWN ACCORDING TO ITS STATE.
 main.Visible = menuOpen
 
@@ -2311,9 +2298,19 @@ floatingButton.Activated:Connect(function()
 end)
 
 --==================================================
--- MENU AND ESP KEY HANDLER
+-- FIXED KEY HANDLER + 2-SECOND ACTIVATION DELAY
 --==================================================
 
+local menuKeyReadyAt = 0
+local espKeyReadyAt = 0
+local keybindDelay = 2
+
+local function updateKeyLabels()
+    menuKeyButton.Text = menuToggleKey.Name
+    espKeyButton.Text = espToggleKey.Name
+end
+
+-- Select a new key and start its 2-second cooldown.
 table.insert(connections, UserInputService.InputBegan:Connect(
     function(input, gameProcessed)
         if destroyed then
@@ -2324,7 +2321,7 @@ table.insert(connections, UserInputService.InputBegan:Connect(
             return
         end
 
-        -- Capture a key selected in Options.
+        -- Capture the selected key.
         if waitingForKey then
             if input.KeyCode == Enum.KeyCode.Unknown then
                 return
@@ -2344,8 +2341,10 @@ table.insert(connections, UserInputService.InputBegan:Connect(
 
             if waitingForKey == "Menu" then
                 menuToggleKey = input.KeyCode
+                menuKeyReadyAt = os.clock() + keybindDelay
             else
                 espToggleKey = input.KeyCode
+                espKeyReadyAt = os.clock() + keybindDelay
             end
 
             waitingForKey = nil
@@ -2357,16 +2356,26 @@ table.insert(connections, UserInputService.InputBegan:Connect(
             return
         end
 
+        -- Menu toggle key: wait 2 seconds after assignment.
         if input.KeyCode == menuToggleKey then
+            if os.clock() < menuKeyReadyAt then
+                return
+            end
+
             toggleMenu()
-        elseif input.KeyCode == espToggleKey then
+            return
+        end
+
+        -- ESP toggle key: wait 2 seconds after assignment.
+        if input.KeyCode == espToggleKey then
+            if os.clock() < espKeyReadyAt then
+                return
+            end
+
             toggleESP()
+            return
         end
     end
 ))
 
-print("Part 7 loaded: Options sidebar, keybinds and floating button.")
-
-
-
-
+print("Part 7 keybind fix loaded.")
