@@ -2025,13 +2025,12 @@ table.insert(connections, UserInputService.InputBegan:Connect(
 
 print("Custom feature keybinds loaded.")
 
+
 --==================================================
--- PART 7: OPTIONS + CUSTOM KEYBINDS + FLOATING BUTTON
--- Paste this entire part after Parts 1-6 and the
--- existing custom feature-keybind code.
+-- PART 7: OPTIONS + KEYBINDS + FLOATING MENU BUTTON
 --==================================================
 
--- Configurable default keys
+-- Default keybinds
 menuToggleKey = Enum.KeyCode.G
 espToggleKey = Enum.KeyCode.Y
 
@@ -2047,7 +2046,6 @@ optionsPage.Visible = false
 optionsPage.Parent = content
 
 local optionsTitle = Instance.new("TextLabel")
-optionsTitle.Name = "OptionsTitle"
 optionsTitle.Size = UDim2.new(1, -30, 0, 40)
 optionsTitle.Position = UDim2.fromOffset(15, 12)
 optionsTitle.BackgroundTransparency = 1
@@ -2086,6 +2084,7 @@ local function makeOptionsButton(name, text, position, size, parent)
     button.TextSize = 12
     button.Font = Enum.Font.GothamSemibold
     button.AutoButtonColor = true
+    button.ZIndex = 5
     button.Parent = parent
 
     local corner = Instance.new("UICorner")
@@ -2111,13 +2110,10 @@ local function makeOptionsLabel(text, position)
 end
 
 --==================================================
--- KEYBIND SETTINGS
+-- MENU KEYBIND
 --==================================================
 
-makeOptionsLabel(
-    "Menu toggle key",
-    UDim2.fromOffset(15, 105)
-)
+makeOptionsLabel("Menu toggle key", UDim2.fromOffset(15, 105))
 
 local menuKeyButton = makeOptionsButton(
     "MenuKeyButton",
@@ -2126,6 +2122,10 @@ local menuKeyButton = makeOptionsButton(
     UDim2.fromOffset(150, 38),
     optionsPage
 )
+
+--==================================================
+-- ESP KEYBIND
+--==================================================
 
 makeOptionsLabel(
     "Player/tool ESP toggle key",
@@ -2159,40 +2159,34 @@ local function refreshKeyLabels()
     espKeyButton.Text = espToggleKey.Name
 end
 
-local function beginKeySelection(whichKey)
-    waitingForKey = whichKey
-
-    if whichKey == "Menu" then
-        menuKeyButton.Text = "Press a key..."
-    else
-        espKeyButton.Text = "Press a key..."
-    end
-end
-
 menuKeyButton.Activated:Connect(function()
-    beginKeySelection("Menu")
+    waitingForKey = "Menu"
+    menuKeyButton.Text = "Press a key..."
 end)
 
 espKeyButton.Activated:Connect(function()
-    beginKeySelection("ESP")
+    waitingForKey = "ESP"
+    espKeyButton.Text = "Press a key..."
 end)
 
 refreshKeyLabels()
 
 --==================================================
--- OPTIONS SIDEBAR TAB
+-- OPTIONS SIDEBAR BUTTON
 --==================================================
 
 local optionsTabButton = makeOptionsButton(
     "OptionsTabButton",
-    "Options",
-    UDim2.new(0, 10, 0, 190),
+    "OPTIONS",
+    UDim2.new(0, 10, 0, 230),
     UDim2.new(1, -20, 0, 35),
     sidebar
 )
 
--- Keep the original page-switching behaviour for the
--- Home, Movement and Finder pages.
+optionsTabButton.Visible = true
+optionsTabButton.ZIndex = 10
+
+-- Preserve the original page switching function.
 local previousSetActivePage = setActivePage
 
 setActivePage = function(pageName)
@@ -2220,7 +2214,7 @@ optionsTabButton.Activated:Connect(function()
 end)
 
 --==================================================
--- FLOATING DRAGGABLE MENU BUTTON
+-- FLOATING MENU BUTTON
 --==================================================
 
 local floatingButton = Instance.new("TextButton")
@@ -2235,6 +2229,7 @@ floatingButton.TextSize = 12
 floatingButton.Font = Enum.Font.GothamBold
 floatingButton.Visible = true
 floatingButton.Active = true
+floatingButton.ZIndex = 20
 floatingButton.Parent = gui
 
 local floatingCorner = Instance.new("UICorner")
@@ -2252,7 +2247,6 @@ local dragStart = nil
 local buttonStartPosition = nil
 local movedDuringDrag = false
 
--- Toggle the floating button from Options.
 local floatingToggleButton = makeOptionsButton(
     "FloatingButtonToggle",
     "Floating button: ON",
@@ -2274,7 +2268,7 @@ floatingToggleButton.Activated:Connect(function()
         or "Floating button: OFF"
 end)
 
--- Start dragging with mouse or touch.
+-- Drag using mouse or touch.
 floatingButton.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1
         or input.UserInputType == Enum.UserInputType.Touch then
@@ -2286,7 +2280,6 @@ floatingButton.InputBegan:Connect(function(input)
     end
 end)
 
--- Move the floating button while dragging.
 UserInputService.InputChanged:Connect(function(input)
     if not floatingDragging or not dragStart then
         return
@@ -2321,22 +2314,19 @@ UserInputService.InputEnded:Connect(function(input)
     end
 end)
 
--- Click the floating button to open or close the menu.
 floatingButton.Activated:Connect(function()
     if movedDuringDrag then
         movedDuringDrag = false
         return
     end
 
-    if destroyed then
-        return
+    if not destroyed then
+        toggleMenu()
     end
-
-    toggleMenu()
 end)
 
 --==================================================
--- CONFIGURABLE MENU AND ESP KEY HANDLER
+-- KEY HANDLER FOR THE NEW OPTIONS
 --==================================================
 
 table.insert(connections, UserInputService.InputBegan:Connect(
@@ -2349,17 +2339,20 @@ table.insert(connections, UserInputService.InputBegan:Connect(
             return
         end
 
-        -- Capture a key when the user is choosing a binding.
+        -- Capture the chosen key.
         if waitingForKey then
             if input.KeyCode == Enum.KeyCode.Unknown then
                 return
             end
 
-            -- Avoid assigning the same key to both controls.
-            if waitingForKey == "Menu" and input.KeyCode == espToggleKey then
+            if waitingForKey == "Menu"
+                and input.KeyCode == espToggleKey then
                 menuKeyButton.Text = "Already used"
                 return
-            elseif waitingForKey == "ESP" and input.KeyCode == menuToggleKey then
+            end
+
+            if waitingForKey == "ESP"
+                and input.KeyCode == menuToggleKey then
                 espKeyButton.Text = "Already used"
                 return
             end
@@ -2387,6 +2380,7 @@ table.insert(connections, UserInputService.InputBegan:Connect(
     end
 ))
 
-print("Part 7 loaded: Options, keybinds and floating menu button.")
+print("Part 7 loaded successfully.")
+
 
 
