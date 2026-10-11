@@ -1885,3 +1885,1022 @@ print("Menu loaded successfully.")
 print("G = Menu")
 print("F = Fly")
 print("N = Noclip")
+--============================================================
+-- PLAYER INSPECTOR / ESP
+--============================================================
+-- Y = Toggle ESP / information
+-- PANIC = Permanently delete the system
+--
+-- Automatically checks every 1 second for:
+--   • New players
+--   • Players leaving
+--   • New items
+--   • Removed items
+--   • Equipped / unequipped tools
+--   • Respawning
+--
+-- Put this LocalScript in:
+-- StarterPlayer > StarterPlayerScripts
+--============================================================
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+
+local LocalPlayer = Players.LocalPlayer
+
+local Enabled = true
+local PanicActivated = false
+
+local MAX_DISTANCE = 1000
+
+local OUTLINE_COLOR = Color3.fromRGB(255, 70, 70)
+
+local PlayerObjects = {}
+
+--============================================================
+-- MAIN GUI
+--============================================================
+
+local ScreenGui = Instance.new("ScreenGui")
+
+ScreenGui.Name = "PlayerInspector"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+--============================================================
+-- PANIC BUTTON
+--============================================================
+
+local PanicButton = Instance.new("TextButton")
+
+PanicButton.Name = "PanicButton"
+
+PanicButton.Size = UDim2.new(0, 125, 0, 45)
+PanicButton.Position = UDim2.new(1, -145, 1, -65)
+
+PanicButton.BackgroundColor3 = Color3.fromRGB(180, 35, 35)
+PanicButton.BorderSizePixel = 0
+
+PanicButton.Text = "PANIC"
+PanicButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+PanicButton.TextSize = 17
+PanicButton.Font = Enum.Font.GothamBold
+
+PanicButton.Parent = ScreenGui
+
+local PanicCorner = Instance.new("UICorner")
+
+PanicCorner.CornerRadius = UDim.new(0, 8)
+PanicCorner.Parent = PanicButton
+
+--============================================================
+-- PANIC CONFIRMATION
+--============================================================
+
+local ConfirmFrame = Instance.new("Frame")
+
+ConfirmFrame.Name = "PanicConfirmation"
+
+ConfirmFrame.Size = UDim2.new(0, 300, 0, 150)
+ConfirmFrame.Position = UDim2.new(0.5, -150, 0.5, -75)
+
+ConfirmFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+ConfirmFrame.BorderSizePixel = 0
+
+ConfirmFrame.Visible = false
+ConfirmFrame.Parent = ScreenGui
+
+local ConfirmCorner = Instance.new("UICorner")
+
+ConfirmCorner.CornerRadius = UDim.new(0, 10)
+ConfirmCorner.Parent = ConfirmFrame
+
+local ConfirmText = Instance.new("TextLabel")
+
+ConfirmText.Size = UDim2.new(1, -20, 0, 60)
+ConfirmText.Position = UDim2.new(0, 10, 0, 10)
+
+ConfirmText.BackgroundTransparency = 1
+
+ConfirmText.Text = "Delete the entire inspector?"
+
+ConfirmText.TextColor3 = Color3.fromRGB(255, 255, 255)
+ConfirmText.TextSize = 17
+ConfirmText.Font = Enum.Font.GothamBold
+ConfirmText.TextWrapped = true
+
+ConfirmText.Parent = ConfirmFrame
+
+local ConfirmButton = Instance.new("TextButton")
+
+ConfirmButton.Size = UDim2.new(0, 120, 0, 40)
+ConfirmButton.Position = UDim2.new(0, 20, 1, -55)
+
+ConfirmButton.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
+ConfirmButton.BorderSizePixel = 0
+
+ConfirmButton.Text = "DELETE"
+ConfirmButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ConfirmButton.TextSize = 14
+ConfirmButton.Font = Enum.Font.GothamBold
+
+ConfirmButton.Parent = ConfirmFrame
+
+local ConfirmButtonCorner = Instance.new("UICorner")
+
+ConfirmButtonCorner.CornerRadius = UDim.new(0, 6)
+ConfirmButtonCorner.Parent = ConfirmButton
+
+local CancelButton = Instance.new("TextButton")
+
+CancelButton.Size = UDim2.new(0, 120, 0, 40)
+CancelButton.Position = UDim2.new(1, -140, 1, -55)
+
+CancelButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+CancelButton.BorderSizePixel = 0
+
+CancelButton.Text = "CANCEL"
+CancelButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CancelButton.TextSize = 14
+CancelButton.Font = Enum.Font.GothamBold
+
+CancelButton.Parent = ConfirmFrame
+
+local CancelCorner = Instance.new("UICorner")
+
+CancelCorner.CornerRadius = UDim.new(0, 6)
+CancelCorner.Parent = CancelButton
+
+--============================================================
+-- PANIC DELETE
+--============================================================
+
+local function DeleteInspector()
+
+	if PanicActivated then
+		return
+	end
+
+	PanicActivated = true
+	Enabled = false
+
+	-- Remove all ESP objects
+	for Player, Objects in pairs(PlayerObjects) do
+
+		if Objects.Highlight then
+			Objects.Highlight:Destroy()
+		end
+
+		if Objects.Billboard then
+			Objects.Billboard:Destroy()
+		end
+
+	end
+
+	table.clear(PlayerObjects)
+
+	-- Delete the entire UI
+	if ScreenGui then
+		ScreenGui:Destroy()
+	end
+
+end
+
+PanicButton.MouseButton1Click:Connect(function()
+
+	if not PanicActivated then
+
+		ConfirmFrame.Visible = true
+
+	end
+
+end)
+
+CancelButton.MouseButton1Click:Connect(function()
+
+	ConfirmFrame.Visible = false
+
+end)
+
+ConfirmButton.MouseButton1Click:Connect(function()
+
+	DeleteInspector()
+
+end)
+
+--============================================================
+-- CREATE TOOL ICON
+--============================================================
+
+local function CreateToolDisplay(
+	Parent,
+	ToolName,
+	TextureId,
+	IsHeld
+)
+
+	local Container = Instance.new("Frame")
+
+	Container.Name = "Tool_" .. ToolName
+
+	Container.Size = UDim2.new(0, 75, 0, 70)
+
+	Container.BackgroundTransparency = 1
+
+	Container.Parent = Parent
+
+	--========================================================
+	-- TOOL NAME
+	--========================================================
+
+	local NameLabel = Instance.new("TextLabel")
+
+	NameLabel.Size = UDim2.new(1, 0, 0, 25)
+
+	NameLabel.BackgroundTransparency = 1
+
+	if IsHeld then
+
+		NameLabel.Text = "[HELD] " .. ToolName
+
+		NameLabel.TextColor3 =
+			Color3.fromRGB(120, 255, 150)
+
+	else
+
+		NameLabel.Text = ToolName
+
+		NameLabel.TextColor3 =
+			Color3.fromRGB(255, 255, 255)
+
+	end
+
+	NameLabel.TextSize = 11
+	NameLabel.Font = Enum.Font.GothamBold
+
+	NameLabel.TextXAlignment =
+		Enum.TextXAlignment.Center
+
+	NameLabel.TextTruncate =
+		Enum.TextTruncate.AtEnd
+
+	NameLabel.Parent = Container
+
+	--========================================================
+	-- TOOL ICON
+	--========================================================
+
+	local Icon = Instance.new("ImageLabel")
+
+	Icon.Name = "ToolIcon"
+
+	Icon.Size = UDim2.new(0, 38, 0, 38)
+
+	Icon.Position = UDim2.new(
+		0.5,
+		-19,
+		0,
+		28
+	)
+
+	Icon.BackgroundColor3 =
+		Color3.fromRGB(45, 45, 45)
+
+	Icon.BorderSizePixel = 0
+
+	Icon.ScaleType =
+		Enum.ScaleType.Fit
+
+	Icon.Parent = Container
+
+	--========================================================
+	-- ICON TEXTURE
+	--========================================================
+
+	if TextureId and TextureId ~= "" then
+
+		Icon.Image = TextureId
+
+	else
+
+		Icon.Image = ""
+
+		local NoIcon = Instance.new("TextLabel")
+
+		NoIcon.Size = UDim2.new(1, 0, 1, 0)
+
+		NoIcon.BackgroundTransparency = 1
+
+		NoIcon.Text = "?"
+
+		NoIcon.TextColor3 =
+			Color3.fromRGB(150, 150, 150)
+
+		NoIcon.TextSize = 20
+
+		NoIcon.Font =
+			Enum.Font.GothamBold
+
+		NoIcon.Parent = Icon
+
+	end
+
+	local IconCorner = Instance.new("UICorner")
+
+	IconCorner.CornerRadius =
+		UDim.new(0, 5)
+
+	IconCorner.Parent = Icon
+
+	return Container
+
+end
+
+--============================================================
+-- GET CURRENT TOOLS
+--============================================================
+
+local function GetTools(Player)
+
+	local Tools = {}
+
+	--========================================================
+	-- CHARACTER / HELD
+	--========================================================
+
+	if Player.Character then
+
+		for _, Object in ipairs(
+			Player.Character:GetChildren()
+		) do
+
+			if Object:IsA("Tool") then
+
+				table.insert(Tools, {
+
+					Name = Object.Name,
+
+					Texture = Object.TextureId,
+
+					Held = true
+
+				})
+
+			end
+
+		end
+
+	end
+
+	--========================================================
+	-- BACKPACK
+	--========================================================
+
+	local Backpack =
+		Player:FindFirstChildOfClass("Backpack")
+
+	if Backpack then
+
+		for _, Object in ipairs(
+			Backpack:GetChildren()
+		) do
+
+			if Object:IsA("Tool") then
+
+				table.insert(Tools, {
+
+					Name = Object.Name,
+
+					Texture = Object.TextureId,
+
+					Held = false
+
+				})
+
+			end
+
+		end
+
+	end
+
+	return Tools
+
+end
+
+--============================================================
+-- UPDATE BILLBOARD
+--============================================================
+
+local function UpdateBillboard(Player)
+
+	if PanicActivated then
+		return
+	end
+
+	local Objects = PlayerObjects[Player]
+
+	if not Objects then
+		return
+	end
+
+	if not Objects.Billboard then
+		return
+	end
+
+	if not Objects.Container then
+		return
+	end
+
+	--========================================================
+	-- CLEAR OLD CONTENT
+	--========================================================
+
+	for _, Child in ipairs(
+		Objects.Container:GetChildren()
+	) do
+
+		Child:Destroy()
+
+	end
+
+	--========================================================
+	-- DISPLAY NAME
+	--========================================================
+
+	local DisplayName = Instance.new("TextLabel")
+
+	DisplayName.Size = UDim2.new(1, 0, 0, 24)
+
+	DisplayName.BackgroundTransparency = 1
+
+	DisplayName.Text = Player.DisplayName
+
+	DisplayName.TextColor3 =
+		Color3.fromRGB(255, 220, 80)
+
+	DisplayName.TextStrokeTransparency = 0.2
+
+	DisplayName.TextSize = 16
+
+	DisplayName.Font =
+		Enum.Font.GothamBold
+
+	DisplayName.Parent = Objects.Container
+
+	--========================================================
+	-- USERNAME
+	--========================================================
+
+	local Username = Instance.new("TextLabel")
+
+	Username.Size = UDim2.new(1, 0, 0, 20)
+
+	Username.Position = UDim2.new(0, 0, 0, 23)
+
+	Username.BackgroundTransparency = 1
+
+	Username.Text = "@" .. Player.Name
+
+	Username.TextColor3 =
+		Color3.fromRGB(220, 220, 220)
+
+	Username.TextStrokeTransparency = 0.2
+
+	Username.TextSize = 13
+
+	Username.Font =
+		Enum.Font.Gotham
+
+	Username.Parent = Objects.Container
+
+	--========================================================
+	-- TOOL AREA
+	--========================================================
+
+	local ToolArea = Instance.new("ScrollingFrame")
+
+	ToolArea.Name = "Tools"
+
+	ToolArea.Size = UDim2.new(1, 0, 0, 90)
+
+	ToolArea.Position = UDim2.new(0, 0, 0, 45)
+
+	ToolArea.BackgroundTransparency = 1
+
+	ToolArea.BorderSizePixel = 0
+
+	ToolArea.ScrollBarThickness = 3
+
+	ToolArea.CanvasSize =
+		UDim2.new(0, 0, 0, 0)
+
+	ToolArea.Parent = Objects.Container
+
+	local ToolLayout = Instance.new("UIListLayout")
+
+	ToolLayout.FillDirection =
+		Enum.FillDirection.Horizontal
+
+	ToolLayout.HorizontalAlignment =
+		Enum.HorizontalAlignment.Center
+
+	ToolLayout.VerticalAlignment =
+		Enum.VerticalAlignment.Top
+
+	ToolLayout.Padding =
+		UDim.new(0, 6)
+
+	ToolLayout.Parent = ToolArea
+
+	--========================================================
+	-- ADD TOOLS
+	--========================================================
+
+	local Tools = GetTools(Player)
+
+	for _, Tool in ipairs(Tools) do
+
+		CreateToolDisplay(
+			ToolArea,
+			Tool.Name,
+			Tool.Texture,
+			Tool.Held
+		)
+
+	end
+
+	--========================================================
+	-- UPDATE SCROLL SIZE
+	--========================================================
+
+	task.defer(function()
+
+		if ToolLayout.Parent then
+
+			ToolArea.CanvasSize =
+				UDim2.new(
+					0,
+					ToolLayout.AbsoluteContentSize.X + 10,
+					0,
+					0
+				)
+
+		end
+
+	end)
+
+end
+
+--============================================================
+-- CREATE ESP FOR PLAYER
+--============================================================
+
+local function CreateESP(Player)
+
+	if Player == LocalPlayer then
+		return
+	end
+
+	if PanicActivated then
+		return
+	end
+
+	if PlayerObjects[Player] then
+		return
+	end
+
+	PlayerObjects[Player] = {}
+
+	--========================================================
+	-- CHARACTER SETUP
+	--========================================================
+
+	local function SetupCharacter(Character)
+
+		if PanicActivated then
+			return
+		end
+
+		local Objects = PlayerObjects[Player]
+
+		if not Objects then
+			return
+		end
+
+		-- Remove old objects
+		if Objects.Highlight then
+			Objects.Highlight:Destroy()
+		end
+
+		if Objects.Billboard then
+			Objects.Billboard:Destroy()
+		end
+
+		--====================================================
+		-- OUTLINE
+		--====================================================
+
+		local Highlight = Instance.new("Highlight")
+
+		Highlight.Name =
+			"PlayerOutline"
+
+		Highlight.Adornee =
+			Character
+
+		Highlight.FillColor =
+			OUTLINE_COLOR
+
+		Highlight.FillTransparency =
+			0.9
+
+		Highlight.OutlineColor =
+			OUTLINE_COLOR
+
+		Highlight.OutlineTransparency =
+			0
+
+		Highlight.DepthMode =
+			Enum.HighlightDepthMode.AlwaysOnTop
+
+		Highlight.Enabled =
+			Enabled
+
+		Highlight.Parent =
+			Character
+
+		Objects.Highlight =
+			Highlight
+
+		--====================================================
+		-- FIND HEAD
+		--====================================================
+
+		local Head =
+			Character:FindFirstChild("Head")
+
+		if not Head then
+
+			Head =
+				Character:WaitForChild(
+					"Head",
+					5
+				)
+
+		end
+
+		if not Head then
+			return
+		end
+
+		--====================================================
+		-- BILLBOARD
+		--====================================================
+
+		local Billboard =
+			Instance.new("BillboardGui")
+
+		Billboard.Name =
+			"PlayerInformation"
+
+		Billboard.Adornee =
+			Head
+
+		Billboard.Size =
+			UDim2.new(0, 420, 0, 150)
+
+		Billboard.StudsOffset =
+			Vector3.new(0, 4.5, 0)
+
+		Billboard.AlwaysOnTop =
+			true
+
+		Billboard.MaxDistance =
+			MAX_DISTANCE
+
+		Billboard.Enabled =
+			Enabled
+
+		Billboard.Parent =
+			Head
+
+		Objects.Billboard =
+			Billboard
+
+		--====================================================
+		-- CONTAINER
+		--====================================================
+
+		local Container =
+			Instance.new("Frame")
+
+		Container.Size =
+			UDim2.new(1, 0, 1, 0)
+
+		Container.BackgroundTransparency =
+			1
+
+		Container.Parent =
+			Billboard
+
+		Objects.Container =
+			Container
+
+		-- Initial information
+		UpdateBillboard(Player)
+
+	end
+
+	--========================================================
+	-- CURRENT CHARACTER
+	--========================================================
+
+	if Player.Character then
+
+		task.spawn(function()
+
+			SetupCharacter(
+				Player.Character
+			)
+
+		end)
+
+	end
+
+	--========================================================
+	-- CHARACTER RESPAWN
+	--========================================================
+
+	Player.CharacterAdded:Connect(
+		function(Character)
+
+			if PanicActivated then
+				return
+			end
+
+			task.wait(0.25)
+
+			if PlayerObjects[Player] then
+
+				SetupCharacter(Character)
+
+			end
+
+		end
+	)
+
+end
+
+--============================================================
+-- REMOVE ESP
+--============================================================
+
+local function RemoveESP(Player)
+
+	local Objects =
+		PlayerObjects[Player]
+
+	if not Objects then
+		return
+	end
+
+	if Objects.Highlight then
+		Objects.Highlight:Destroy()
+	end
+
+	if Objects.Billboard then
+		Objects.Billboard:Destroy()
+	end
+
+	PlayerObjects[Player] = nil
+
+end
+
+--============================================================
+-- ENABLE / DISABLE
+--============================================================
+
+local function SetEnabled(State)
+
+	if PanicActivated then
+		return
+	end
+
+	Enabled = State
+
+	for Player, Objects in pairs(PlayerObjects) do
+
+		if Objects.Highlight then
+
+			Objects.Highlight.Enabled =
+				Enabled
+
+		end
+
+		if Objects.Billboard then
+
+			Objects.Billboard.Enabled =
+				Enabled
+
+		end
+
+	end
+
+end
+
+--============================================================
+-- Y TOGGLE
+--============================================================
+
+UserInputService.InputBegan:Connect(
+	function(Input, GameProcessed)
+
+		if GameProcessed then
+			return
+		end
+
+		if PanicActivated then
+			return
+		end
+
+		if Input.KeyCode ==
+			Enum.KeyCode.Y then
+
+			SetEnabled(not Enabled)
+
+		end
+
+	end
+)
+
+--============================================================
+-- INITIAL PLAYERS
+--============================================================
+
+for _, Player in ipairs(
+	Players:GetPlayers()
+) do
+
+	CreateESP(Player)
+
+end
+
+--============================================================
+-- PLAYER ADDED
+--============================================================
+
+Players.PlayerAdded:Connect(
+	function(Player)
+
+		if not PanicActivated then
+
+			CreateESP(Player)
+
+		end
+
+	end
+)
+
+--============================================================
+-- PLAYER REMOVING
+--============================================================
+
+Players.PlayerRemoving:Connect(
+	function(Player)
+
+		RemoveESP(Player)
+
+	end
+)
+
+--============================================================
+-- 1 SECOND SCAN
+--============================================================
+-- This is the important part.
+--
+-- Every second it checks the actual Players service
+-- instead of relying only on PlayerAdded.
+--
+-- It also refreshes the inventory display for every
+-- player, allowing newly replicated Tools to appear.
+--============================================================
+
+task.spawn(function()
+
+	while not PanicActivated do
+
+		task.wait(1)
+
+		if PanicActivated then
+			break
+		end
+
+		--====================================================
+		-- CHECK FOR NEW PLAYERS
+		--====================================================
+
+		local CurrentPlayers = {}
+
+		for _, Player in ipairs(
+			Players:GetPlayers()
+		) do
+
+			CurrentPlayers[Player] = true
+
+			if Player ~= LocalPlayer then
+
+				if not PlayerObjects[Player] then
+
+					CreateESP(Player)
+
+				end
+
+			end
+
+		end
+
+		--====================================================
+		-- CHECK FOR PLAYERS THAT LEFT
+		--====================================================
+
+		for Player, Objects in pairs(
+			PlayerObjects
+		) do
+
+			if not CurrentPlayers[Player] then
+
+				RemoveESP(Player)
+
+			end
+
+		end
+
+		--====================================================
+		-- CHECK FOR NEW / REMOVED ITEMS
+		--====================================================
+
+		if Enabled then
+
+			for Player, Objects in pairs(
+				PlayerObjects
+			) do
+
+				if Player.Parent ==
+					Players then
+
+					if Player.Character then
+
+						-- Make sure the outline still exists
+						if not Objects.Highlight then
+
+							CreateESP(Player)
+
+						else
+
+							Objects.Highlight.Adornee =
+								Player.Character
+
+						end
+
+						-- Make sure the billboard still exists
+						local Head =
+							Player.Character:FindFirstChild(
+								"Head"
+							)
+
+						if Head then
+
+							if not Objects.Billboard then
+
+								-- Recreate ESP if necessary
+								CreateESP(Player)
+
+							else
+
+								-- Make sure billboard is attached
+								Objects.Billboard.Adornee =
+									Head
+
+								-- Refresh ALL item information
+								UpdateBillboard(Player)
+
+							end
+
+						end
+
+					end
+
+				end
+
+			end
+
+		end
+
+	end
+
+end)
+
+--============================================================
+-- DONE
+--============================================================
