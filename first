@@ -1724,17 +1724,17 @@ table.insert(connections, UserInputService.InputBegan:Connect(
             return
         end
 
-        -- G opens and hides the menu.
-        if input.KeyCode == Enum.KeyCode.G then
-            toggleMenu()
-            return
-        end
 
-        -- Y toggles player ESP.
-        if input.KeyCode == Enum.KeyCode.Y then
-            toggleESP()
-            return
-        end
+if input.KeyCode == menuToggleKey then
+    toggleMenu()
+    return
+end
+
+if input.KeyCode == espToggleKey then
+    toggleESP()
+    return
+end
+
     end
 ))
 
