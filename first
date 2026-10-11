@@ -1851,3 +1851,178 @@ print("Press Y to toggle player ESP.")
 
 -- END OF PART 6
 
+--==================================================
+-- EXTRA: CUSTOM KEYBINDS FOR FEATURE TOGGLES
+-- Paste after Part 6
+--==================================================
+
+-- Make room for keybind boxes beside the buttons.
+flyButton.Size = UDim2.fromOffset(150, 42)
+noclipButton.Size = UDim2.fromOffset(150, 42)
+infiniteJumpButton.Size = UDim2.fromOffset(150, 42)
+
+-- Move the ESP button so its keybind box fits beside it.
+espButton.Size = UDim2.fromOffset(150, 38)
+espButton.Position = UDim2.new(1, -225, 0, 153)
+
+local keybinds = {
+    Fly = nil,
+    Noclip = nil,
+    InfiniteJump = nil,
+    ESP = Enum.KeyCode.Y
+}
+
+local keybindBoxes = {}
+local activeKeybindBox = nil
+
+local function createKeybindBox(featureName, position, size)
+    local box = Instance.new("TextBox")
+    box.Name = featureName .. "Keybind"
+    box.Size = size
+    box.Position = position
+    box.BackgroundColor3 = Color3.fromRGB(32, 32, 42)
+    box.BorderSizePixel = 0
+    box.Text = featureName == "ESP" and "Y" or "None"
+    box.PlaceholderText = "Key"
+    box.TextColor3 = Color3.fromRGB(120, 190, 255)
+    box.PlaceholderColor3 = Color3.fromRGB(130, 130, 140)
+    box.TextSize = 11
+    box.Font = Enum.Font.GothamBold
+    box.ClearTextOnFocus = false
+    box.TextEditable = false
+    box.Parent = featureName == "ESP" and finderPage or movementPage
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 7)
+    corner.Parent = box
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(65, 75, 95)
+    stroke.Thickness = 1
+    stroke.Parent = box
+
+    box.Focused:Connect(function()
+        activeKeybindBox = box
+        box.Text = "Press key"
+    end)
+
+    box.FocusLost:Connect(function()
+        if activeKeybindBox == box then
+            activeKeybindBox = nil
+        end
+    end)
+
+    keybindBoxes[box] = featureName
+    return box
+end
+
+-- KEYBIND BOXES BESIDE THE MOVEMENT BUTTONS
+createKeybindBox(
+    "Fly",
+    UDim2.fromOffset(175, 250),
+    UDim2.fromOffset(65, 42)
+)
+
+createKeybindBox(
+    "Noclip",
+    UDim2.fromOffset(175, 380),
+    UDim2.fromOffset(65, 42)
+)
+
+createKeybindBox(
+    "InfiniteJump",
+    UDim2.fromOffset(410, 380),
+    UDim2.fromOffset(65, 42)
+)
+
+-- KEYBIND BOX BESIDE ESP
+createKeybindBox(
+    "ESP",
+    UDim2.new(1, -70, 0, 153),
+    UDim2.fromOffset(50, 38)
+)
+
+local function setKeybind(featureName, keyCode, box)
+    keybinds[featureName] = keyCode
+    box.Text = keyCode.Name
+    box:ReleaseFocus()
+end
+
+-- CAPTURE A KEY WHEN A KEYBIND BOX IS SELECTED
+table.insert(connections, UserInputService.InputBegan:Connect(
+    function(input, gameProcessed)
+        if destroyed then
+            return
+        end
+
+        if input.UserInputType ~= Enum.UserInputType.Keyboard then
+            return
+        end
+
+        -- The user is choosing a new key.
+        if activeKeybindBox then
+            local box = activeKeybindBox
+            local featureName = keybindBoxes[box]
+
+            -- G controls the menu, and Y remains the default ESP key.
+            -- Keep those keys reserved to avoid conflicting toggles.
+            if input.KeyCode == Enum.KeyCode.G then
+                box.Text = "Reserved"
+                box:ReleaseFocus()
+                return
+            end
+
+            if input.KeyCode == Enum.KeyCode.Y
+                and featureName ~= "ESP" then
+                box.Text = "Reserved"
+                box:ReleaseFocus()
+                return
+            end
+
+            setKeybind(featureName, input.KeyCode, box)
+            return
+        end
+
+        if gameProcessed then
+            return
+        end
+
+        -- G and Y already have their original handlers in Part 5.
+        if input.KeyCode == Enum.KeyCode.G
+            or input.KeyCode == Enum.KeyCode.Y then
+            return
+        end
+
+        -- Toggle the feature assigned to the pressed key.
+        for featureName, assignedKey in pairs(keybinds) do
+            if assignedKey and input.KeyCode == assignedKey then
+                if featureName == "Fly" then
+                    if flying then
+                        stopFlying()
+                    else
+                        startFlying()
+                    end
+
+                elseif featureName == "Noclip" then
+                    setNoclip(not noclip)
+
+                elseif featureName == "InfiniteJump" then
+                    infiniteJump = not infiniteJump
+
+                    updateMovementButton(
+                        infiniteJumpButton,
+                        "Infinite jump",
+                        infiniteJump
+                    )
+
+                elseif featureName == "ESP" then
+                    toggleESP()
+                end
+            end
+        end
+    end
+))
+
+print("Custom feature keybinds loaded.")
+
+
