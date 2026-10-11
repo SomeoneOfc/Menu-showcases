@@ -2025,4 +2025,368 @@ table.insert(connections, UserInputService.InputBegan:Connect(
 
 print("Custom feature keybinds loaded.")
 
+--==================================================
+-- PART 7: OPTIONS + CUSTOM KEYBINDS + FLOATING BUTTON
+-- Paste this entire part after Parts 1-6 and the
+-- existing custom feature-keybind code.
+--==================================================
+
+-- Configurable default keys
+menuToggleKey = Enum.KeyCode.G
+espToggleKey = Enum.KeyCode.Y
+
+--==================================================
+-- OPTIONS PAGE
+--==================================================
+
+local optionsPage = Instance.new("Frame")
+optionsPage.Name = "OptionsPage"
+optionsPage.Size = UDim2.fromScale(1, 1)
+optionsPage.BackgroundTransparency = 1
+optionsPage.Visible = false
+optionsPage.Parent = content
+
+local optionsTitle = Instance.new("TextLabel")
+optionsTitle.Name = "OptionsTitle"
+optionsTitle.Size = UDim2.new(1, -30, 0, 40)
+optionsTitle.Position = UDim2.fromOffset(15, 12)
+optionsTitle.BackgroundTransparency = 1
+optionsTitle.Text = "Options"
+optionsTitle.TextColor3 = Color3.fromRGB(240, 240, 255)
+optionsTitle.TextSize = 22
+optionsTitle.Font = Enum.Font.GothamBold
+optionsTitle.TextXAlignment = Enum.TextXAlignment.Left
+optionsTitle.Parent = optionsPage
+
+local optionsDescription = Instance.new("TextLabel")
+optionsDescription.Size = UDim2.new(1, -30, 0, 38)
+optionsDescription.Position = UDim2.fromOffset(15, 53)
+optionsDescription.BackgroundTransparency = 1
+optionsDescription.Text = "Change controls and floating menu settings."
+optionsDescription.TextColor3 = Color3.fromRGB(165, 170, 190)
+optionsDescription.TextSize = 12
+optionsDescription.Font = Enum.Font.Gotham
+optionsDescription.TextXAlignment = Enum.TextXAlignment.Left
+optionsDescription.TextWrapped = true
+optionsDescription.Parent = optionsPage
+
+--==================================================
+-- OPTIONS UI HELPERS
+--==================================================
+
+local function makeOptionsButton(name, text, position, size, parent)
+    local button = Instance.new("TextButton")
+    button.Name = name
+    button.Text = text
+    button.Position = position
+    button.Size = size
+    button.BackgroundColor3 = Color3.fromRGB(38, 42, 58)
+    button.BorderSizePixel = 0
+    button.TextColor3 = Color3.fromRGB(235, 240, 255)
+    button.TextSize = 12
+    button.Font = Enum.Font.GothamSemibold
+    button.AutoButtonColor = true
+    button.Parent = parent
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = button
+
+    return button
+end
+
+local function makeOptionsLabel(text, position)
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -30, 0, 25)
+    label.Position = position
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = Color3.fromRGB(215, 220, 240)
+    label.TextSize = 13
+    label.Font = Enum.Font.GothamSemibold
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = optionsPage
+
+    return label
+end
+
+--==================================================
+-- KEYBIND SETTINGS
+--==================================================
+
+makeOptionsLabel(
+    "Menu toggle key",
+    UDim2.fromOffset(15, 105)
+)
+
+local menuKeyButton = makeOptionsButton(
+    "MenuKeyButton",
+    "G",
+    UDim2.fromOffset(15, 135),
+    UDim2.fromOffset(150, 38),
+    optionsPage
+)
+
+makeOptionsLabel(
+    "Player/tool ESP toggle key",
+    UDim2.fromOffset(15, 190)
+)
+
+local espKeyButton = makeOptionsButton(
+    "ESPKeyButton",
+    "Y",
+    UDim2.fromOffset(15, 220),
+    UDim2.fromOffset(150, 38),
+    optionsPage
+)
+
+local keyHint = Instance.new("TextLabel")
+keyHint.Size = UDim2.new(1, -30, 0, 40)
+keyHint.Position = UDim2.fromOffset(15, 267)
+keyHint.BackgroundTransparency = 1
+keyHint.Text = "Click a key button, then press your chosen key."
+keyHint.TextColor3 = Color3.fromRGB(155, 165, 185)
+keyHint.TextSize = 11
+keyHint.Font = Enum.Font.Gotham
+keyHint.TextXAlignment = Enum.TextXAlignment.Left
+keyHint.TextWrapped = true
+keyHint.Parent = optionsPage
+
+local waitingForKey = nil
+
+local function refreshKeyLabels()
+    menuKeyButton.Text = menuToggleKey.Name
+    espKeyButton.Text = espToggleKey.Name
+end
+
+local function beginKeySelection(whichKey)
+    waitingForKey = whichKey
+
+    if whichKey == "Menu" then
+        menuKeyButton.Text = "Press a key..."
+    else
+        espKeyButton.Text = "Press a key..."
+    end
+end
+
+menuKeyButton.Activated:Connect(function()
+    beginKeySelection("Menu")
+end)
+
+espKeyButton.Activated:Connect(function()
+    beginKeySelection("ESP")
+end)
+
+refreshKeyLabels()
+
+--==================================================
+-- OPTIONS SIDEBAR TAB
+--==================================================
+
+local optionsTabButton = makeOptionsButton(
+    "OptionsTabButton",
+    "Options",
+    UDim2.new(0, 10, 0, 190),
+    UDim2.new(1, -20, 0, 35),
+    sidebar
+)
+
+-- Keep the original page-switching behaviour for the
+-- Home, Movement and Finder pages.
+local previousSetActivePage = setActivePage
+
+setActivePage = function(pageName)
+    if pageName == "options" then
+        homePage.Visible = false
+        movementPage.Visible = false
+        finderPage.Visible = false
+        optionsPage.Visible = true
+
+        currentPage = "options"
+
+        homeButton.BackgroundColor3 = Color3.fromRGB(38, 42, 58)
+        movementTabButton.BackgroundColor3 = Color3.fromRGB(38, 42, 58)
+        finderTabButton.BackgroundColor3 = Color3.fromRGB(38, 42, 58)
+        optionsTabButton.BackgroundColor3 = Color3.fromRGB(65, 95, 155)
+    else
+        optionsPage.Visible = false
+        optionsTabButton.BackgroundColor3 = Color3.fromRGB(38, 42, 58)
+        previousSetActivePage(pageName)
+    end
+end
+
+optionsTabButton.Activated:Connect(function()
+    setActivePage("options")
+end)
+
+--==================================================
+-- FLOATING DRAGGABLE MENU BUTTON
+--==================================================
+
+local floatingButton = Instance.new("TextButton")
+floatingButton.Name = "FloatingMenuButton"
+floatingButton.Size = UDim2.fromOffset(58, 58)
+floatingButton.Position = UDim2.new(0, 25, 0.5, -29)
+floatingButton.BackgroundColor3 = Color3.fromRGB(55, 95, 170)
+floatingButton.BorderSizePixel = 0
+floatingButton.Text = "MENU"
+floatingButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+floatingButton.TextSize = 12
+floatingButton.Font = Enum.Font.GothamBold
+floatingButton.Visible = true
+floatingButton.Active = true
+floatingButton.Parent = gui
+
+local floatingCorner = Instance.new("UICorner")
+floatingCorner.CornerRadius = UDim.new(1, 0)
+floatingCorner.Parent = floatingButton
+
+local floatingStroke = Instance.new("UIStroke")
+floatingStroke.Color = Color3.fromRGB(135, 180, 255)
+floatingStroke.Thickness = 2
+floatingStroke.Parent = floatingButton
+
+local floatingButtonEnabled = true
+local floatingDragging = false
+local dragStart = nil
+local buttonStartPosition = nil
+local movedDuringDrag = false
+
+-- Toggle the floating button from Options.
+local floatingToggleButton = makeOptionsButton(
+    "FloatingButtonToggle",
+    "Floating button: ON",
+    UDim2.fromOffset(15, 325),
+    UDim2.fromOffset(190, 38),
+    optionsPage
+)
+
+local function setFloatingButtonEnabled(enabled)
+    floatingButtonEnabled = enabled
+    floatingButton.Visible = enabled
+end
+
+floatingToggleButton.Activated:Connect(function()
+    setFloatingButtonEnabled(not floatingButtonEnabled)
+
+    floatingToggleButton.Text = floatingButtonEnabled
+        and "Floating button: ON"
+        or "Floating button: OFF"
+end)
+
+-- Start dragging with mouse or touch.
+floatingButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+
+        floatingDragging = true
+        movedDuringDrag = false
+        dragStart = input.Position
+        buttonStartPosition = floatingButton.Position
+    end
+end)
+
+-- Move the floating button while dragging.
+UserInputService.InputChanged:Connect(function(input)
+    if not floatingDragging or not dragStart then
+        return
+    end
+
+    if input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch then
+
+        local delta = input.Position - dragStart
+
+        if math.abs(delta.X) > 5 or math.abs(delta.Y) > 5 then
+            movedDuringDrag = true
+        end
+
+        floatingButton.Position = UDim2.new(
+            buttonStartPosition.X.Scale,
+            buttonStartPosition.X.Offset + delta.X,
+            buttonStartPosition.Y.Scale,
+            buttonStartPosition.Y.Offset + delta.Y
+        )
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if floatingDragging and (
+        input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch
+    ) then
+        floatingDragging = false
+        dragStart = nil
+        buttonStartPosition = nil
+    end
+end)
+
+-- Click the floating button to open or close the menu.
+floatingButton.Activated:Connect(function()
+    if movedDuringDrag then
+        movedDuringDrag = false
+        return
+    end
+
+    if destroyed then
+        return
+    end
+
+    toggleMenu()
+end)
+
+--==================================================
+-- CONFIGURABLE MENU AND ESP KEY HANDLER
+--==================================================
+
+table.insert(connections, UserInputService.InputBegan:Connect(
+    function(input, gameProcessed)
+        if destroyed then
+            return
+        end
+
+        if input.UserInputType ~= Enum.UserInputType.Keyboard then
+            return
+        end
+
+        -- Capture a key when the user is choosing a binding.
+        if waitingForKey then
+            if input.KeyCode == Enum.KeyCode.Unknown then
+                return
+            end
+
+            -- Avoid assigning the same key to both controls.
+            if waitingForKey == "Menu" and input.KeyCode == espToggleKey then
+                menuKeyButton.Text = "Already used"
+                return
+            elseif waitingForKey == "ESP" and input.KeyCode == menuToggleKey then
+                espKeyButton.Text = "Already used"
+                return
+            end
+
+            if waitingForKey == "Menu" then
+                menuToggleKey = input.KeyCode
+            else
+                espToggleKey = input.KeyCode
+            end
+
+            waitingForKey = nil
+            refreshKeyLabels()
+            return
+        end
+
+        if gameProcessed then
+            return
+        end
+
+        if input.KeyCode == menuToggleKey then
+            toggleMenu()
+        elseif input.KeyCode == espToggleKey then
+            toggleESP()
+        end
+    end
+))
+
+print("Part 7 loaded: Options, keybinds and floating menu button.")
+
 
