@@ -1,7 +1,7 @@
 
 --==================================================
--- PART 1/4
--- SETUP + MAIN GUI + HOME PAGE
+-- ERROR_B1478 MENU
+-- PART 1: SETUP, GUI AND HOME PAGE
 --==================================================
 
 local Players = game:GetService("Players")
@@ -11,17 +11,12 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local player = Players.LocalPlayer
 
---==================================================
 -- STATE
---==================================================
-
 local destroyed = false
 local menuOpen = true
-
 local flying = false
 local noclip = false
 local infiniteJump = false
-
 local currentFlySpeed = 70
 
 local humanoid = nil
@@ -38,13 +33,9 @@ local savedJumpHeight = 7.2
 
 local bodyVelocity = nil
 local bodyGyro = nil
-
 local connections = {}
 
---==================================================
--- CHARACTER
---==================================================
-
+-- CHARACTER REFERENCES
 local function updateCharacterReferences()
     local character = player.Character
 
@@ -85,10 +76,7 @@ local function getCharacter()
     return player.Character
 end
 
---==================================================
 -- GUI
---==================================================
-
 local gui = Instance.new("ScreenGui")
 gui.Name = "ErrorB1478Menu"
 gui.ResetOnSpawn = false
@@ -97,8 +85,8 @@ gui.Parent = player:WaitForChild("PlayerGui")
 
 local main = Instance.new("Frame")
 main.Name = "Main"
-main.Size = UDim2.fromOffset(720, 560)
-main.Position = UDim2.new(0.5, -360, 0.5, -280)
+main.Size = UDim2.fromOffset(720, 670)
+main.Position = UDim2.new(0.5, -360, 0.5, -335)
 main.BackgroundColor3 = Color3.fromRGB(20, 20, 27)
 main.BorderSizePixel = 0
 main.Parent = gui
@@ -138,12 +126,9 @@ hint.TextSize = 11
 hint.Font = Enum.Font.Gotham
 hint.Parent = topBar
 
---==================================================
 -- SIDEBAR
---==================================================
-
 local sidebar = Instance.new("Frame")
-sidebar.Size = UDim2.fromOffset(155, 505)
+sidebar.Size = UDim2.fromOffset(155, 615)
 sidebar.Position = UDim2.fromOffset(0, 55)
 sidebar.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
 sidebar.BorderSizePixel = 0
@@ -160,10 +145,7 @@ sidebarTitle.Font = Enum.Font.GothamBold
 sidebarTitle.TextXAlignment = Enum.TextXAlignment.Left
 sidebarTitle.Parent = sidebar
 
---==================================================
 -- CONTENT
---==================================================
-
 local content = Instance.new("Frame")
 content.Size = UDim2.new(1, -155, 1, -55)
 content.Position = UDim2.fromOffset(155, 55)
@@ -171,10 +153,7 @@ content.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
 content.BorderSizePixel = 0
 content.Parent = main
 
---==================================================
 -- HOME PAGE
---==================================================
-
 local homePage = Instance.new("Frame")
 homePage.Size = UDim2.fromScale(1, 1)
 homePage.BackgroundTransparency = 1
@@ -202,10 +181,7 @@ homeSubtitle.Font = Enum.Font.Gotham
 homeSubtitle.TextXAlignment = Enum.TextXAlignment.Left
 homeSubtitle.Parent = homePage
 
---==================================================
--- PROFILE THUMBNAILS
---==================================================
-
+-- PROFILE HELPERS
 local function getUserThumbnail(userId)
     local success, imageUrl = pcall(function()
         local contentUrl = Players:GetUserThumbnailAsync(
@@ -213,7 +189,6 @@ local function getUserThumbnail(userId)
             Enum.ThumbnailType.HeadShot,
             Enum.ThumbnailSize.Size420x420
         )
-
         return contentUrl
     end)
 
@@ -314,8 +289,7 @@ local function createProfileCard(
     return card
 end
 
--- Creator profile.
-
+-- CREATOR PROFILE
 local creatorUserId = getUserId("Error_B1478")
 
 createProfileCard(
@@ -327,8 +301,7 @@ createProfileCard(
     125
 )
 
--- Current player profile.
-
+-- CURRENT PLAYER PROFILE
 createProfileCard(
     homePage,
     "Using this menu",
@@ -353,10 +326,7 @@ homeInfo.TextWrapped = true
 homeInfo.TextXAlignment = Enum.TextXAlignment.Left
 homeInfo.Parent = homePage
 
---==================================================
--- BASIC TAB BUTTONS
---==================================================
-
+-- TAB BUTTON HELPER
 local function createTabButton(text, y)
     local button = Instance.new("TextButton")
     button.Size = UDim2.fromOffset(135, 42)
@@ -376,20 +346,21 @@ local function createTabButton(text, y)
     return button
 end
 
-homeButton = createTabButton("Home", 55)
-movementTabButton = createTabButton("Movement", 105)
-finderTabButton = createTabButton("Finder", 155)
+local homeButton = createTabButton("Home", 55)
+local movementTabButton = createTabButton("Movement", 105)
+local finderTabButton = createTabButton("Finder", 155)
 
 homeButton.BackgroundColor3 = Color3.fromRGB(65, 105, 180)
 
--- Part 2 goes directly below this line.
+-- PART 1 ENDS HERE
+-- Continue with Part 2 directly below this code.
 
 --==================================================
--- PART 2/4
--- MOVEMENT TAB
+-- PART 2: MOVEMENT PAGE
 --==================================================
 
 local movementPage = Instance.new("Frame")
+movementPage.Name = "MovementPage"
 movementPage.Size = UDim2.fromScale(1, 1)
 movementPage.BackgroundTransparency = 1
 movementPage.Visible = false
@@ -407,37 +378,28 @@ movementTitle.TextXAlignment = Enum.TextXAlignment.Left
 movementTitle.Parent = movementPage
 
 local movementSubtitle = Instance.new("TextLabel")
-movementSubtitle.Size = UDim2.fromOffset(500, 30)
+movementSubtitle.Size = UDim2.fromOffset(500, 25)
 movementSubtitle.Position = UDim2.fromOffset(20, 62)
 movementSubtitle.BackgroundTransparency = 1
-movementSubtitle.Text = "Movement controls"
+movementSubtitle.Text = "Adjust movement settings for your character"
 movementSubtitle.TextColor3 = Color3.fromRGB(145, 145, 155)
-movementSubtitle.TextSize = 13
+movementSubtitle.TextSize = 12
 movementSubtitle.Font = Enum.Font.Gotham
 movementSubtitle.TextXAlignment = Enum.TextXAlignment.Left
 movementSubtitle.Parent = movementPage
 
---==================================================
--- BUTTON HELPERS
---==================================================
-
-local function createMovementButton(
-    text,
-    x,
-    y,
-    width,
-    color
-)
+-- MOVEMENT UI HELPERS
+local function createMovementButton(text, x, y, width)
     local button = Instance.new("TextButton")
-    button.Size = UDim2.fromOffset(width, 40)
+    button.Size = UDim2.fromOffset(width or 210, 42)
     button.Position = UDim2.fromOffset(x, y)
-    button.BackgroundColor3 =
-        color or Color3.fromRGB(48, 48, 58)
+    button.BackgroundColor3 = Color3.fromRGB(38, 38, 49)
     button.BorderSizePixel = 0
     button.Text = text
     button.TextColor3 = Color3.new(1, 1, 1)
-    button.TextSize = 12
+    button.TextSize = 13
     button.Font = Enum.Font.Gotham
+    button.AutoButtonColor = true
     button.Parent = movementPage
 
     local corner = Instance.new("UICorner")
@@ -447,25 +409,32 @@ local function createMovementButton(
     return button
 end
 
-local function createMovementBox(
-    text,
-    placeholder,
-    x,
-    y,
-    width
-)
+local function createMovementLabel(text, x, y, width)
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.fromOffset(width or 210, 25)
+    label.Position = UDim2.fromOffset(x, y)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = Color3.fromRGB(190, 190, 200)
+    label.TextSize = 12
+    label.Font = Enum.Font.Gotham
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = movementPage
+
+    return label
+end
+
+local function createMovementBox(defaultText, x, y, width)
     local box = Instance.new("TextBox")
-    box.Size = UDim2.fromOffset(width, 40)
+    box.Size = UDim2.fromOffset(width or 210, 38)
     box.Position = UDim2.fromOffset(x, y)
-    box.BackgroundColor3 =
-        Color3.fromRGB(35, 35, 43)
+    box.BackgroundColor3 = Color3.fromRGB(32, 32, 42)
     box.BorderSizePixel = 0
-    box.Text = text
-    box.PlaceholderText = placeholder
-    box.PlaceholderColor3 =
-        Color3.fromRGB(130, 130, 140)
+    box.Text = defaultText
+    box.PlaceholderText = defaultText
     box.TextColor3 = Color3.new(1, 1, 1)
-    box.TextSize = 12
+    box.PlaceholderColor3 = Color3.fromRGB(125, 125, 135)
+    box.TextSize = 13
     box.Font = Enum.Font.Gotham
     box.ClearTextOnFocus = false
     box.Parent = movementPage
@@ -477,199 +446,61 @@ local function createMovementBox(
     return box
 end
 
---==================================================
--- MOVEMENT CONTROLS
---==================================================
+-- MOVEMENT STATUS
+local function updateMovementButton(button, label, enabled)
+    button.Text = label .. ": " .. (enabled and "ON" or "OFF")
 
-local flyButton = createMovementButton(
-    "Fly: OFF",
-    20,
-    105,
-    140
-)
-
-local noclipButton = createMovementButton(
-    "Noclip: OFF",
-    175,
-    105,
-    140
-)
-
-local infiniteJumpButton = createMovementButton(
-    "Inf Jump: OFF",
-    330,
-    105,
-    140
-)
-
-local speedBox = createMovementBox(
-    tostring(originalWalkSpeed),
-    "Walk speed",
-    20,
-    165,
-    140
-)
-
-local setSpeedButton = createMovementButton(
-    "Set Speed",
-    175,
-    165,
-    140,
-    Color3.fromRGB(55, 90, 145)
-)
-
-local flySpeedBox = createMovementBox(
-    tostring(currentFlySpeed),
-    "Fly speed",
-    330,
-    165,
-    140
-)
-
-local setFlySpeedButton = createMovementButton(
-    "Set Fly Speed",
-    20,
-    220,
-    140,
-    Color3.fromRGB(55, 90, 145)
-)
-
-local jumpStartingValue
-
-if originalUseJumpPower then
-    jumpStartingValue = originalJumpPower
-else
-    jumpStartingValue = originalJumpHeight
-end
-
-local jumpBox = createMovementBox(
-    tostring(jumpStartingValue),
-    originalUseJumpPower
-        and "Jump power"
-        or "Jump height",
-    175,
-    220,
-    140
-)
-
-local setJumpButton = createMovementButton(
-    originalUseJumpPower
-        and "Set Jump Power"
-        or "Set Jump Height",
-    330,
-    220,
-    140,
-    Color3.fromRGB(55, 90, 145)
-)
-
-local resetMovementButton = createMovementButton(
-    "Revert Movement",
-    20,
-    280,
-    450,
-    Color3.fromRGB(75, 75, 85)
-)
-
-local movementInfo = Instance.new("TextLabel")
-movementInfo.Size = UDim2.fromOffset(450, 100)
-movementInfo.Position = UDim2.fromOffset(20, 340)
-movementInfo.BackgroundTransparency = 1
-movementInfo.Text =
-    "F = Fly\n" ..
-    "N = Noclip\n" ..
-    "J = Infinite Jump\n" ..
-    "G = Open / minimize menu"
-movementInfo.TextColor3 =
-    Color3.fromRGB(130, 130, 140)
-movementInfo.TextSize = 12
-movementInfo.Font = Enum.Font.Gotham
-movementInfo.TextWrapped = true
-movementInfo.TextXAlignment =
-    Enum.TextXAlignment.Left
-movementInfo.Parent = movementPage
-
---==================================================
--- MOVEMENT FUNCTIONS
---==================================================
-
-local function setFlyButtonState()
-    if flying then
-        flyButton.Text = "Fly: ON"
-        flyButton.BackgroundColor3 =
-            Color3.fromRGB(45, 130, 75)
+    if enabled then
+        button.BackgroundColor3 = Color3.fromRGB(45, 110, 75)
     else
-        flyButton.Text = "Fly: OFF"
-        flyButton.BackgroundColor3 =
-            Color3.fromRGB(48, 48, 58)
+        button.BackgroundColor3 = Color3.fromRGB(38, 38, 49)
     end
 end
 
-local function setNoclipButtonState()
-    if noclip then
-        noclipButton.Text = "Noclip: ON"
-        noclipButton.BackgroundColor3 =
-            Color3.fromRGB(45, 130, 75)
-    else
-        noclipButton.Text = "Noclip: OFF"
-        noclipButton.BackgroundColor3 =
-            Color3.fromRGB(48, 48, 58)
-    end
-end
+-- WALK SPEED
+createMovementLabel("Walk speed", 20, 110, 210)
 
-local function setInfiniteJumpButtonState()
-    if infiniteJump then
-        infiniteJumpButton.Text = "Inf Jump: ON"
-        infiniteJumpButton.BackgroundColor3 =
-            Color3.fromRGB(45, 130, 75)
-    else
-        infiniteJumpButton.Text = "Inf Jump: OFF"
-        infiniteJumpButton.BackgroundColor3 =
-            Color3.fromRGB(48, 48, 58)
-    end
-end
+local speedBox = createMovementBox("16", 20, 138, 210)
+local speedButton = createMovementButton("Apply walk speed", 20, 183, 210)
 
---==================================================
+speedButton.MouseButton1Click:Connect(function()
+    local characterHumanoid = getHumanoid()
+    local value = tonumber(speedBox.Text)
+
+    if characterHumanoid and value then
+        value = math.clamp(value, 0, 250)
+        savedWalkSpeed = value
+        characterHumanoid.WalkSpeed = value
+    end
+end)
+
+-- JUMP POWER
+createMovementLabel("Jump power / height", 255, 110, 210)
+
+local jumpBox = createMovementBox("50", 255, 138, 210)
+local jumpButton = createMovementButton("Apply jump setting", 255, 183, 210)
+
+jumpButton.MouseButton1Click:Connect(function()
+    local characterHumanoid = getHumanoid()
+    local value = tonumber(jumpBox.Text)
+
+    if characterHumanoid and value then
+        value = math.clamp(value, 0, 250)
+
+        if characterHumanoid.UseJumpPower then
+            savedJumpPower = value
+            characterHumanoid.JumpPower = value
+        else
+            savedJumpHeight = value
+            characterHumanoid.JumpHeight = value
+        end
+    end
+end)
+
 -- FLY
---==================================================
+local flyButton = createMovementButton("Fly: OFF", 20, 250, 210)
 
-local function startFly()
-    if destroyed or flying then
-        return
-    end
-
-    local root = getRoot()
-
-    if not root then
-        return
-    end
-
-    flying = true
-
-    bodyVelocity = Instance.new("BodyVelocity")
-    bodyVelocity.Name = "MenuFlyVelocity"
-    bodyVelocity.MaxForce =
-        Vector3.new(100000, 100000, 100000)
-    bodyVelocity.Velocity = Vector3.zero
-    bodyVelocity.Parent = root
-
-    bodyGyro = Instance.new("BodyGyro")
-    bodyGyro.Name = "MenuFlyGyro"
-    bodyGyro.MaxTorque =
-        Vector3.new(100000, 100000, 100000)
-    bodyGyro.P = 10000
-    bodyGyro.CFrame = root.CFrame
-    bodyGyro.Parent = root
-
-    local h = getHumanoid()
-
-    if h then
-        h.AutoRotate = false
-    end
-
-    setFlyButtonState()
-end
-
-local function stopFly()
+local function stopFlying()
     flying = false
 
     if bodyVelocity then
@@ -682,356 +513,244 @@ local function stopFly()
         bodyGyro = nil
     end
 
-    local h = getHumanoid()
+    local characterHumanoid = getHumanoid()
 
-    if h then
-        h.AutoRotate = true
+    if characterHumanoid then
+        characterHumanoid.PlatformStand = false
     end
 
-    setFlyButtonState()
+    updateMovementButton(flyButton, "Fly", false)
 end
 
---==================================================
+local function startFlying()
+    local characterRoot = getRoot()
+    local characterHumanoid = getHumanoid()
+
+    if not characterRoot or not characterHumanoid then
+        return
+    end
+
+    stopFlying()
+
+    characterRoot = getRoot()
+    characterHumanoid = getHumanoid()
+
+    if not characterRoot or not characterHumanoid then
+        return
+    end
+
+    flying = true
+    characterHumanoid.PlatformStand = true
+
+    bodyVelocity = Instance.new("BodyVelocity")
+    bodyVelocity.Name = "MenuFlyVelocity"
+    bodyVelocity.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+    bodyVelocity.Velocity = Vector3.zero
+    bodyVelocity.Parent = characterRoot
+
+    bodyGyro = Instance.new("BodyGyro")
+    bodyGyro.Name = "MenuFlyGyro"
+    bodyGyro.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
+    bodyGyro.P = 10000
+    bodyGyro.CFrame = characterRoot.CFrame
+    bodyGyro.Parent = characterRoot
+
+    updateMovementButton(flyButton, "Fly", true)
+end
+
+flyButton.MouseButton1Click:Connect(function()
+    if flying then
+        stopFlying()
+    else
+        startFlying()
+    end
+end)
+
+-- FLY SPEED
+createMovementLabel("Fly speed", 255, 250, 210)
+
+local flySpeedBox = createMovementBox("70", 255, 278, 210)
+local flySpeedButton = createMovementButton("Apply fly speed", 255, 323, 210)
+
+flySpeedButton.MouseButton1Click:Connect(function()
+    local value = tonumber(flySpeedBox.Text)
+
+    if value then
+        currentFlySpeed = math.clamp(value, 1, 250)
+    end
+end)
+
 -- NOCLIP
---==================================================
+local noclipButton = createMovementButton("Noclip: OFF", 20, 380, 210)
 
 local function setNoclip(enabled)
     noclip = enabled
 
-    local character = getCharacter()
-
-    if not character then
-        setNoclipButtonState()
-        return
-    end
-
     if not enabled then
-        for _, object in ipairs(
-            character:GetDescendants()
-        ) do
-            if object:IsA("BasePart") then
-                object.CanCollide = true
-            end
-        end
-    end
+        local character = getCharacter()
 
-    setNoclipButtonState()
-end
-
---==================================================
--- REVERT MOVEMENT
---==================================================
-
-local function revertMovement()
-    local h = getHumanoid()
-
-    if not h then
-        return
-    end
-
-    h.WalkSpeed = originalWalkSpeed
-    h.UseJumpPower = originalUseJumpPower
-    h.JumpPower = originalJumpPower
-    h.JumpHeight = originalJumpHeight
-
-    savedWalkSpeed = originalWalkSpeed
-    savedJumpPower = originalJumpPower
-    savedJumpHeight = originalJumpHeight
-
-    speedBox.Text =
-        tostring(originalWalkSpeed)
-
-    if originalUseJumpPower then
-        jumpBox.Text =
-            tostring(originalJumpPower)
-    else
-        jumpBox.Text =
-            tostring(originalJumpHeight)
-    end
-end
-
---==================================================
--- BUTTON CONNECTIONS
---==================================================
-
-flyButton.MouseButton1Click:Connect(
-    function()
-        if flying then
-            stopFly()
-        else
-            startFly()
-        end
-    end
-)
-
-noclipButton.MouseButton1Click:Connect(
-    function()
-        setNoclip(not noclip)
-    end
-)
-
-infiniteJumpButton.MouseButton1Click:Connect(
-    function()
-        infiniteJump = not infiniteJump
-        setInfiniteJumpButtonState()
-    end
-)
-
-setSpeedButton.MouseButton1Click:Connect(
-    function()
-        local value =
-            tonumber(speedBox.Text)
-
-        if not value then
-            speedBox.Text =
-                tostring(savedWalkSpeed)
-            return
-        end
-
-        value = math.clamp(
-            value,
-            0,
-            500
-        )
-
-        savedWalkSpeed = value
-
-        local h = getHumanoid()
-
-        if h then
-            h.WalkSpeed = value
-        end
-
-        speedBox.Text =
-            tostring(value)
-    end
-)
-
-setFlySpeedButton.MouseButton1Click:Connect(
-    function()
-        local value =
-            tonumber(flySpeedBox.Text)
-
-        if not value then
-            flySpeedBox.Text =
-                tostring(currentFlySpeed)
-            return
-        end
-
-        currentFlySpeed =
-            math.clamp(
-                value,
-                10,
-                500
-            )
-
-        flySpeedBox.Text =
-            tostring(currentFlySpeed)
-    end
-)
-
-setJumpButton.MouseButton1Click:Connect(
-    function()
-        local value =
-            tonumber(jumpBox.Text)
-
-        if not value then
-            return
-        end
-
-        local h = getHumanoid()
-
-        if not h then
-            return
-        end
-
-        value = math.clamp(
-            value,
-            0,
-            500
-        )
-
-        if originalUseJumpPower then
-            savedJumpPower = value
-            h.UseJumpPower = true
-            h.JumpPower = value
-        else
-            savedJumpHeight = value
-            h.UseJumpPower = false
-            h.JumpHeight = value
-        end
-
-        jumpBox.Text =
-            tostring(value)
-    end
-)
-
-resetMovementButton.MouseButton1Click:Connect(
-    function()
-        revertMovement()
-    end
-)
-
---==================================================
--- FLY UPDATE
---==================================================
-
-local flyConnection =
-    RunService.RenderStepped:Connect(
-        function()
-            if destroyed or not flying then
-                return
-            end
-
-            if not bodyVelocity then
-                return
-            end
-
-            local root = getRoot()
-            local camera = workspace.CurrentCamera
-
-            if not root or not camera then
-                return
-            end
-
-            local direction =
-                Vector3.zero
-
-            if UserInputService:IsKeyDown(
-                Enum.KeyCode.W
-            ) then
-                direction +=
-                    camera.CFrame.LookVector
-            end
-
-            if UserInputService:IsKeyDown(
-                Enum.KeyCode.S
-            ) then
-                direction -=
-                    camera.CFrame.LookVector
-            end
-
-            if UserInputService:IsKeyDown(
-                Enum.KeyCode.A
-            ) then
-                direction -=
-                    camera.CFrame.RightVector
-            end
-
-            if UserInputService:IsKeyDown(
-                Enum.KeyCode.D
-            ) then
-                direction +=
-                    camera.CFrame.RightVector
-            end
-
-            if UserInputService:IsKeyDown(
-                Enum.KeyCode.Space
-            ) then
-                direction +=
-                    Vector3.new(0, 1, 0)
-            end
-
-            if UserInputService:IsKeyDown(
-                Enum.KeyCode.LeftControl
-            ) then
-                direction -=
-                    Vector3.new(0, 1, 0)
-            end
-
-            if direction.Magnitude > 0 then
-                direction =
-                    direction.Unit *
-                    currentFlySpeed
-            end
-
-            bodyVelocity.Velocity =
-                direction
-
-            if bodyGyro then
-                bodyGyro.CFrame =
-                    camera.CFrame
-            end
-        end
-    )
-
-table.insert(
-    connections,
-    flyConnection
-)
-
---==================================================
--- NOCLIP UPDATE
---==================================================
-
-local noclipConnection =
-    RunService.Stepped:Connect(
-        function()
-            if destroyed or not noclip then
-                return
-            end
-
-            local character =
-                getCharacter()
-
-            if not character then
-                return
-            end
-
-            for _, object in ipairs(
-                character:GetDescendants()
-            ) do
-                if object:IsA("BasePart") then
-                    object.CanCollide = false
+        if character then
+            for _, item in ipairs(character:GetDescendants()) do
+                if item:IsA("BasePart") then
+                    item.CanCollide = true
                 end
             end
         end
-    )
+    end
 
-table.insert(
-    connections,
-    noclipConnection
-)
+    updateMovementButton(noclipButton, "Noclip", noclip)
+end
 
---==================================================
+noclipButton.MouseButton1Click:Connect(function()
+    setNoclip(not noclip)
+end)
+
 -- INFINITE JUMP
---==================================================
+local infiniteJumpButton =
+    createMovementButton("Infinite jump: OFF", 255, 380, 210)
 
-local jumpConnection =
-    UserInputService.JumpRequest:Connect(
-        function()
-            if destroyed or not infiniteJump then
-                return
-            end
+infiniteJumpButton.MouseButton1Click:Connect(function()
+    infiniteJump = not infiniteJump
 
-            local h = getHumanoid()
+    updateMovementButton(
+        infiniteJumpButton,
+        "Infinite jump",
+        infiniteJump
+    )
+end)
 
-            if h then
-                h:ChangeState(
-                    Enum.HumanoidStateType.Jumping
-                )
+-- RESET MOVEMENT
+local resetMovementButton =
+    createMovementButton("Reset movement", 20, 435, 210)
+
+resetMovementButton.MouseButton1Click:Connect(function()
+    local characterHumanoid = getHumanoid()
+
+    if characterHumanoid then
+        characterHumanoid.WalkSpeed = originalWalkSpeed
+        characterHumanoid.UseJumpPower = originalUseJumpPower
+        characterHumanoid.JumpPower = originalJumpPower
+        characterHumanoid.JumpHeight = originalJumpHeight
+
+        savedWalkSpeed = originalWalkSpeed
+        savedJumpPower = originalJumpPower
+        savedJumpHeight = originalJumpHeight
+    end
+
+    stopFlying()
+    setNoclip(false)
+    infiniteJump = false
+
+    updateMovementButton(
+        infiniteJumpButton,
+        "Infinite jump",
+        false
+    )
+end)
+
+-- FLY MOVEMENT UPDATE
+local function getFlyDirection()
+    local camera = workspace.CurrentCamera
+
+    if not camera then
+        return Vector3.zero
+    end
+
+    local direction = Vector3.zero
+
+    if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+        direction += camera.CFrame.LookVector
+    end
+
+    if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+        direction -= camera.CFrame.LookVector
+    end
+
+    if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+        direction += camera.CFrame.RightVector
+    end
+
+    if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+        direction -= camera.CFrame.RightVector
+    end
+
+    if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+        direction += Vector3.yAxis
+    end
+
+    if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+        direction -= Vector3.yAxis
+    end
+
+    if direction.Magnitude > 0 then
+        return direction.Unit
+    end
+
+    return Vector3.zero
+end
+
+table.insert(connections, RunService.RenderStepped:Connect(function()
+    if destroyed then
+        return
+    end
+
+    if flying and bodyVelocity and bodyGyro then
+        local characterRoot = getRoot()
+
+        if not characterRoot then
+            stopFlying()
+            return
+        end
+
+        bodyVelocity.Velocity = getFlyDirection() * currentFlySpeed
+
+        local camera = workspace.CurrentCamera
+
+        if camera then
+            bodyGyro.CFrame = CFrame.new(
+                characterRoot.Position,
+                characterRoot.Position + camera.CFrame.LookVector
+            )
+        end
+    end
+
+    if noclip then
+        local character = getCharacter()
+
+        if character then
+            for _, item in ipairs(character:GetDescendants()) do
+                if item:IsA("BasePart") then
+                    item.CanCollide = false
+                end
             end
         end
-    )
+    end
+end))
 
-table.insert(
-    connections,
-    jumpConnection
-)
+-- INFINITE JUMP INPUT
+table.insert(connections, UserInputService.JumpRequest:Connect(function()
+    if not infiniteJump or destroyed then
+        return
+    end
+
+    local characterHumanoid = getHumanoid()
+
+    if characterHumanoid then
+        characterHumanoid:ChangeState(
+            Enum.HumanoidStateType.Jumping
+        )
+    end
+end))
+
+-- PART 2 ENDS HERE
+-- Continue with Part 3 directly below this code.
 
 --==================================================
--- PART 3/4
--- FINDER TAB
---==================================================
-
-local selectedFolder = nil
-local allFolders = {}
-
---==================================================
--- FINDER PAGE
+-- PART 3: FINDER PAGE
 --==================================================
 
 local finderPage = Instance.new("Frame")
+finderPage.Name = "FinderPage"
 finderPage.Size = UDim2.fromScale(1, 1)
 finderPage.BackgroundTransparency = 1
 finderPage.Visible = false
@@ -1049,30 +768,27 @@ finderTitle.TextXAlignment = Enum.TextXAlignment.Left
 finderTitle.Parent = finderPage
 
 local finderSubtitle = Instance.new("TextLabel")
-finderSubtitle.Size = UDim2.fromOffset(500, 30)
+finderSubtitle.Size = UDim2.fromOffset(500, 25)
 finderSubtitle.Position = UDim2.fromOffset(20, 62)
 finderSubtitle.BackgroundTransparency = 1
-finderSubtitle.Text = "Browse folders and teleport to locations"
+finderSubtitle.Text = "Search for objects by name"
 finderSubtitle.TextColor3 = Color3.fromRGB(145, 145, 155)
-finderSubtitle.TextSize = 13
+finderSubtitle.TextSize = 12
 finderSubtitle.Font = Enum.Font.Gotham
 finderSubtitle.TextXAlignment = Enum.TextXAlignment.Left
 finderSubtitle.Parent = finderPage
 
---==================================================
--- SEARCH BOX
---==================================================
-
+-- SEARCH INPUT
 local searchBox = Instance.new("TextBox")
-searchBox.Size = UDim2.fromOffset(450, 40)
+searchBox.Size = UDim2.new(1, -40, 0, 42)
 searchBox.Position = UDim2.fromOffset(20, 100)
-searchBox.BackgroundColor3 = Color3.fromRGB(35, 35, 43)
+searchBox.BackgroundColor3 = Color3.fromRGB(32, 32, 42)
 searchBox.BorderSizePixel = 0
+searchBox.PlaceholderText = "Enter an object name..."
 searchBox.Text = ""
-searchBox.PlaceholderText = "Search folders..."
-searchBox.PlaceholderColor3 = Color3.fromRGB(130, 130, 140)
 searchBox.TextColor3 = Color3.new(1, 1, 1)
-searchBox.TextSize = 12
+searchBox.PlaceholderColor3 = Color3.fromRGB(130, 130, 140)
+searchBox.TextSize = 13
 searchBox.Font = Enum.Font.Gotham
 searchBox.ClearTextOnFocus = false
 searchBox.Parent = finderPage
@@ -1081,649 +797,856 @@ local searchCorner = Instance.new("UICorner")
 searchCorner.CornerRadius = UDim.new(0, 8)
 searchCorner.Parent = searchBox
 
---==================================================
--- FOLDER LIST
---==================================================
+local searchButton = Instance.new("TextButton")
+searchButton.Size = UDim2.fromOffset(130, 38)
+searchButton.Position = UDim2.fromOffset(20, 153)
+searchButton.BackgroundColor3 = Color3.fromRGB(65, 105, 180)
+searchButton.BorderSizePixel = 0
+searchButton.Text = "Search"
+searchButton.TextColor3 = Color3.new(1, 1, 1)
+searchButton.TextSize = 13
+searchButton.Font = Enum.Font.GothamBold
+searchButton.Parent = finderPage
 
-local folderList = Instance.new("ScrollingFrame")
-folderList.Size = UDim2.fromOffset(450, 270)
-folderList.Position = UDim2.fromOffset(20, 150)
-folderList.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
-folderList.BorderSizePixel = 0
-folderList.ScrollBarThickness = 5
-folderList.CanvasSize = UDim2.fromOffset(0, 0)
-folderList.Parent = finderPage
+local searchButtonCorner = Instance.new("UICorner")
+searchButtonCorner.CornerRadius = UDim.new(0, 8)
+searchButtonCorner.Parent = searchButton
 
-local folderListCorner = Instance.new("UICorner")
-folderListCorner.CornerRadius = UDim.new(0, 8)
-folderListCorner.Parent = folderList
+local resultsLabel = Instance.new("TextLabel")
+resultsLabel.Size = UDim2.new(1, -40, 0, 25)
+resultsLabel.Position = UDim2.fromOffset(20, 200)
+resultsLabel.BackgroundTransparency = 1
+resultsLabel.Text = "Results: 0"
+resultsLabel.TextColor3 = Color3.fromRGB(170, 170, 180)
+resultsLabel.TextSize = 12
+resultsLabel.Font = Enum.Font.Gotham
+resultsLabel.TextXAlignment = Enum.TextXAlignment.Left
+resultsLabel.Parent = finderPage
 
-local folderLayout = Instance.new("UIListLayout")
-folderLayout.Padding = UDim.new(0, 5)
-folderLayout.SortOrder = Enum.SortOrder.LayoutOrder
-folderLayout.Parent = folderList
+-- SCROLLING RESULTS
+local resultsFrame = Instance.new("ScrollingFrame")
+resultsFrame.Name = "SearchResults"
+resultsFrame.Size = UDim2.new(1, -40, 1, -245)
+resultsFrame.Position = UDim2.fromOffset(20, 230)
+resultsFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 33)
+resultsFrame.BorderSizePixel = 0
+resultsFrame.ScrollBarThickness = 5
+resultsFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+resultsFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+resultsFrame.Parent = finderPage
 
-local folderPadding = Instance.new("UIPadding")
-folderPadding.PaddingTop = UDim.new(0, 5)
-folderPadding.PaddingLeft = UDim.new(0, 5)
-folderPadding.PaddingRight = UDim.new(0, 5)
-folderPadding.Parent = folderList
+local resultsCorner = Instance.new("UICorner")
+resultsCorner.CornerRadius = UDim.new(0, 8)
+resultsCorner.Parent = resultsFrame
 
---==================================================
--- SELECTED FOLDER
---==================================================
+local resultsPadding = Instance.new("UIPadding")
+resultsPadding.PaddingTop = UDim.new(0, 8)
+resultsPadding.PaddingBottom = UDim.new(0, 8)
+resultsPadding.PaddingLeft = UDim.new(0, 8)
+resultsPadding.PaddingRight = UDim.new(0, 8)
+resultsPadding.Parent = resultsFrame
 
-local selectedLabel = Instance.new("TextLabel")
-selectedLabel.Size = UDim2.fromOffset(450, 35)
-selectedLabel.Position = UDim2.fromOffset(20, 430)
-selectedLabel.BackgroundTransparency = 1
-selectedLabel.Text = "Selected: None"
-selectedLabel.TextColor3 = Color3.fromRGB(145, 145, 155)
-selectedLabel.TextSize = 11
-selectedLabel.Font = Enum.Font.Gotham
-selectedLabel.TextXAlignment = Enum.TextXAlignment.Left
-selectedLabel.TextTruncate = Enum.TextTruncate.AtEnd
-selectedLabel.Parent = finderPage
+local resultsLayout = Instance.new("UIListLayout")
+resultsLayout.Padding = UDim.new(0, 6)
+resultsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+resultsLayout.Parent = resultsFrame
 
---==================================================
--- TELEPORT BUTTON
---==================================================
+-- FINDER STATUS
+local finderStatus = Instance.new("TextLabel")
+finderStatus.Size = UDim2.new(1, -40, 0, 22)
+finderStatus.Position = UDim2.new(0, 20, 1, -25)
+finderStatus.BackgroundTransparency = 1
+finderStatus.Text = ""
+finderStatus.TextColor3 = Color3.fromRGB(145, 145, 155)
+finderStatus.TextSize = 11
+finderStatus.Font = Enum.Font.Gotham
+finderStatus.TextXAlignment = Enum.TextXAlignment.Left
+finderStatus.Parent = finderPage
 
-local teleportButton = Instance.new("TextButton")
-teleportButton.Size = UDim2.fromOffset(215, 42)
-teleportButton.Position = UDim2.fromOffset(20, 470)
-teleportButton.BackgroundColor3 = Color3.fromRGB(55, 90, 145)
-teleportButton.BorderSizePixel = 0
-teleportButton.Text = "Teleport to Folder"
-teleportButton.TextColor3 = Color3.new(1, 1, 1)
-teleportButton.TextSize = 12
-teleportButton.Font = Enum.Font.Gotham
-teleportButton.Parent = finderPage
-
-local teleportCorner = Instance.new("UICorner")
-teleportCorner.CornerRadius = UDim.new(0, 8)
-teleportCorner.Parent = teleportButton
-
---==================================================
--- REFRESH BUTTON
---==================================================
-
-local refreshButton = Instance.new("TextButton")
-refreshButton.Size = UDim2.fromOffset(215, 42)
-refreshButton.Position = UDim2.fromOffset(255, 470)
-refreshButton.BackgroundColor3 = Color3.fromRGB(48, 48, 58)
-refreshButton.BorderSizePixel = 0
-refreshButton.Text = "Refresh Folders"
-refreshButton.TextColor3 = Color3.new(1, 1, 1)
-refreshButton.TextSize = 12
-refreshButton.Font = Enum.Font.Gotham
-refreshButton.Parent = finderPage
-
-local refreshCorner = Instance.new("UICorner")
-refreshCorner.CornerRadius = UDim.new(0, 8)
-refreshCorner.Parent = refreshButton
-
---==================================================
--- FOLDER COLLECTION
---==================================================
-
-local function collectFolders(parent, path)
-    if destroyed then
-        return
-    end
-
-    for _, object in ipairs(parent:GetChildren()) do
-        if destroyed then
-            return
-        end
-
-        local objectPath =
-            path .. "/" .. object.Name
-
-        if object:IsA("Folder") then
-            table.insert(allFolders, {
-                Object = object,
-                Path = objectPath
-            })
-
-            collectFolders(
-                object,
-                objectPath
-            )
+local function clearFinderResults()
+    for _, child in ipairs(resultsFrame:GetChildren()) do
+        if child ~= resultsLayout and child ~= resultsPadding then
+            child:Destroy()
         end
     end
+
+    resultsLabel.Text = "Results: 0"
 end
 
---==================================================
--- CLEAR FOLDER BUTTONS
---==================================================
-
-local function clearFolderList()
-    for _, object in ipairs(
-        folderList:GetChildren()
-    ) do
-        if object:IsA("TextButton") then
-            object:Destroy()
-        end
-    end
+local function getSearchRoots()
+    return {
+        workspace,
+        ReplicatedStorage
+    }
 end
 
---==================================================
--- CREATE FOLDER BUTTON
---==================================================
+local function findObjects(searchText)
+    local found = {}
+    local query = string.lower(searchText)
 
-local function createFolderButton(data)
-    local button = Instance.new("TextButton")
-
-    button.Size =
-        UDim2.new(1, -10, 0, 32)
-
-    button.BackgroundColor3 =
-        Color3.fromRGB(38, 38, 47)
-
-    button.BorderSizePixel = 0
-    button.Text = data.Path
-    button.TextColor3 =
-        Color3.new(1, 1, 1)
-
-    button.TextSize = 11
-    button.Font = Enum.Font.Gotham
-
-    button.TextXAlignment =
-        Enum.TextXAlignment.Left
-
-    button.TextTruncate =
-        Enum.TextTruncate.AtEnd
-
-    button.Parent = folderList
-
-    local padding = Instance.new("UIPadding")
-    padding.PaddingLeft =
-        UDim.new(0, 8)
-    padding.Parent = button
-
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius =
-        UDim.new(0, 5)
-    corner.Parent = button
-
-    button.MouseButton1Click:Connect(
-        function()
-            if destroyed then
-                return
-            end
-
-            selectedFolder = data
-
-            selectedLabel.Text =
-                "Selected: " .. data.Path
-
-            for _, other in ipairs(
-                folderList:GetChildren()
-            ) do
-                if other:IsA("TextButton") then
-                    other.BackgroundColor3 =
-                        Color3.fromRGB(
-                            38,
-                            38,
-                            47
-                        )
-                end
-            end
-
-            button.BackgroundColor3 =
-                Color3.fromRGB(
-                    65,
-                    105,
-                    180
-                )
-        end
-    )
-
-    return button
-end
-
---==================================================
--- REBUILD LIST
---==================================================
-
-local function rebuildFolderList()
-    if destroyed then
-        return
+    if query == "" then
+        return found
     end
 
-    clearFolderList()
-
-    local query =
-        string.lower(searchBox.Text)
-
-    local visibleCount = 0
-
-    for _, data in ipairs(allFolders) do
-        local pathLower =
-            string.lower(data.Path)
-
-        if query == ""
-            or string.find(
-                pathLower,
+    for _, root in ipairs(getSearchRoots()) do
+        for _, object in ipairs(root:GetDescendants()) do
+            if string.find(
+                string.lower(object.Name),
                 query,
                 1,
                 true
-            )
-        then
-            createFolderButton(data)
-            visibleCount += 1
+            ) then
+                table.insert(found, object)
+
+                -- Avoid creating an enormous number of result rows.
+                if #found >= 100 then
+                    return found
+                end
+            end
         end
     end
 
-    folderList.CanvasSize =
-        UDim2.fromOffset(
-            0,
-            math.max(
-                visibleCount * 37 + 10,
-                270
-            )
-        )
+    return found
 end
 
---==================================================
--- REFRESH FOLDERS
---==================================================
+local function teleportToObject(object)
+    if not object or not object.Parent then
+        finderStatus.Text = "That object no longer exists."
+        return
+    end
 
-local function refreshFolders()
+    local character = player.Character
+    local characterRoot = character
+        and character:FindFirstChild("HumanoidRootPart")
+
+    if not characterRoot then
+        finderStatus.Text = "Your character is not ready."
+        return
+    end
+
+    local targetPart = nil
+
+    if object:IsA("BasePart") then
+        targetPart = object
+    elseif object:IsA("Model") then
+        targetPart = object.PrimaryPart
+            or object:FindFirstChildWhichIsA("BasePart", true)
+    else
+        targetPart = object:FindFirstAncestorWhichIsA("BasePart")
+
+        if not targetPart then
+            local model = object:FindFirstAncestorWhichIsA("Model")
+
+            if model then
+                targetPart = model.PrimaryPart
+                    or model:FindFirstChildWhichIsA("BasePart", true)
+            end
+        end
+    end
+
+    if not targetPart then
+        finderStatus.Text = "No physical part found for that object."
+        return
+    end
+
+    -- Move the local character slightly above the target.
+    characterRoot.CFrame = targetPart.CFrame * CFrame.new(0, 4, 0)
+    finderStatus.Text = "Teleported to: " .. object.Name
+end
+
+local function createResultRow(object, index)
+    local row = Instance.new("Frame")
+    row.Name = "Result_" .. tostring(index)
+    row.Size = UDim2.new(1, -4, 0, 55)
+    row.BackgroundColor3 = Color3.fromRGB(36, 36, 47)
+    row.BorderSizePixel = 0
+    row.LayoutOrder = index
+    row.Parent = resultsFrame
+
+    local rowCorner = Instance.new("UICorner")
+    rowCorner.CornerRadius = UDim.new(0, 7)
+    rowCorner.Parent = row
+
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Size = UDim2.new(1, -145, 0, 27)
+    nameLabel.Position = UDim2.fromOffset(10, 4)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = object.Name
+    nameLabel.TextColor3 = Color3.new(1, 1, 1)
+    nameLabel.TextSize = 12
+    nameLabel.Font = Enum.Font.GothamBold
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+    nameLabel.Parent = row
+
+    local classLabel = Instance.new("TextLabel")
+    classLabel.Size = UDim2.new(1, -145, 0, 20)
+    classLabel.Position = UDim2.fromOffset(10, 29)
+    classLabel.BackgroundTransparency = 1
+    classLabel.Text = object.ClassName
+    classLabel.TextColor3 = Color3.fromRGB(145, 145, 155)
+    classLabel.TextSize = 10
+    classLabel.Font = Enum.Font.Gotham
+    classLabel.TextXAlignment = Enum.TextXAlignment.Left
+    classLabel.TextTruncate = Enum.TextTruncate.AtEnd
+    classLabel.Parent = row
+
+    local teleportButton = Instance.new("TextButton")
+    teleportButton.Size = UDim2.fromOffset(115, 35)
+    teleportButton.Position = UDim2.new(1, -125, 0.5, -17)
+    teleportButton.BackgroundColor3 = Color3.fromRGB(65, 105, 180)
+    teleportButton.BorderSizePixel = 0
+    teleportButton.Text = "Teleport"
+    teleportButton.TextColor3 = Color3.new(1, 1, 1)
+    teleportButton.TextSize = 11
+    teleportButton.Font = Enum.Font.GothamBold
+    teleportButton.Parent = row
+
+    local teleportCorner = Instance.new("UICorner")
+    teleportCorner.CornerRadius = UDim.new(0, 6)
+    teleportCorner.Parent = teleportButton
+
+    teleportButton.MouseButton1Click:Connect(function()
+        teleportToObject(object)
+    end)
+
+    return row
+end
+
+local function performSearch()
     if destroyed then
         return
     end
 
-    table.clear(allFolders)
+    clearFinderResults()
+    finderStatus.Text = "Searching..."
 
-    selectedFolder = nil
+    local query = searchBox.Text
+    local results = findObjects(query)
 
-    selectedLabel.Text =
-        "Selected: None"
+    resultsLabel.Text = "Results: " .. tostring(#results)
 
-    -- Workspace folders.
-    collectFolders(
-        workspace,
-        "Workspace"
-    )
+    if #results == 0 then
+        finderStatus.Text = "No matching objects found."
+        return
+    end
 
-    -- ReplicatedStorage folders.
-    collectFolders(
-        ReplicatedStorage,
-        "ReplicatedStorage"
-    )
+    for index, object in ipairs(results) do
+        createResultRow(object, index)
+    end
 
-    table.sort(
-        allFolders,
-        function(a, b)
-            return a.Path < b.Path
-        end
-    )
-
-    rebuildFolderList()
+    if #results >= 100 then
+        finderStatus.Text = "Showing the first 100 matching objects."
+    else
+        finderStatus.Text = "Search complete."
+    end
 end
 
---==================================================
--- SEARCH
---==================================================
+searchButton.MouseButton1Click:Connect(performSearch)
 
-searchBox:GetPropertyChangedSignal(
-    "Text"
-):Connect(
-    function()
-        rebuildFolderList()
+searchBox.FocusLost:Connect(function(enterPressed)
+    if enterPressed then
+        performSearch()
     end
-)
+end)
+
+-- PART 3 ENDS HERE
+-- Continue with Part 4 directly below this code.
 
 --==================================================
--- REFRESH
+-- PART 4: PLAYER ESP AND TOOL INVENTORY
 --==================================================
 
-refreshButton.MouseButton1Click:Connect(
-    function()
-        refreshFolders()
+local espEnabled = false
+local espObjects = {}
+local espConnections = {}
+
+local ESP_FOLDER_NAME = "ErrorB1478_ESP"
+
+-- ESP TOGGLE BUTTON ON THE FINDER PAGE
+local espButton = Instance.new("TextButton")
+espButton.Name = "ESPButton"
+espButton.Size = UDim2.fromOffset(210, 38)
+espButton.Position = UDim2.new(1, -230, 0, 153)
+espButton.BackgroundColor3 = Color3.fromRGB(38, 38, 49)
+espButton.BorderSizePixel = 0
+espButton.Text = "Player ESP: OFF (Y)"
+espButton.TextColor3 = Color3.new(1, 1, 1)
+espButton.TextSize = 12
+espButton.Font = Enum.Font.GothamBold
+espButton.Parent = finderPage
+
+local espButtonCorner = Instance.new("UICorner")
+espButtonCorner.CornerRadius = UDim.new(0, 8)
+espButtonCorner.Parent = espButton
+
+-- TEAM COLOUR
+local function getPlayerESPColour(targetPlayer)
+    if targetPlayer.Team then
+        return targetPlayer.Team.TeamColor.Color
     end
-)
 
---==================================================
--- FIND A PART INSIDE FOLDER
---==================================================
+    return Color3.fromRGB(155, 155, 165)
+end
 
-local function findTeleportPart(folder)
-    if not folder then
+-- FIND OR CREATE ESP BILLBOARD
+local function getESPFolder(targetPlayer)
+    local character = targetPlayer.Character
+    if not character then
         return nil
     end
 
-    if folder:IsA("BasePart") then
-        return folder
+    local folder = character:FindFirstChild(ESP_FOLDER_NAME)
+
+    if not folder then
+        folder = Instance.new("Folder")
+        folder.Name = ESP_FOLDER_NAME
+        folder.Parent = character
     end
 
-    local descendants =
-        folder:GetDescendants()
-
-    for _, object in ipairs(descendants) do
-        if object:IsA("BasePart") then
-            return object
-        end
-    end
-
-    return nil
+    return folder
 end
 
---==================================================
--- TELEPORT
---==================================================
+local function removePlayerESP(targetPlayer)
+    local existing = espObjects[targetPlayer]
 
-teleportButton.MouseButton1Click:Connect(
-    function()
-        if destroyed then
-            return
+    if existing then
+        if existing.highlight then
+            existing.highlight:Destroy()
         end
 
-        if not selectedFolder then
-            selectedLabel.Text =
-                "Selected: None"
-
-            return
+        if existing.billboard then
+            existing.billboard:Destroy()
         end
 
-        local root = getRoot()
-
-        if not root then
-            selectedLabel.Text =
-                "Character not found"
-
-            return
-        end
-
-        local target =
-            findTeleportPart(
-                selectedFolder.Object
-            )
-
-        if not target then
-            selectedLabel.Text =
-                "Selected folder has no BasePart"
-
-            return
-        end
-
-        root.CFrame =
-            target.CFrame
-            + Vector3.new(0, 5, 0)
-
-        selectedLabel.Text =
-            "Teleported to: "
-            .. selectedFolder.Path
+        espObjects[targetPlayer] = nil
     end
-)
+
+    -- Also remove any leftover ESP instances on this client.
+    local character = targetPlayer.Character
+
+    if character then
+        local folder = character:FindFirstChild(ESP_FOLDER_NAME)
+
+        if folder then
+            folder:Destroy()
+        end
+    end
+end
+
+-- TOOL TEXTURE
+local function getToolTexture(tool)
+    local texture = ""
+
+    pcall(function()
+        texture = tool.TextureId or ""
+    end)
+
+    if texture ~= "" then
+        return texture
+    end
+
+    -- Some tools use a Handle with a SpecialMesh texture.
+    local handle = tool:FindFirstChild("Handle")
+
+    if handle then
+        local mesh = handle:FindFirstChildWhichIsA("SpecialMesh")
+
+        if mesh and mesh.TextureId ~= "" then
+            return mesh.TextureId
+        end
+
+        local decal = handle:FindFirstChildWhichIsA("Decal")
+
+        if decal and decal.Texture ~= "" then
+            return decal.Texture
+        end
+    end
+
+    return ""
+end
+
+-- GET EQUIPPED AND BACKPACK TOOLS
+local function getPlayerTools(targetPlayer)
+    local tools = {}
+    local seen = {}
+
+    local character = targetPlayer.Character
+    local backpack = targetPlayer:FindFirstChildOfClass("Backpack")
+
+    local function addTools(container, equipped)
+        if not container then
+            return
+        end
+
+        for _, item in ipairs(container:GetChildren()) do
+            if item:IsA("Tool") and not seen[item] then
+                seen[item] = true
+
+                table.insert(tools, {
+                    name = item.Name,
+                    texture = getToolTexture(item),
+                    equipped = equipped
+                })
+            end
+        end
+    end
+
+    addTools(character, true)
+    addTools(backpack, false)
+
+    table.sort(tools, function(a, b)
+        if a.equipped ~= b.equipped then
+            return a.equipped
+        end
+
+        return string.lower(a.name) < string.lower(b.name)
+    end)
+
+    return tools
+end
+
+-- CREATE INVENTORY DISPLAY
+local function createToolInventoryBillboard(targetPlayer, character)
+    local head = character:FindFirstChild("Head")
+    local root = character:FindFirstChild("HumanoidRootPart")
+
+    local adornee = head or root
+    if not adornee then
+        return nil
+    end
+
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "PlayerInventoryESP"
+    billboard.Adornee = adornee
+    billboard.Size = UDim2.fromOffset(250, 120)
+    billboard.StudsOffsetWorldSpace = Vector3.new(0, 3.4, 0)
+    billboard.AlwaysOnTop = true
+    billboard.MaxDistance = 1500
+    billboard.LightInfluence = 0
+    billboard.Parent = getESPFolder(targetPlayer) or character
+
+    local background = Instance.new("Frame")
+    background.Name = "Background"
+    background.Size = UDim2.fromScale(1, 1)
+    background.BackgroundColor3 = Color3.fromRGB(18, 18, 25)
+    background.BackgroundTransparency = 0.15
+    background.BorderSizePixel = 0
+    background.Parent = billboard
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = background
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Thickness = 1.5
+    stroke.Color = getPlayerESPColour(targetPlayer)
+    stroke.Parent = background
+
+    local playerName = Instance.new("TextLabel")
+    playerName.Name = "PlayerName"
+    playerName.Size = UDim2.new(1, -12, 0, 24)
+    playerName.Position = UDim2.fromOffset(6, 4)
+    playerName.BackgroundTransparency = 1
+    playerName.Text = targetPlayer.DisplayName .. " (@" .. targetPlayer.Name .. ")"
+    playerName.TextColor3 = getPlayerESPColour(targetPlayer)
+    playerName.TextSize = 12
+    playerName.Font = Enum.Font.GothamBold
+    playerName.TextTruncate = Enum.TextTruncate.AtEnd
+    playerName.Parent = background
+
+    local toolScroll = Instance.new("ScrollingFrame")
+    toolScroll.Name = "ToolList"
+    toolScroll.Size = UDim2.new(1, -12, 1, -34)
+    toolScroll.Position = UDim2.fromOffset(6, 30)
+    toolScroll.BackgroundTransparency = 1
+    toolScroll.BorderSizePixel = 0
+    toolScroll.ScrollBarThickness = 3
+    toolScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+    toolScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    toolScroll.Parent = background
+
+    local padding = Instance.new("UIPadding")
+    padding.PaddingBottom = UDim.new(0, 4)
+    padding.Parent = toolScroll
+
+    local listLayout = Instance.new("UIListLayout")
+    listLayout.Padding = UDim.new(0, 3)
+    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    listLayout.Parent = toolScroll
+
+    return billboard, stroke, playerName, toolScroll
+end
+
+-- REFRESH TOOL DISPLAY
+local function refreshPlayerTools(targetPlayer, record)
+    if not record or not record.toolScroll then
+        return
+    end
+
+    local scroll = record.toolScroll
+
+    for _, child in ipairs(scroll:GetChildren()) do
+        if child ~= scroll:FindFirstChildOfClass("UIListLayout")
+            and child ~= scroll:FindFirstChildOfClass("UIPadding") then
+            child:Destroy()
+        end
+    end
+
+    local tools = getPlayerTools(targetPlayer)
+
+    if #tools == 0 then
+        local emptyLabel = Instance.new("TextLabel")
+        emptyLabel.Size = UDim2.new(1, -4, 0, 24)
+        emptyLabel.BackgroundTransparency = 1
+        emptyLabel.Text = "No tools"
+        emptyLabel.TextColor3 = Color3.fromRGB(165, 165, 175)
+        emptyLabel.TextSize = 10
+        emptyLabel.Font = Enum.Font.Gotham
+        emptyLabel.TextXAlignment = Enum.TextXAlignment.Left
+        emptyLabel.Parent = scroll
+        return
+    end
+
+    for index, toolInfo in ipairs(tools) do
+        local row = Instance.new("Frame")
+        row.Name = "Tool_" .. tostring(index)
+        row.Size = UDim2.new(1, -4, 0, 25)
+        row.BackgroundColor3 = toolInfo.equipped
+            and Color3.fromRGB(45, 75, 60)
+            or Color3.fromRGB(35, 35, 45)
+        row.BorderSizePixel = 0
+        row.LayoutOrder = index
+        row.Parent = scroll
+
+        local rowCorner = Instance.new("UICorner")
+        rowCorner.CornerRadius = UDim.new(0, 4)
+        rowCorner.Parent = row
+
+        local icon = Instance.new("ImageLabel")
+        icon.Name = "ToolIcon"
+        icon.Size = UDim2.fromOffset(19, 19)
+        icon.Position = UDim2.fromOffset(3, 3)
+        icon.BackgroundTransparency = 1
+        icon.Image = toolInfo.texture
+        icon.ScaleType = Enum.ScaleType.Fit
+        icon.Parent = row
+
+        local toolLabel = Instance.new("TextLabel")
+        toolLabel.Size = UDim2.new(1, -28, 1, 0)
+        toolLabel.Position = UDim2.fromOffset(27, 0)
+        toolLabel.BackgroundTransparency = 1
+
+        local status = toolInfo.equipped and " [EQUIPPED]" or ""
+        toolLabel.Text = toolInfo.name .. status
+        toolLabel.TextColor3 = toolInfo.equipped
+            and Color3.fromRGB(150, 255, 175)
+            or Color3.fromRGB(225, 225, 235)
+        toolLabel.TextSize = 10
+        toolLabel.Font = Enum.Font.Gotham
+        toolLabel.TextXAlignment = Enum.TextXAlignment.Left
+        toolLabel.TextTruncate = Enum.TextTruncate.AtEnd
+        toolLabel.Parent = row
+    end
+end
+
+-- CREATE OR UPDATE ONE PLAYER
+local function updatePlayerESP(targetPlayer)
+    if not espEnabled or destroyed then
+        return
+    end
+
+    if targetPlayer == player then
+        return
+    end
+
+    local character = targetPlayer.Character
+    if not character then
+        removePlayerESP(targetPlayer)
+        return
+    end
+
+    local humanoidTarget = character:FindFirstChildOfClass("Humanoid")
+    local root = character:FindFirstChild("HumanoidRootPart")
+
+    if not humanoidTarget or not root then
+        return
+    end
+
+    local record = espObjects[targetPlayer]
+
+    if record and record.character ~= character then
+        removePlayerESP(targetPlayer)
+        record = nil
+    end
+
+    if not record then
+        local highlight = Instance.new("Highlight")
+        highlight.Name = "PlayerESPHighlight"
+        highlight.Adornee = character
+        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        highlight.FillTransparency = 0.88
+        highlight.OutlineTransparency = 0
+        highlight.Parent = getESPFolder(targetPlayer) or character
+
+        local billboard, stroke, nameLabel, toolScroll =
+            createToolInventoryBillboard(targetPlayer, character)
+
+        if not billboard then
+            highlight:Destroy()
+            return
+        end
+
+        record = {
+            character = character,
+            highlight = highlight,
+            billboard = billboard,
+            stroke = stroke,
+            nameLabel = nameLabel,
+            toolScroll = toolScroll,
+            lastToolRefresh = 0
+        }
+
+        espObjects[targetPlayer] = record
+    end
+
+    local colour = getPlayerESPColour(targetPlayer)
+
+    record.highlight.FillColor = colour
+    record.highlight.OutlineColor = colour
+
+    if record.stroke then
+        record.stroke.Color = colour
+    end
+
+    if record.nameLabel then
+        record.nameLabel.TextColor3 = colour
+        record.nameLabel.Text =
+            targetPlayer.DisplayName .. " (@" .. targetPlayer.Name .. ")"
+    end
+
+    local now = os.clock()
+
+    if now - record.lastToolRefresh >= 0.75 then
+        record.lastToolRefresh = now
+        refreshPlayerTools(targetPlayer, record)
+    end
+end
+
+-- ENABLE ESP
+local function enableESP()
+    if espEnabled then
+        return
+    end
+
+    espEnabled = true
+    espButton.Text = "Player ESP: ON (Y)"
+    espButton.BackgroundColor3 = Color3.fromRGB(45, 110, 75)
+
+    for _, targetPlayer in ipairs(Players:GetPlayers()) do
+        if targetPlayer ~= player then
+            updatePlayerESP(targetPlayer)
+        end
+    end
+end
+
+-- DISABLE ESP
+local function disableESP()
+    espEnabled = false
+    espButton.Text = "Player ESP: OFF (Y)"
+    espButton.BackgroundColor3 = Color3.fromRGB(38, 38, 49)
+
+    for _, targetPlayer in ipairs(Players:GetPlayers()) do
+        removePlayerESP(targetPlayer)
+    end
+end
+
+local function toggleESP()
+    if espEnabled then
+        disableESP()
+    else
+        enableESP()
+    end
+end
+
+espButton.MouseButton1Click:Connect(toggleESP)
+
+-- PLAYER JOIN / LEAVE
+table.insert(connections, Players.PlayerAdded:Connect(function(targetPlayer)
+    if espEnabled then
+        task.defer(function()
+            if espEnabled and not destroyed then
+                updatePlayerESP(targetPlayer)
+            end
+        end)
+    end
+end))
+
+table.insert(connections, Players.PlayerRemoving:Connect(function(targetPlayer)
+    removePlayerESP(targetPlayer)
+end))
+
+-- CHARACTER RESPAWN
+local function watchPlayerCharacter(targetPlayer)
+    local connection = targetPlayer.CharacterAdded:Connect(function()
+        task.wait(0.5)
+
+        if espEnabled and not destroyed then
+            updatePlayerESP(targetPlayer)
+        end
+    end)
+
+    table.insert(espConnections, connection)
+end
+
+for _, targetPlayer in ipairs(Players:GetPlayers()) do
+    if targetPlayer ~= player then
+        watchPlayerCharacter(targetPlayer)
+    end
+end
+
+table.insert(connections, Players.PlayerAdded:Connect(function(targetPlayer)
+    watchPlayerCharacter(targetPlayer)
+end))
+
+-- PERIODIC ESP UPDATE
+table.insert(connections, RunService.Heartbeat:Connect(function()
+    if destroyed or not espEnabled then
+        return
+    end
+
+    for _, targetPlayer in ipairs(Players:GetPlayers()) do
+        if targetPlayer ~= player then
+            updatePlayerESP(targetPlayer)
+        end
+    end
+end))
+
+-- Y TOGGLE IS CONNECTED IN PART 5
+-- PART 4 ENDS HERE
+-- Continue with Part 5 directly below this code.
 
 --==================================================
--- INITIAL FOLDER LOAD
+-- PART 5: TABS, KEYBINDS AND MENU CONTROLS
 --==================================================
 
-refreshFolders()
+-- PAGE SWITCHING
+local currentPage = "Home"
 
---==================================================
--- TAB SWITCHING
---==================================================
-
-local function showPage(page)
+local function setActivePage(pageName)
     if destroyed then
         return
     end
 
-    homePage.Visible = false
-    movementPage.Visible = false
-    finderPage.Visible = false
+    currentPage = pageName
+
+    homePage.Visible = pageName == "Home"
+    movementPage.Visible = pageName == "Movement"
+    finderPage.Visible = pageName == "Finder"
 
     homeButton.BackgroundColor3 =
-        Color3.fromRGB(48, 48, 58)
+        pageName == "Home"
+        and Color3.fromRGB(65, 105, 180)
+        or Color3.fromRGB(48, 48, 58)
 
     movementTabButton.BackgroundColor3 =
-        Color3.fromRGB(48, 48, 58)
+        pageName == "Movement"
+        and Color3.fromRGB(65, 105, 180)
+        or Color3.fromRGB(48, 48, 58)
 
     finderTabButton.BackgroundColor3 =
-        Color3.fromRGB(48, 48, 58)
-
-    page.Visible = true
-
-    if page == homePage then
-        homeButton.BackgroundColor3 =
-            Color3.fromRGB(65, 105, 180)
-
-    elseif page == movementPage then
-        movementTabButton.BackgroundColor3 =
-            Color3.fromRGB(65, 105, 180)
-
-    elseif page == finderPage then
-        finderTabButton.BackgroundColor3 =
-            Color3.fromRGB(65, 105, 180)
-    end
+        pageName == "Finder"
+        and Color3.fromRGB(65, 105, 180)
+        or Color3.fromRGB(48, 48, 58)
 end
 
---==================================================
--- TAB BUTTON CONNECTIONS
---==================================================
+homeButton.MouseButton1Click:Connect(function()
+    setActivePage("Home")
+end)
 
-homeButton.MouseButton1Click:Connect(
-    function()
-        showPage(homePage)
-    end
-)
+movementTabButton.MouseButton1Click:Connect(function()
+    setActivePage("Movement")
+end)
 
-movementTabButton.MouseButton1Click:Connect(
-    function()
-        showPage(movementPage)
-    end
-)
+finderTabButton.MouseButton1Click:Connect(function()
+    setActivePage("Finder")
+end)
 
-finderTabButton.MouseButton1Click:Connect(
-    function()
-        showPage(finderPage)
-    end
-)
+-- TOP-RIGHT CLOSE BUTTON
+local closeButton = Instance.new("TextButton")
+closeButton.Name = "CloseButton"
+closeButton.Size = UDim2.fromOffset(35, 35)
+closeButton.Position = UDim2.new(1, -45, 0, 10)
+closeButton.BackgroundColor3 = Color3.fromRGB(155, 55, 65)
+closeButton.BorderSizePixel = 0
+closeButton.Text = "X"
+closeButton.TextColor3 = Color3.new(1, 1, 1)
+closeButton.TextSize = 16
+closeButton.Font = Enum.Font.GothamBold
+closeButton.Parent = topBar
 
---==================================================
--- DEFAULT PAGE
---==================================================
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(0, 8)
+closeCorner.Parent = closeButton
 
-showPage(homePage)
+-- MINIMIZE BUTTON
+local minimizeButton = Instance.new("TextButton")
+minimizeButton.Name = "MinimizeButton"
+minimizeButton.Size = UDim2.fromOffset(135, 38)
+minimizeButton.Position = UDim2.new(0, 10, 1, -105)
+minimizeButton.BackgroundColor3 = Color3.fromRGB(48, 48, 58)
+minimizeButton.BorderSizePixel = 0
+minimizeButton.Text = "Minimize (G)"
+minimizeButton.TextColor3 = Color3.new(1, 1, 1)
+minimizeButton.TextSize = 12
+minimizeButton.Font = Enum.Font.GothamBold
+minimizeButton.Parent = sidebar
 
---==================================================
--- PART 4/4
--- KEYBINDS, RESPAWN, PANIC & FINAL SETUP
---==================================================
+local minimizeCorner = Instance.new("UICorner")
+minimizeCorner.CornerRadius = UDim.new(0, 8)
+minimizeCorner.Parent = minimizeButton
 
---==================================================
--- KEYBINDS
---==================================================
-
-local inputConnection = UserInputService.InputBegan:Connect(
-    function(input, processed)
-        if destroyed then
-            return
-        end
-
-        if processed then
-            return
-        end
-
-        -- G = open / close menu
-        if input.KeyCode == Enum.KeyCode.G then
-            menuOpen = not menuOpen
-            main.Visible = menuOpen
-
-            if menuOpen then
-                refreshFolders()
-            end
-
-        -- F = fly
-        elseif input.KeyCode == Enum.KeyCode.F then
-            if flying then
-                stopFly()
-            else
-                startFly()
-            end
-
-        -- N = noclip
-        elseif input.KeyCode == Enum.KeyCode.N then
-            setNoclip(not noclip)
-
-        -- J = infinite jump
-        elseif input.KeyCode == Enum.KeyCode.J then
-            infiniteJump = not infiniteJump
-            setInfiniteJumpButtonState()
-        end
-    end
-)
-
-table.insert(
-    connections,
-    inputConnection
-)
-
---==================================================
--- RESPAWN HANDLING
---==================================================
-
-local characterConnection =
-    player.CharacterAdded:Connect(
-        function(character)
-            if destroyed then
-                return
-            end
-
-            stopFly()
-
-            local humanoid =
-                character:WaitForChild(
-                    "Humanoid",
-                    10
-                )
-
-            if not humanoid then
-                return
-            end
-
-            task.wait(0.25)
-
-            if destroyed then
-                return
-            end
-
-            -- Restore the currently selected
-            -- movement settings after respawn.
-            humanoid.WalkSpeed =
-                savedWalkSpeed
-
-            humanoid.UseJumpPower =
-                originalUseJumpPower
-
-            if originalUseJumpPower then
-                humanoid.JumpPower =
-                    savedJumpPower
-            else
-                humanoid.JumpHeight =
-                    savedJumpHeight
-            end
-
-            -- Re-enable noclip if it was enabled.
-            if noclip then
-                setNoclip(true)
-            end
-        end
-    )
-
-table.insert(
-    connections,
-    characterConnection
-)
-
---==================================================
 -- PANIC BUTTON
---==================================================
-
-local panicButton =
-    Instance.new("TextButton")
-
-panicButton.Size =
-    UDim2.fromOffset(135, 38)
-
-panicButton.Position =
-    UDim2.fromOffset(10, 565)
-
-panicButton.BackgroundColor3 =
-    Color3.fromRGB(155, 45, 45)
-
+-- This is the permanent shutdown button.
+local panicButton = Instance.new("TextButton")
+panicButton.Name = "PanicButton"
+panicButton.Size = UDim2.fromOffset(135, 38)
+panicButton.Position = UDim2.new(0, 10, 1, -55)
+panicButton.BackgroundColor3 = Color3.fromRGB(145, 45, 55)
 panicButton.BorderSizePixel = 0
+panicButton.Text = "Panic / Stop"
+panicButton.TextColor3 = Color3.new(1, 1, 1)
+panicButton.TextSize = 12
+panicButton.Font = Enum.Font.GothamBold
+panicButton.Parent = sidebar
 
-panicButton.Text =
-    "PANIC / DELETE"
+local panicCorner = Instance.new("UICorner")
+panicCorner.CornerRadius = UDim.new(0, 8)
+panicCorner.Parent = panicButton
 
-panicButton.TextColor3 =
-    Color3.new(1, 1, 1)
-
-panicButton.TextSize = 11
-
-panicButton.Font =
-    Enum.Font.GothamBold
-
-panicButton.Parent =
-    sidebar
-
-local panicCorner =
-    Instance.new("UICorner")
-
-panicCorner.CornerRadius =
-    UDim.new(0, 8)
-
-panicCorner.Parent =
-    panicButton
-
---==================================================
--- PANIC CLEANUP
---==================================================
-
-local function restoreCharacter()
-    local character =
-        getCharacter()
-
-    if not character then
+-- SHOW OR HIDE THE MENU WITHOUT STOPPING THE SCRIPT
+local function setMenuVisible(visible)
+    if destroyed then
         return
     end
 
-    for _, object in ipairs(
-        character:GetDescendants()
-    ) do
-        if object:IsA("BasePart") then
-            object.CanCollide = true
-        end
-    end
-
-    local humanoid =
-        character:FindFirstChildOfClass(
-            "Humanoid"
-        )
-
-    if humanoid then
-        humanoid.AutoRotate = true
-
-        humanoid.WalkSpeed =
-            originalWalkSpeed
-
-        humanoid.UseJumpPower =
-            originalUseJumpPower
-
-        humanoid.JumpPower =
-            originalJumpPower
-
-        humanoid.JumpHeight =
-            originalJumpHeight
-    end
+    menuOpen = visible
+    main.Visible = visible
 end
 
+local function toggleMenu()
+    setMenuVisible(not menuOpen)
+end
+
+minimizeButton.MouseButton1Click:Connect(function()
+    setMenuVisible(false)
+end)
+
+closeButton.MouseButton1Click:Connect(function()
+    setMenuVisible(false)
+end)
+
+-- PERMANENT SHUTDOWN
 local function panic()
     if destroyed then
         return
@@ -1732,12 +1655,11 @@ local function panic()
     destroyed = true
     menuOpen = false
 
-    -- Disable custom movement.
+    -- Stop movement features.
     flying = false
     noclip = false
     infiniteJump = false
 
-    -- Remove fly objects.
     if bodyVelocity then
         bodyVelocity:Destroy()
         bodyVelocity = nil
@@ -1748,1159 +1670,184 @@ local function panic()
         bodyGyro = nil
     end
 
-    -- Restore original game movement.
-    restoreCharacter()
+    local characterHumanoid = getHumanoid()
 
-    -- Disconnect every connection
-    -- created by this script.
-    for _, connection in ipairs(
-        connections
-    ) do
-        if connection then
-            pcall(function()
-                connection:Disconnect()
-            end)
+    if characterHumanoid then
+        characterHumanoid.PlatformStand = false
+        characterHumanoid.WalkSpeed = originalWalkSpeed
+        characterHumanoid.UseJumpPower = originalUseJumpPower
+        characterHumanoid.JumpPower = originalJumpPower
+        characterHumanoid.JumpHeight = originalJumpHeight
+    end
+
+    -- Restore collision on this character.
+    local character = getCharacter()
+
+    if character then
+        for _, object in ipairs(character:GetDescendants()) do
+            if object:IsA("BasePart") then
+                object.CanCollide = true
+            end
         end
+    end
+
+    -- Remove ESP.
+    disableESP()
+
+    -- Disconnect registered background connections.
+    for _, connection in ipairs(connections) do
+        pcall(function()
+            connection:Disconnect()
+        end)
+    end
+
+    for _, connection in ipairs(espConnections) do
+        pcall(function()
+            connection:Disconnect()
+        end)
     end
 
     table.clear(connections)
+    table.clear(espConnections)
 
-    -- Remove GUI.
-    if gui then
-        gui:Destroy()
-        gui = nil
-    end
-
-    -- Remove this LocalScript.
-    pcall(function()
-        script:Destroy()
-    end)
+    -- Destroy the interface and this LocalScript.
+    gui:Destroy()
+    script:Destroy()
 end
 
-panicButton.MouseButton1Click:Connect(
-    function()
-        panic()
-    end
-)
+panicButton.MouseButton1Click:Connect(panic)
 
---==================================================
--- MINIMIZE BUTTON
---==================================================
-
-local minimizeButton =
-    Instance.new("TextButton")
-
-minimizeButton.Size =
-    UDim2.fromOffset(135, 38)
-
-minimizeButton.Position =
-    UDim2.fromOffset(10, 520)
-
-minimizeButton.BackgroundColor3 =
-    Color3.fromRGB(48, 48, 58)
-
-minimizeButton.BorderSizePixel = 0
-
-minimizeButton.Text =
-    "Minimize"
-
-minimizeButton.TextColor3 =
-    Color3.new(1, 1, 1)
-
-minimizeButton.TextSize = 12
-
-minimizeButton.Font =
-    Enum.Font.Gotham
-
-minimizeButton.Parent =
-    sidebar
-
-local minimizeCorner =
-    Instance.new("UICorner")
-
-minimizeCorner.CornerRadius =
-    UDim.new(0, 8)
-
-minimizeCorner.Parent =
-    minimizeButton
-
-minimizeButton.MouseButton1Click:Connect(
-    function()
-        if destroyed then
+-- KEYBINDS
+table.insert(connections, UserInputService.InputBegan:Connect(
+    function(input, gameProcessed)
+        if destroyed or gameProcessed then
             return
         end
 
-        menuOpen = false
-        main.Visible = false
+        -- G opens and hides the menu.
+        if input.KeyCode == Enum.KeyCode.G then
+            toggleMenu()
+            return
+        end
+
+        -- Y toggles player ESP.
+        if input.KeyCode == Enum.KeyCode.Y then
+            toggleESP()
+            return
+        end
     end
-)
+))
+
+-- KEEP THE MENU HIDDEN/SHOWN ACCORDING TO ITS STATE.
+main.Visible = menuOpen
+
+-- PART 5 ENDS HERE
+-- Continue with Part 6 directly below this code.
 
 --==================================================
--- INITIAL BUTTON STATES
+-- PART 6: RESPAWN HANDLING AND FINAL CLEANUP
 --==================================================
 
-setFlyButtonState()
-setNoclipButtonState()
-setInfiniteJumpButtonState()
+-- REAPPLY MOVEMENT SETTINGS AFTER RESPAWN
+table.insert(connections, player.CharacterAdded:Connect(function(character)
+    if destroyed then
+        return
+    end
+
+    -- Wait for the character to load.
+    local characterHumanoid =
+        character:WaitForChild("Humanoid", 10)
+
+    character:WaitForChild("HumanoidRootPart", 10)
+
+    if destroyed or not characterHumanoid then
+        return
+    end
+
+    humanoid = characterHumanoid
+    rootPart = character:FindFirstChild("HumanoidRootPart")
+
+    -- Remember the normal settings for the new character.
+    originalWalkSpeed = characterHumanoid.WalkSpeed
+    originalUseJumpPower = characterHumanoid.UseJumpPower
+    originalJumpPower = characterHumanoid.JumpPower
+    originalJumpHeight = characterHumanoid.JumpHeight
+
+    -- Apply the user's saved movement values.
+    characterHumanoid.WalkSpeed = savedWalkSpeed
+
+    if characterHumanoid.UseJumpPower then
+        characterHumanoid.JumpPower = savedJumpPower
+    else
+        characterHumanoid.JumpHeight = savedJumpHeight
+    end
+
+    -- Reset old flight objects before starting again.
+    if bodyVelocity then
+        bodyVelocity:Destroy()
+        bodyVelocity = nil
+    end
+
+    if bodyGyro then
+        bodyGyro:Destroy()
+        bodyGyro = nil
+    end
+
+    flying = false
+
+    if characterHumanoid then
+        characterHumanoid.PlatformStand = false
+    end
+
+    updateMovementButton(flyButton, "Fly", false)
+
+    -- Refresh ESP after the character loads.
+    task.wait(0.5)
+
+    if destroyed then
+        return
+    end
+
+    if espEnabled then
+        for _, targetPlayer in ipairs(Players:GetPlayers()) do
+            if targetPlayer ~= player then
+                updatePlayerESP(targetPlayer)
+            end
+        end
+    end
+end))
+
+-- KEEP REFERENCES UPDATED IF THE CHARACTER CHANGES
+table.insert(connections, player.CharacterRemoving:Connect(function()
+    humanoid = nil
+    rootPart = nil
+
+    if bodyVelocity then
+        bodyVelocity:Destroy()
+        bodyVelocity = nil
+    end
+
+    if bodyGyro then
+        bodyGyro:Destroy()
+        bodyGyro = nil
+    end
+
+    flying = false
+end))
+
+-- ENSURE THE CORRECT PAGE IS VISIBLE
+setActivePage(currentPage)
+
+-- APPLY FINAL GUI STATE
+main.Visible = menuOpen
 
 --==================================================
--- INITIAL MOVEMENT VALUES
+-- SCRIPT INITIALIZED
 --==================================================
 
-local initialHumanoid =
-    getHumanoid()
+print("Error_B1478 Menu loaded.")
+print("Press G to show or hide the menu.")
+print("Press Y to toggle player ESP.")
 
-if initialHumanoid then
-    initialHumanoid.WalkSpeed =
-        originalWalkSpeed
+-- END OF PART 6
 
-    initialHumanoid.UseJumpPower =
-        originalUseJumpPower
-
-    initialHumanoid.JumpPower =
-        originalJumpPower
-
-    initialHumanoid.JumpHeight =
-        originalJumpHeight
-end
-
---==================================================
--- INITIAL PAGE / MENU STATE
---==================================================
-
-showPage(homePage)
-
-main.Visible =
-    menuOpen
-
---==================================================
--- FINAL SAFETY CHECK
---==================================================
-
-if destroyed then
-    return
-end
-
-print("Menu loaded successfully.")
-print("G = Menu")
-print("F = Fly")
-print("N = Noclip")
---============================================================
--- PLAYER INSPECTOR / ESP
---============================================================
--- Y = Toggle ESP / information
--- PANIC = Permanently delete the system
---
--- Automatically checks every 1 second for:
---   • New players
---   • Players leaving
---   • New items
---   • Removed items
---   • Equipped / unequipped tools
---   • Respawning
---
--- Put this LocalScript in:
--- StarterPlayer > StarterPlayerScripts
---============================================================
-
-local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
-
-local LocalPlayer = Players.LocalPlayer
-
-local Enabled = true
-local PanicActivated = false
-
-local MAX_DISTANCE = 1000
-
-local OUTLINE_COLOR = Color3.fromRGB(255, 70, 70)
-
-local PlayerObjects = {}
-
---============================================================
--- MAIN GUI
---============================================================
-
-local ScreenGui = Instance.new("ScreenGui")
-
-ScreenGui.Name = "PlayerInspector"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.IgnoreGuiInset = true
-ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-
---============================================================
--- PANIC BUTTON
---============================================================
-
-local PanicButton = Instance.new("TextButton")
-
-PanicButton.Name = "PanicButton"
-
-PanicButton.Size = UDim2.new(0, 125, 0, 45)
-PanicButton.Position = UDim2.new(1, -145, 1, -65)
-
-PanicButton.BackgroundColor3 = Color3.fromRGB(180, 35, 35)
-PanicButton.BorderSizePixel = 0
-
-PanicButton.Text = "PANIC"
-PanicButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-PanicButton.TextSize = 17
-PanicButton.Font = Enum.Font.GothamBold
-
-PanicButton.Parent = ScreenGui
-
-local PanicCorner = Instance.new("UICorner")
-
-PanicCorner.CornerRadius = UDim.new(0, 8)
-PanicCorner.Parent = PanicButton
-
---============================================================
--- PANIC CONFIRMATION
---============================================================
-
-local ConfirmFrame = Instance.new("Frame")
-
-ConfirmFrame.Name = "PanicConfirmation"
-
-ConfirmFrame.Size = UDim2.new(0, 300, 0, 150)
-ConfirmFrame.Position = UDim2.new(0.5, -150, 0.5, -75)
-
-ConfirmFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-ConfirmFrame.BorderSizePixel = 0
-
-ConfirmFrame.Visible = false
-ConfirmFrame.Parent = ScreenGui
-
-local ConfirmCorner = Instance.new("UICorner")
-
-ConfirmCorner.CornerRadius = UDim.new(0, 10)
-ConfirmCorner.Parent = ConfirmFrame
-
-local ConfirmText = Instance.new("TextLabel")
-
-ConfirmText.Size = UDim2.new(1, -20, 0, 60)
-ConfirmText.Position = UDim2.new(0, 10, 0, 10)
-
-ConfirmText.BackgroundTransparency = 1
-
-ConfirmText.Text = "Delete the entire inspector?"
-
-ConfirmText.TextColor3 = Color3.fromRGB(255, 255, 255)
-ConfirmText.TextSize = 17
-ConfirmText.Font = Enum.Font.GothamBold
-ConfirmText.TextWrapped = true
-
-ConfirmText.Parent = ConfirmFrame
-
-local ConfirmButton = Instance.new("TextButton")
-
-ConfirmButton.Size = UDim2.new(0, 120, 0, 40)
-ConfirmButton.Position = UDim2.new(0, 20, 1, -55)
-
-ConfirmButton.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
-ConfirmButton.BorderSizePixel = 0
-
-ConfirmButton.Text = "DELETE"
-ConfirmButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-ConfirmButton.TextSize = 14
-ConfirmButton.Font = Enum.Font.GothamBold
-
-ConfirmButton.Parent = ConfirmFrame
-
-local ConfirmButtonCorner = Instance.new("UICorner")
-
-ConfirmButtonCorner.CornerRadius = UDim.new(0, 6)
-ConfirmButtonCorner.Parent = ConfirmButton
-
-local CancelButton = Instance.new("TextButton")
-
-CancelButton.Size = UDim2.new(0, 120, 0, 40)
-CancelButton.Position = UDim2.new(1, -140, 1, -55)
-
-CancelButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-CancelButton.BorderSizePixel = 0
-
-CancelButton.Text = "CANCEL"
-CancelButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-CancelButton.TextSize = 14
-CancelButton.Font = Enum.Font.GothamBold
-
-CancelButton.Parent = ConfirmFrame
-
-local CancelCorner = Instance.new("UICorner")
-
-CancelCorner.CornerRadius = UDim.new(0, 6)
-CancelCorner.Parent = CancelButton
-
---============================================================
--- PANIC DELETE
---============================================================
-
-local function DeleteInspector()
-
-	if PanicActivated then
-		return
-	end
-
-	PanicActivated = true
-	Enabled = false
-
-	-- Remove all ESP objects
-	for Player, Objects in pairs(PlayerObjects) do
-
-		if Objects.Highlight then
-			Objects.Highlight:Destroy()
-		end
-
-		if Objects.Billboard then
-			Objects.Billboard:Destroy()
-		end
-
-	end
-
-	table.clear(PlayerObjects)
-
-	-- Delete the entire UI
-	if ScreenGui then
-		ScreenGui:Destroy()
-	end
-
-end
-
-PanicButton.MouseButton1Click:Connect(function()
-
-	if not PanicActivated then
-
-		ConfirmFrame.Visible = true
-
-	end
-
-end)
-
-CancelButton.MouseButton1Click:Connect(function()
-
-	ConfirmFrame.Visible = false
-
-end)
-
-ConfirmButton.MouseButton1Click:Connect(function()
-
-	DeleteInspector()
-
-end)
-
---============================================================
--- CREATE TOOL ICON
---============================================================
-
-local function CreateToolDisplay(
-	Parent,
-	ToolName,
-	TextureId,
-	IsHeld
-)
-
-	local Container = Instance.new("Frame")
-
-	Container.Name = "Tool_" .. ToolName
-
-	Container.Size = UDim2.new(0, 75, 0, 70)
-
-	Container.BackgroundTransparency = 1
-
-	Container.Parent = Parent
-
-	--========================================================
-	-- TOOL NAME
-	--========================================================
-
-	local NameLabel = Instance.new("TextLabel")
-
-	NameLabel.Size = UDim2.new(1, 0, 0, 25)
-
-	NameLabel.BackgroundTransparency = 1
-
-	if IsHeld then
-
-		NameLabel.Text = "[HELD] " .. ToolName
-
-		NameLabel.TextColor3 =
-			Color3.fromRGB(120, 255, 150)
-
-	else
-
-		NameLabel.Text = ToolName
-
-		NameLabel.TextColor3 =
-			Color3.fromRGB(255, 255, 255)
-
-	end
-
-	NameLabel.TextSize = 11
-	NameLabel.Font = Enum.Font.GothamBold
-
-	NameLabel.TextXAlignment =
-		Enum.TextXAlignment.Center
-
-	NameLabel.TextTruncate =
-		Enum.TextTruncate.AtEnd
-
-	NameLabel.Parent = Container
-
-	--========================================================
-	-- TOOL ICON
-	--========================================================
-
-	local Icon = Instance.new("ImageLabel")
-
-	Icon.Name = "ToolIcon"
-
-	Icon.Size = UDim2.new(0, 38, 0, 38)
-
-	Icon.Position = UDim2.new(
-		0.5,
-		-19,
-		0,
-		28
-	)
-
-	Icon.BackgroundColor3 =
-		Color3.fromRGB(45, 45, 45)
-
-	Icon.BorderSizePixel = 0
-
-	Icon.ScaleType =
-		Enum.ScaleType.Fit
-
-	Icon.Parent = Container
-
-	--========================================================
-	-- ICON TEXTURE
-	--========================================================
-
-	if TextureId and TextureId ~= "" then
-
-		Icon.Image = TextureId
-
-	else
-
-		Icon.Image = ""
-
-		local NoIcon = Instance.new("TextLabel")
-
-		NoIcon.Size = UDim2.new(1, 0, 1, 0)
-
-		NoIcon.BackgroundTransparency = 1
-
-		NoIcon.Text = "?"
-
-		NoIcon.TextColor3 =
-			Color3.fromRGB(150, 150, 150)
-
-		NoIcon.TextSize = 20
-
-		NoIcon.Font =
-			Enum.Font.GothamBold
-
-		NoIcon.Parent = Icon
-
-	end
-
-	local IconCorner = Instance.new("UICorner")
-
-	IconCorner.CornerRadius =
-		UDim.new(0, 5)
-
-	IconCorner.Parent = Icon
-
-	return Container
-
-end
-
---============================================================
--- GET CURRENT TOOLS
---============================================================
-
-local function GetTools(Player)
-
-	local Tools = {}
-
-	--========================================================
-	-- CHARACTER / HELD
-	--========================================================
-
-	if Player.Character then
-
-		for _, Object in ipairs(
-			Player.Character:GetChildren()
-		) do
-
-			if Object:IsA("Tool") then
-
-				table.insert(Tools, {
-
-					Name = Object.Name,
-
-					Texture = Object.TextureId,
-
-					Held = true
-
-				})
-
-			end
-
-		end
-
-	end
-
-	--========================================================
-	-- BACKPACK
-	--========================================================
-
-	local Backpack =
-		Player:FindFirstChildOfClass("Backpack")
-
-	if Backpack then
-
-		for _, Object in ipairs(
-			Backpack:GetChildren()
-		) do
-
-			if Object:IsA("Tool") then
-
-				table.insert(Tools, {
-
-					Name = Object.Name,
-
-					Texture = Object.TextureId,
-
-					Held = false
-
-				})
-
-			end
-
-		end
-
-	end
-
-	return Tools
-
-end
-
---============================================================
--- UPDATE BILLBOARD
---============================================================
-
-local function UpdateBillboard(Player)
-
-	if PanicActivated then
-		return
-	end
-
-	local Objects = PlayerObjects[Player]
-
-	if not Objects then
-		return
-	end
-
-	if not Objects.Billboard then
-		return
-	end
-
-	if not Objects.Container then
-		return
-	end
-
-	--========================================================
-	-- CLEAR OLD CONTENT
-	--========================================================
-
-	for _, Child in ipairs(
-		Objects.Container:GetChildren()
-	) do
-
-		Child:Destroy()
-
-	end
-
-	--========================================================
-	-- DISPLAY NAME
-	--========================================================
-
-	local DisplayName = Instance.new("TextLabel")
-
-	DisplayName.Size = UDim2.new(1, 0, 0, 24)
-
-	DisplayName.BackgroundTransparency = 1
-
-	DisplayName.Text = Player.DisplayName
-
-	DisplayName.TextColor3 =
-		Color3.fromRGB(255, 220, 80)
-
-	DisplayName.TextStrokeTransparency = 0.2
-
-	DisplayName.TextSize = 16
-
-	DisplayName.Font =
-		Enum.Font.GothamBold
-
-	DisplayName.Parent = Objects.Container
-
-	--========================================================
-	-- USERNAME
-	--========================================================
-
-	local Username = Instance.new("TextLabel")
-
-	Username.Size = UDim2.new(1, 0, 0, 20)
-
-	Username.Position = UDim2.new(0, 0, 0, 23)
-
-	Username.BackgroundTransparency = 1
-
-	Username.Text = "@" .. Player.Name
-
-	Username.TextColor3 =
-		Color3.fromRGB(220, 220, 220)
-
-	Username.TextStrokeTransparency = 0.2
-
-	Username.TextSize = 13
-
-	Username.Font =
-		Enum.Font.Gotham
-
-	Username.Parent = Objects.Container
-
-	--========================================================
-	-- TOOL AREA
-	--========================================================
-
-	local ToolArea = Instance.new("ScrollingFrame")
-
-	ToolArea.Name = "Tools"
-
-	ToolArea.Size = UDim2.new(1, 0, 0, 90)
-
-	ToolArea.Position = UDim2.new(0, 0, 0, 45)
-
-	ToolArea.BackgroundTransparency = 1
-
-	ToolArea.BorderSizePixel = 0
-
-	ToolArea.ScrollBarThickness = 3
-
-	ToolArea.CanvasSize =
-		UDim2.new(0, 0, 0, 0)
-
-	ToolArea.Parent = Objects.Container
-
-	local ToolLayout = Instance.new("UIListLayout")
-
-	ToolLayout.FillDirection =
-		Enum.FillDirection.Horizontal
-
-	ToolLayout.HorizontalAlignment =
-		Enum.HorizontalAlignment.Center
-
-	ToolLayout.VerticalAlignment =
-		Enum.VerticalAlignment.Top
-
-	ToolLayout.Padding =
-		UDim.new(0, 6)
-
-	ToolLayout.Parent = ToolArea
-
-	--========================================================
-	-- ADD TOOLS
-	--========================================================
-
-	local Tools = GetTools(Player)
-
-	for _, Tool in ipairs(Tools) do
-
-		CreateToolDisplay(
-			ToolArea,
-			Tool.Name,
-			Tool.Texture,
-			Tool.Held
-		)
-
-	end
-
-	--========================================================
-	-- UPDATE SCROLL SIZE
-	--========================================================
-
-	task.defer(function()
-
-		if ToolLayout.Parent then
-
-			ToolArea.CanvasSize =
-				UDim2.new(
-					0,
-					ToolLayout.AbsoluteContentSize.X + 10,
-					0,
-					0
-				)
-
-		end
-
-	end)
-
-end
-
---============================================================
--- CREATE ESP FOR PLAYER
---============================================================
-
-local function CreateESP(Player)
-
-	if Player == LocalPlayer then
-		return
-	end
-
-	if PanicActivated then
-		return
-	end
-
-	if PlayerObjects[Player] then
-		return
-	end
-
-	PlayerObjects[Player] = {}
-
-	--========================================================
-	-- CHARACTER SETUP
-	--========================================================
-
-	local function SetupCharacter(Character)
-
-		if PanicActivated then
-			return
-		end
-
-		local Objects = PlayerObjects[Player]
-
-		if not Objects then
-			return
-		end
-
-		-- Remove old objects
-		if Objects.Highlight then
-			Objects.Highlight:Destroy()
-		end
-
-		if Objects.Billboard then
-			Objects.Billboard:Destroy()
-		end
-
-		--====================================================
-		-- OUTLINE
-		--====================================================
-
-		local Highlight = Instance.new("Highlight")
-
-		Highlight.Name =
-			"PlayerOutline"
-
-		Highlight.Adornee =
-			Character
-
-		Highlight.FillColor =
-			OUTLINE_COLOR
-
-		Highlight.FillTransparency =
-			0.9
-
-		Highlight.OutlineColor =
-			OUTLINE_COLOR
-
-		Highlight.OutlineTransparency =
-			0
-
-		Highlight.DepthMode =
-			Enum.HighlightDepthMode.AlwaysOnTop
-
-		Highlight.Enabled =
-			Enabled
-
-		Highlight.Parent =
-			Character
-
-		Objects.Highlight =
-			Highlight
-
-		--====================================================
-		-- FIND HEAD
-		--====================================================
-
-		local Head =
-			Character:FindFirstChild("Head")
-
-		if not Head then
-
-			Head =
-				Character:WaitForChild(
-					"Head",
-					5
-				)
-
-		end
-
-		if not Head then
-			return
-		end
-
-		--====================================================
-		-- BILLBOARD
-		--====================================================
-
-		local Billboard =
-			Instance.new("BillboardGui")
-
-		Billboard.Name =
-			"PlayerInformation"
-
-		Billboard.Adornee =
-			Head
-
-		Billboard.Size =
-			UDim2.new(0, 420, 0, 150)
-
-		Billboard.StudsOffset =
-			Vector3.new(0, 4.5, 0)
-
-		Billboard.AlwaysOnTop =
-			true
-
-		Billboard.MaxDistance =
-			MAX_DISTANCE
-
-		Billboard.Enabled =
-			Enabled
-
-		Billboard.Parent =
-			Head
-
-		Objects.Billboard =
-			Billboard
-
-		--====================================================
-		-- CONTAINER
-		--====================================================
-
-		local Container =
-			Instance.new("Frame")
-
-		Container.Size =
-			UDim2.new(1, 0, 1, 0)
-
-		Container.BackgroundTransparency =
-			1
-
-		Container.Parent =
-			Billboard
-
-		Objects.Container =
-			Container
-
-		-- Initial information
-		UpdateBillboard(Player)
-
-	end
-
-	--========================================================
-	-- CURRENT CHARACTER
-	--========================================================
-
-	if Player.Character then
-
-		task.spawn(function()
-
-			SetupCharacter(
-				Player.Character
-			)
-
-		end)
-
-	end
-
-	--========================================================
-	-- CHARACTER RESPAWN
-	--========================================================
-
-	Player.CharacterAdded:Connect(
-		function(Character)
-
-			if PanicActivated then
-				return
-			end
-
-			task.wait(0.25)
-
-			if PlayerObjects[Player] then
-
-				SetupCharacter(Character)
-
-			end
-
-		end
-	)
-
-end
-
---============================================================
--- REMOVE ESP
---============================================================
-
-local function RemoveESP(Player)
-
-	local Objects =
-		PlayerObjects[Player]
-
-	if not Objects then
-		return
-	end
-
-	if Objects.Highlight then
-		Objects.Highlight:Destroy()
-	end
-
-	if Objects.Billboard then
-		Objects.Billboard:Destroy()
-	end
-
-	PlayerObjects[Player] = nil
-
-end
-
---============================================================
--- ENABLE / DISABLE
---============================================================
-
-local function SetEnabled(State)
-
-	if PanicActivated then
-		return
-	end
-
-	Enabled = State
-
-	for Player, Objects in pairs(PlayerObjects) do
-
-		if Objects.Highlight then
-
-			Objects.Highlight.Enabled =
-				Enabled
-
-		end
-
-		if Objects.Billboard then
-
-			Objects.Billboard.Enabled =
-				Enabled
-
-		end
-
-	end
-
-end
-
---============================================================
--- Y TOGGLE
---============================================================
-
-UserInputService.InputBegan:Connect(
-	function(Input, GameProcessed)
-
-		if GameProcessed then
-			return
-		end
-
-		if PanicActivated then
-			return
-		end
-
-		if Input.KeyCode ==
-			Enum.KeyCode.Y then
-
-			SetEnabled(not Enabled)
-
-		end
-
-	end
-)
-
---============================================================
--- INITIAL PLAYERS
---============================================================
-
-for _, Player in ipairs(
-	Players:GetPlayers()
-) do
-
-	CreateESP(Player)
-
-end
-
---============================================================
--- PLAYER ADDED
---============================================================
-
-Players.PlayerAdded:Connect(
-	function(Player)
-
-		if not PanicActivated then
-
-			CreateESP(Player)
-
-		end
-
-	end
-)
-
---============================================================
--- PLAYER REMOVING
---============================================================
-
-Players.PlayerRemoving:Connect(
-	function(Player)
-
-		RemoveESP(Player)
-
-	end
-)
-
---============================================================
--- 1 SECOND SCAN
---============================================================
--- This is the important part.
---
--- Every second it checks the actual Players service
--- instead of relying only on PlayerAdded.
---
--- It also refreshes the inventory display for every
--- player, allowing newly replicated Tools to appear.
---============================================================
-
-task.spawn(function()
-
-	while not PanicActivated do
-
-		task.wait(1)
-
-		if PanicActivated then
-			break
-		end
-
-		--====================================================
-		-- CHECK FOR NEW PLAYERS
-		--====================================================
-
-		local CurrentPlayers = {}
-
-		for _, Player in ipairs(
-			Players:GetPlayers()
-		) do
-
-			CurrentPlayers[Player] = true
-
-			if Player ~= LocalPlayer then
-
-				if not PlayerObjects[Player] then
-
-					CreateESP(Player)
-
-				end
-
-			end
-
-		end
-
-		--====================================================
-		-- CHECK FOR PLAYERS THAT LEFT
-		--====================================================
-
-		for Player, Objects in pairs(
-			PlayerObjects
-		) do
-
-			if not CurrentPlayers[Player] then
-
-				RemoveESP(Player)
-
-			end
-
-		end
-
-		--====================================================
-		-- CHECK FOR NEW / REMOVED ITEMS
-		--====================================================
-
-		if Enabled then
-
-			for Player, Objects in pairs(
-				PlayerObjects
-			) do
-
-				if Player.Parent ==
-					Players then
-
-					if Player.Character then
-
-						-- Make sure the outline still exists
-						if not Objects.Highlight then
-
-							CreateESP(Player)
-
-						else
-
-							Objects.Highlight.Adornee =
-								Player.Character
-
-						end
-
-						-- Make sure the billboard still exists
-						local Head =
-							Player.Character:FindFirstChild(
-								"Head"
-							)
-
-						if Head then
-
-							if not Objects.Billboard then
-
-								-- Recreate ESP if necessary
-								CreateESP(Player)
-
-							else
-
-								-- Make sure billboard is attached
-								Objects.Billboard.Adornee =
-									Head
-
-								-- Refresh ALL item information
-								UpdateBillboard(Player)
-
-							end
-
-						end
-
-					end
-
-				end
-
-			end
-
-		end
-
-	end
-
-end)
-
---============================================================
--- DONE
---============================================================
