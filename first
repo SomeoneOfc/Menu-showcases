@@ -2302,9 +2302,9 @@ end)
 -- FIXED KEY HANDLER + 2-SECOND ACTIVATION DELAY
 --==================================================
 
-local menuKeyReadyAt = 0
-local espKeyReadyAt = 0
-local keybindDelay = 2
+local menuKeyReadyAt = 0.25
+local espKeyReadyAt = 0.25
+local keybindDelay = 0.25
 
 local function updateKeyLabels()
     menuKeyButton.Text = menuToggleKey.Name
