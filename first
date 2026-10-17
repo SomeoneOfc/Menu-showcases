@@ -1787,53 +1787,53 @@ table.insert(connections, espRefreshConnection)
 -- KEYBINDS
 --==================================================
 
+local menuToggleKey = Enum.KeyCode.G
+local flyToggleKey = Enum.KeyCode.F
+local noclipToggleKey = Enum.KeyCode.N
+local jumpToggleKey = Enum.KeyCode.J
+local espToggleKey = Enum.KeyCode.Y
+local keyCaptureTarget = nil
+local refreshOptionsLabels = nil
+local floatingToggleEnabled = true
+local floatingToggleButton = nil
+
 local inputConnection = UserInputService.InputBegan:Connect(
     function(input, processed)
-        if destroyed then
+        if destroyed then return end
+        if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
+
+        -- Options buttons can request the next keyboard key as a new binding.
+        if keyCaptureTarget then
+            local target = keyCaptureTarget
+            keyCaptureTarget = nil
+            if target == "menu" then menuToggleKey = input.KeyCode
+            elseif target == "fly" then flyToggleKey = input.KeyCode
+            elseif target == "noclip" then noclipToggleKey = input.KeyCode
+            elseif target == "jump" then jumpToggleKey = input.KeyCode
+            elseif target == "esp" then espToggleKey = input.KeyCode end
+            if refreshOptionsLabels then refreshOptionsLabels() end
             return
         end
+        if processed then return end
 
-        if processed then
-            return
-        end
-
-        -- G = open / close menu
-        if input.KeyCode == Enum.KeyCode.G then
+        if input.KeyCode == menuToggleKey then
             menuOpen = not menuOpen
             main.Visible = menuOpen
-
-            if menuOpen then
-                refreshFolders()
-            end
-
-        -- F = fly
-        elseif input.KeyCode == Enum.KeyCode.F then
-            if flying then
-                stopFly()
-            else
-                startFly()
-            end
-
-        -- N = noclip
-        elseif input.KeyCode == Enum.KeyCode.N then
+            if menuOpen then refreshFolders() end
+        elseif input.KeyCode == flyToggleKey then
+            if flying then stopFly() else startFly() end
+        elseif input.KeyCode == noclipToggleKey then
             setNoclip(not noclip)
-
-        -- J = infinite jump
-        elseif input.KeyCode == Enum.KeyCode.J then
+        elseif input.KeyCode == jumpToggleKey then
             infiniteJump = not infiniteJump
             setInfiniteJumpButtonState()
-
-        -- Y = toggle player team outlines and tool lists
-        elseif input.KeyCode == Enum.KeyCode.Y then
+        elseif input.KeyCode == espToggleKey then
             setPlayerEspEnabled(not playerEspEnabled)
         end
     end
 )
 
-table.insert(
-    connections,
-    inputConnection
-)
+table.insert(connections, inputConnection)
 
 --==================================================
 -- RESPAWN HANDLING
@@ -2370,7 +2370,7 @@ end
 --==================================================
 -- PREMIUM UI ADD-ON: WAYPOINTS, CONSOLE, AND BSS
 -- This section must remain in the SAME LocalScript as the menu above.
--- BSS page searches workspace.HiddenSticker and provides one-click teleports.
+-- BSS page searches workspace.HiddenStickers and provides one-click teleports.
 --==================================================
 
 do
@@ -2560,12 +2560,14 @@ do
     local waypointsPage = makePage("WaypointsPage")
     local consolePage = makePage("ConsolePage")
     local bssPage = makePage("BSSPage")
+    local optionsPage = makePage("OptionsPage")
 
     local waypointsTab = makeTab("WaypointsTab", "WAYPOINTS", 184)
     local consoleTab = makeTab("ConsoleTab", "CONSOLE", 228)
     local bssTab = makeTab("BSSTab", "BSS", 272)
+    local optionsTab = makeTab("OptionsTab", "OPTIONS", 316)
 
-    local allTabs = {homeButton, movementTabButton, finderTabButton, waypointsTab, consoleTab, bssTab}
+    local allTabs = {homeButton, movementTabButton, finderTabButton, waypointsTab, consoleTab, bssTab, optionsTab}
     local function highlightTab(active)
         for _, tab in ipairs(allTabs) do
             if tab then
@@ -2595,6 +2597,7 @@ do
         waypointsPage.Visible = false
         consolePage.Visible = false
         bssPage.Visible = false
+        optionsPage.Visible = false
         previousShowPage(page)
         if page == waypointsPage then
             waypointsPage.Visible = true
@@ -2605,6 +2608,9 @@ do
         elseif page == bssPage then
             bssPage.Visible = true
             highlightTab(bssTab)
+        elseif page == optionsPage then
+            optionsPage.Visible = true
+            highlightTab(optionsTab)
         elseif page == homePage then
             highlightTab(homeButton)
         elseif page == movementPage then
@@ -2620,6 +2626,71 @@ do
     waypointsTab.Activated:Connect(function() showPage(waypointsPage) end)
     consoleTab.Activated:Connect(function() showPage(consolePage) end)
     bssTab.Activated:Connect(function() showPage(bssPage) end)
+    optionsTab.Activated:Connect(function() showPage(optionsPage) end)
+
+    -- OPTIONS PAGE: configurable keys and floating UI toggle.
+    makeHeader(optionsPage, "Options & Keybinds", "Click a key button, then press the key you want to use.")
+    local optionsStatus = makeLabel(optionsPage, "OptionsStatus", "Changes apply immediately for this session.", UDim2.fromOffset(22, 101), UDim2.new(1, -44, 0, 24), 11, C.muted, false)
+    local function makeKeyRow(y, title, keyName, target)
+        makeLabel(optionsPage, title .. "Label", title, UDim2.fromOffset(22, y), UDim2.new(1, -170, 0, 36), 12, C.text, true)
+        local keyButton = makeButton(optionsPage, title .. "KeyButton", "SET KEY", UDim2.new(1, -145, 0, y), UDim2.fromOffset(120, 34), false)
+        keyButton.Activated:Connect(function()
+            keyCaptureTarget = target
+            optionsStatus.Text = "Press a keyboard key for " .. title .. "…"
+            keyButton.Text = "PRESS KEY…"
+        end)
+        return keyButton
+    end
+    local menuKeyButton = makeKeyRow(137, "Menu toggle", "menu", "menu")
+    local flyKeyButton = makeKeyRow(180, "Fly", "fly", "fly")
+    local noclipKeyButton = makeKeyRow(223, "Noclip", "noclip", "noclip")
+    local jumpKeyButton = makeKeyRow(266, "Infinite jump", "jump", "jump")
+    local espKeyButton = makeKeyRow(309, "Player ESP + inventory", "esp", "esp")
+    local floatingButtonSetting = makeButton(optionsPage, "FloatingToggleSetting", "Floating toggle: ON", UDim2.fromOffset(22, 357), UDim2.new(1, -44, 0, 36), true)
+    floatingButtonSetting.Activated:Connect(function()
+        floatingToggleEnabled = not floatingToggleEnabled
+        if floatingToggleButton then floatingToggleButton.Visible = floatingToggleEnabled end
+        floatingButtonSetting.Text = "Floating toggle: " .. (floatingToggleEnabled and "ON" or "OFF")
+        optionsStatus.Text = floatingToggleEnabled and "Floating UI toggle is visible." or "Floating UI toggle is hidden. Use the Menu keybind to reopen the menu."
+    end)
+    refreshOptionsLabels = function()
+        menuKeyButton.Text = "KEY: " .. menuToggleKey.Name
+        flyKeyButton.Text = "KEY: " .. flyToggleKey.Name
+        noclipKeyButton.Text = "KEY: " .. noclipToggleKey.Name
+        jumpKeyButton.Text = "KEY: " .. jumpToggleKey.Name
+        espKeyButton.Text = "KEY: " .. espToggleKey.Name
+        floatingButtonSetting.Text = "Floating toggle: " .. (floatingToggleEnabled and "ON" or "OFF")
+    end
+    refreshOptionsLabels()
+
+    -- A separate floating button remains clickable while the main window is hidden.
+    floatingToggleButton = makeButton(gui, "FloatingMenuToggle", "B1478  •  MENU", UDim2.new(0, 22, 0.55, 0), UDim2.fromOffset(142, 38), true)
+    floatingToggleButton.ZIndex = 100
+    floatingToggleButton.Visible = floatingToggleEnabled
+    floatingToggleButton.Activated:Connect(function()
+        menuOpen = not menuOpen
+        main.Visible = menuOpen
+        if menuOpen then refreshFolders() end
+    end)
+    do
+        local dragging, dragStart, startPos = false, nil, nil
+        floatingToggleButton.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                dragging = true
+                dragStart = input.Position
+                startPos = floatingToggleButton.Position
+                input.Changed:Connect(function()
+                    if input.UserInputState == Enum.UserInputState.End then dragging = false end
+                end)
+            end
+        end)
+        UserInputService.InputChanged:Connect(function(input)
+            if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+                local delta = input.Position - dragStart
+                floatingToggleButton.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+            end
+        end)
+    end
 
     -- WAYPOINTS PAGE
     makeHeader(waypointsPage, "Waypoints", "Save a position, name it, and return to it with one click.")
@@ -2812,12 +2883,12 @@ do
     end)
     addLog("Menu UI and extra pages loaded.", "SUCCESS")
 
-    -- BSS PAGE: list BaseParts and Models under workspace.HiddenSticker.
-    makeHeader(bssPage, "BSS • HiddenSticker", "Browse objects in workspace.HiddenSticker and teleport to them.")
-    local bssStatus = makeLabel(bssPage, "BSSStatus", "Checking workspace.HiddenSticker…", UDim2.fromOffset(22, 104), UDim2.new(1, -235, 0, 34), 11, C.muted, false)
+    -- BSS PAGE: list BaseParts and Models under workspace.HiddenStickers.
+    makeHeader(bssPage, "BSS • HiddenStickers", "Browse objects in workspace.HiddenStickers and teleport to them.")
+    local bssStatus = makeLabel(bssPage, "BSSStatus", "Checking workspace.HiddenStickers…", UDim2.fromOffset(22, 104), UDim2.new(1, -235, 0, 34), 11, C.muted, false)
     local refreshBSS = makeButton(bssPage, "RefreshBSS", "↻  REFRESH", UDim2.new(1, -145, 0, 103), UDim2.fromOffset(123, 36), true)
     local bssList = Instance.new("ScrollingFrame")
-    bssList.Name = "HiddenStickerList"
+    bssList.Name = "HiddenStickersList"
     bssList.Position = UDim2.fromOffset(20, 148)
     bssList.Size = UDim2.new(1, -40, 1, -168)
     bssList.BackgroundColor3 = C.background
@@ -2854,9 +2925,9 @@ do
         for _, child in ipairs(bssList:GetChildren()) do
             if child:IsA("Frame") then child:Destroy() end
         end
-        local folder = workspace:FindFirstChild("HiddenSticker")
+        local folder = workspace:FindFirstChild("HiddenStickers")
         if not folder then
-            bssStatus.Text = "Folder not found. Expected workspace.HiddenSticker."
+            bssStatus.Text = "Folder not found. Expected workspace.HiddenStickers."
             bssStatus.TextColor3 = C.red
             return
         end
@@ -2903,7 +2974,7 @@ do
                 bssStatus.TextColor3 = C.green
             end)
         end
-        bssStatus.Text = #objects .. " teleportable object(s) found in HiddenSticker."
+        bssStatus.Text = #objects .. " teleportable object(s) found in HiddenStickers."
         bssStatus.TextColor3 = #objects > 0 and C.green or C.yellow
     end
     refreshBSS.Activated:Connect(refreshBSSObjects)
@@ -2943,5 +3014,5 @@ do
     end
 
     showPage(homePage)
-    print("Premium UI loaded. Added Waypoints, Console, and BSS HiddenSticker teleports.")
+    print("Premium UI loaded. Added Waypoints, Console, Options/keybinds, floating UI toggle, and BSS HiddenStickers teleports.")
 end
