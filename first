@@ -1988,8 +1988,10 @@ local flyToggleKey = Enum.KeyCode.F
 local noclipToggleKey = Enum.KeyCode.N
 local jumpToggleKey = Enum.KeyCode.J
 local espToggleKey = Enum.KeyCode.Y
+local positionSaveKey = Enum.KeyCode.P -- Press after dragging to save the menu position used by slide animations.
 local keyCaptureTarget = nil
 local refreshOptionsLabels = nil
+local positionSaveStatusCallback = nil
 local floatingToggleEnabled = true
 local floatingToggleButton = nil
 
@@ -2076,13 +2078,20 @@ local inputConnection = UserInputService.InputBegan:Connect(
             elseif target == "fly" then flyToggleKey = input.KeyCode
             elseif target == "noclip" then noclipToggleKey = input.KeyCode
             elseif target == "jump" then jumpToggleKey = input.KeyCode
-            elseif target == "esp" then espToggleKey = input.KeyCode end
+            elseif target == "esp" then espToggleKey = input.KeyCode
+            elseif target == "position" then positionSaveKey = input.KeyCode end
             if refreshOptionsLabels then refreshOptionsLabels() end
             return
         end
         if processed then return end
 
-        if input.KeyCode == menuToggleKey then
+        if input.KeyCode == positionSaveKey then
+            if menuOpen and main and main.Parent then
+                savedMenuPosition = main.Position
+            end
+            print("[ErrorB1478Menu] Saved menu slide position: " .. tostring(savedMenuPosition) .. " (" .. positionSaveKey.Name .. ")")
+            if positionSaveStatusCallback then pcall(positionSaveStatusCallback, positionSaveKey.Name) end
+        elseif input.KeyCode == menuToggleKey then
             setMenuVisible(not menuOpen)
         elseif input.KeyCode == flyToggleKey then
             if flying then stopFly() else startFly() end
@@ -2969,11 +2978,152 @@ __EB1478_safeCall("Premium pages and extras", function()
         end
     end)
 
+    -- Extra local-only fun options. Each toggle owns and cleans up its own connection/instances.
+    local rainbowUiButton = makeButton(funPage, "RainbowUI", "🌈 RAINBOW UI: OFF", UDim2.fromOffset(22, 343), UDim2.new(1, -44, 0, 42), false)
+    local fovPulseButton = makeButton(funPage, "FOVPulse", "🎥 FOV PULSE: OFF", UDim2.fromOffset(22, 394), UDim2.new(1, -44, 0, 42), false)
+    local fireworksButton = makeButton(funPage, "FireworksBurst", "🎆 FIREWORK BURST", UDim2.fromOffset(22, 445), UDim2.new(1, -44, 0, 42), true)
+    local rainbowTrailButton = makeButton(funPage, "RainbowTrail", "🌈 RAINBOW TRAIL: OFF", UDim2.fromOffset(22, 496), UDim2.new(1, -44, 0, 42), false)
+    local colorPopButton = makeButton(funPage, "ColorPop", "🎨 RANDOM COLOR POP", UDim2.fromOffset(22, 547), UDim2.new(1, -44, 0, 42), false)
+
+    local rainbowUiEnabled = false
+    local rainbowUiConnection = nil
+    local fovPulseEnabled = false
+    local fovPulseConnection = nil
+    local fovPulseBase = nil
+    local rainbowTrailAttachment = nil
+    local rainbowTrailEmitter = nil
+    local rainbowTrailConnection = nil
+    local rainbowUiHue = 0
+    local function setButtonState(button, label, enabled)
+        button.Text = label .. (enabled and ": ON" or ": OFF")
+        button.BackgroundColor3 = enabled and C.green or C.panel2
+    end
+
+    rainbowUiButton.Activated:Connect(function()
+        rainbowUiEnabled = not rainbowUiEnabled
+        if rainbowUiEnabled then
+            if rainbowUiConnection then rainbowUiConnection:Disconnect() end
+            rainbowUiConnection = game:GetService("RunService").Heartbeat:Connect(function(dt)
+                if not rainbowUiEnabled or not main or not main.Parent then return end
+                rainbowUiHue = (rainbowUiHue + dt * 0.22) % 1
+                local color = Color3.fromHSV(rainbowUiHue, 0.78, 1)
+                topBar.BackgroundColor3 = color
+                local marker = sidebarTitle and sidebarTitle:FindFirstChild("ActiveMarker")
+                if marker then marker.BackgroundColor3 = color end
+            end)
+            setFunStatus("Rainbow UI enabled. Toggle it off to stop the animation.", C.green)
+        else
+            if rainbowUiConnection then rainbowUiConnection:Disconnect(); rainbowUiConnection = nil end
+            topBar.BackgroundColor3 = C.panel
+            setFunStatus("Rainbow UI disabled.")
+        end
+        setButtonState(rainbowUiButton, "🌈 RAINBOW UI", rainbowUiEnabled)
+    end)
+
+    fovPulseButton.Activated:Connect(function()
+        local camera = workspace.CurrentCamera
+        if not camera then setFunStatus("Camera is not ready.", C.red); return end
+        fovPulseEnabled = not fovPulseEnabled
+        if fovPulseEnabled then
+            fovPulseBase = camera.FieldOfView
+            local elapsed = 0
+            fovPulseConnection = game:GetService("RunService").RenderStepped:Connect(function(dt)
+                local currentCamera = workspace.CurrentCamera
+                if not currentCamera then return end
+                elapsed += dt
+                currentCamera.FieldOfView = math.clamp((fovPulseBase or 70) + math.sin(elapsed * 2.6) * 9, 40, 110)
+            end)
+            setFunStatus("Camera FOV pulse enabled.", C.green)
+        else
+            if fovPulseConnection then fovPulseConnection:Disconnect(); fovPulseConnection = nil end
+            local currentCamera = workspace.CurrentCamera
+            if currentCamera then currentCamera.FieldOfView = fovPulseBase or savedFieldOfView or 70 end
+            fovPulseBase = nil
+            setFunStatus("Camera FOV pulse disabled.")
+        end
+        setButtonState(fovPulseButton, "🎥 FOV PULSE", fovPulseEnabled)
+    end)
+
+    fireworksButton.Activated:Connect(function()
+        local root = getRoot()
+        if not root then setFunStatus("Your character is not ready.", C.red); return end
+        local attachment = Instance.new("Attachment")
+        attachment.Name = "B1478FireworkAttachment"
+        attachment.Parent = root
+        local emitter = Instance.new("ParticleEmitter")
+        emitter.Name = "B1478FireworkBurst"
+        emitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+        emitter.Rate = 0
+        emitter.Lifetime = NumberRange.new(0.8, 1.6)
+        emitter.Speed = NumberRange.new(12, 22)
+        emitter.SpreadAngle = Vector2.new(180, 180)
+        emitter.Rotation = NumberRange.new(0, 360)
+        emitter.RotSpeed = NumberRange.new(-220, 220)
+        emitter.LightEmission = 1
+        emitter.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.7), NumberSequenceKeypoint.new(1, 0)})
+        emitter.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 80, 80)),
+            ColorSequenceKeypoint.new(0.33, Color3.fromRGB(255, 230, 90)),
+            ColorSequenceKeypoint.new(0.66, Color3.fromRGB(100, 180, 255)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(220, 100, 255)),
+        })
+        emitter.Parent = attachment
+        emitter:Emit(70)
+        game:GetService("Debris"):AddItem(attachment, 2.5)
+        setFunStatus("Fireworks burst! Particles clean up automatically.", C.green)
+    end)
+
+    rainbowTrailButton.Activated:Connect(function()
+        if rainbowTrailEmitter then
+            rainbowTrailEmitter.Enabled = false
+            if rainbowTrailConnection then rainbowTrailConnection:Disconnect(); rainbowTrailConnection = nil end
+            if rainbowTrailAttachment then rainbowTrailAttachment:Destroy() end
+            rainbowTrailAttachment, rainbowTrailEmitter = nil, nil
+            setButtonState(rainbowTrailButton, "🌈 RAINBOW TRAIL", false)
+            setFunStatus("Rainbow trail disabled.")
+            return
+        end
+        local root = getRoot()
+        if not root then setFunStatus("Your character is not ready.", C.red); return end
+        rainbowTrailAttachment = Instance.new("Attachment")
+        rainbowTrailAttachment.Name = "B1478RainbowTrailAttachment"
+        rainbowTrailAttachment.Parent = root
+        rainbowTrailEmitter = Instance.new("ParticleEmitter")
+        rainbowTrailEmitter.Name = "B1478RainbowTrailEmitter"
+        rainbowTrailEmitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+        rainbowTrailEmitter.Rate = 12
+        rainbowTrailEmitter.Lifetime = NumberRange.new(0.4, 0.8)
+        rainbowTrailEmitter.Speed = NumberRange.new(1, 3)
+        rainbowTrailEmitter.SpreadAngle = Vector2.new(180, 180)
+        rainbowTrailEmitter.LightEmission = 1
+        rainbowTrailEmitter.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 70, 100)),
+            ColorSequenceKeypoint.new(0.25, Color3.fromRGB(255, 220, 70)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(80, 255, 150)),
+            ColorSequenceKeypoint.new(0.75, Color3.fromRGB(80, 170, 255)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(220, 90, 255)),
+        })
+        rainbowTrailEmitter.Parent = rainbowTrailAttachment
+        setButtonState(rainbowTrailButton, "🌈 RAINBOW TRAIL", true)
+        setFunStatus("Rainbow trail enabled. Toggle it again to clean it up.", C.green)
+    end)
+
+    colorPopButton.Activated:Connect(function()
+        local hue = math.random()
+        local color = Color3.fromHSV(hue, 0.72, 1)
+        topBar.BackgroundColor3 = color
+        C.accent = color
+        setFunStatus("Color pop applied! Turn Rainbow UI on for moving colours.", C.green)
+    end)
+
     end)
 
     __EB1478_safeCall("Options page and keybinds", function()
     makeHeader(optionsPage, "Options & Keybinds", "Click a key button, then press the key you want to use.")
     local optionsStatus = makeLabel(optionsPage, "OptionsStatus", "Changes apply immediately for this session.", UDim2.fromOffset(22, 101), UDim2.new(1, -44, 0, 24), 11, C.muted, false)
+    positionSaveStatusCallback = function(keyName)
+        optionsStatus.Text = "Menu slide position saved. Press " .. keyName .. " again any time to save the current position."
+    end
     local function makeKeyRow(y, title, keyName, target)
         makeLabel(optionsPage, title .. "Label", title, UDim2.fromOffset(22, y), UDim2.new(1, -170, 0, 36), 12, C.text, true)
         local keyButton = makeButton(optionsPage, title .. "KeyButton", "SET KEY", UDim2.new(1, -145, 0, y), UDim2.fromOffset(120, 34), false)
@@ -2989,14 +3139,15 @@ __EB1478_safeCall("Premium pages and extras", function()
     local noclipKeyButton = makeKeyRow(223, "Noclip", "noclip", "noclip")
     local jumpKeyButton = makeKeyRow(266, "Infinite jump", "jump", "jump")
     local espKeyButton = makeKeyRow(309, "Player ESP + inventory", "esp", "esp")
-    local floatingButtonSetting = makeButton(optionsPage, "FloatingToggleSetting", "Floating toggle: ON", UDim2.fromOffset(22, 357), UDim2.new(1, -44, 0, 36), true)
+    local positionKeyButton = makeKeyRow(352, "Save menu position", "position", "position")
+    local floatingButtonSetting = makeButton(optionsPage, "FloatingToggleSetting", "Floating toggle: ON", UDim2.fromOffset(22, 397), UDim2.new(1, -44, 0, 36), true)
     floatingButtonSetting.Activated:Connect(function()
         floatingToggleEnabled = not floatingToggleEnabled
         if floatingToggleButton then floatingToggleButton.Visible = floatingToggleEnabled end
         floatingButtonSetting.Text = "Floating toggle: " .. (floatingToggleEnabled and "ON" or "OFF")
         optionsStatus.Text = floatingToggleEnabled and "Floating UI toggle is visible." or "Floating UI toggle is hidden. Use the Menu keybind to reopen the menu."
     end)
-    local errorMonitorSetting = makeButton(optionsPage, "ErrorMonitorSetting", "Error Monitor: OFF", UDim2.fromOffset(22, 401), UDim2.new(1, -44, 0, 36), true)
+    local errorMonitorSetting = makeButton(optionsPage, "ErrorMonitorSetting", "Error Monitor: OFF", UDim2.fromOffset(22, 441), UDim2.new(1, -44, 0, 36), true)
     errorMonitorSetting.Activated:Connect(function()
         setErrorMonitorEnabled(not errorMonitorEnabled)
         errorMonitorSetting.Text = "Error Monitor: " .. (errorMonitorEnabled and "ON" or "OFF")
@@ -3004,6 +3155,7 @@ __EB1478_safeCall("Premium pages and extras", function()
     end)
     refreshOptionsLabels = function()
         menuKeyButton.Text = "KEY: " .. menuToggleKey.Name
+        positionKeyButton.Text = "KEY: " .. positionSaveKey.Name
         flyKeyButton.Text = "KEY: " .. flyToggleKey.Name
         noclipKeyButton.Text = "KEY: " .. noclipToggleKey.Name
         jumpKeyButton.Text = "KEY: " .. jumpToggleKey.Name
@@ -3412,7 +3564,7 @@ __EB1478_safeCall("Premium pages and extras", function()
     end)
 
     showPage(homePage)
-    print("Premium UI loaded. Added Options/keybinds, Waypoints, Console, BSS, and Fun page.")
+    print("Premium UI loaded. Added Options/keybinds, saved-position key, Waypoints, Console, BSS, and expanded Fun page.")
 
 end)
 
