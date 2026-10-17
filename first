@@ -1804,15 +1804,22 @@ local floatingToggleButton = nil
 -- This preserves pages, controls, settings, and UI state. The explicit Panic
 -- button is the only action that performs a full cleanup/deletion.
 local function setMenuVisible(visible)
-    -- Never destroy, disable, or recreate the ScreenGui to hide the menu.
-    -- Keep the ScreenGui enabled so the separate floating toggle stays clickable.
+    -- IMPORTANT: hiding the menu must NEVER stop this LocalScript,
+    -- disable the ScreenGui, destroy UI objects, or recreate the interface.
+    -- Only the main window is hidden. The floating toggle remains available.
     if destroyed or not gui or not gui.Parent then return end
 
     gui.Enabled = true
     menuOpen = visible
     main.Visible = visible
 
-    -- Refresh only when opening; the existing GUI and its state remain loaded.
+    -- Keep the separate floating toggle visible while the main window is hidden,
+    -- unless the user has turned that button off in Options.
+    if floatingToggleButton and floatingToggleButton.Parent then
+        floatingToggleButton.Visible = floatingToggleEnabled
+    end
+
+    -- Refresh folder contents when opening; preserve the same GUI and state.
     if visible and refreshFolders then
         refreshFolders()
     end
@@ -2683,6 +2690,7 @@ do
     refreshOptionsLabels()
 
     -- A separate floating button remains clickable while the main window is hidden.
+    -- Parent to ScreenGui (NOT main), so it remains clickable while main is hidden.
     floatingToggleButton = makeButton(gui, "FloatingMenuToggle", "B1478  •  MENU", UDim2.new(0, 22, 0.55, 0), UDim2.fromOffset(142, 38), true)
     floatingToggleButton.ZIndex = 100
     floatingToggleButton.Visible = floatingToggleEnabled
