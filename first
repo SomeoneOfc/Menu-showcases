@@ -1,12 +1,12 @@
--- ERRORB1478 MENU - REVIEWED SAFE-LOAD BUILD (NO FUN PAGE)
+-- ERRORB1478 MENU - REVIEWED SAFE-LOAD BUILD
 -- Install as a LocalScript in StarterPlayer > StarterPlayerScripts.
 -- Do not use loadstring/HttpGet in a normal Studio LocalScript.
--- Error Monitor is optional and OFF by default; F9 diagnostics remain available. Menu hide/reopen uses slide tweens and remembers its last position.
+-- Optional UI add-on blocks are protected with xpcall via __EB1478_safeCall.
 -- This prevents an add-on runtime error from stopping the core menu, but it cannot
 -- guarantee all features work without running in the target Roblox experience.
 
 -- SELF-DIAGNOSTIC BUILD NOTES:
--- Adds section context, ScriptContext error reports, startup checks, an optional Error Monitor (OFF by default), and animated menu slide transitions.
+-- Adds section context, ScriptContext error reports, and startup checks. It reports failures but cannot resume execution after a fatal top-level error.
 -- NIL-GUARD AUDIT NOTES:
 -- Optional character parts, humanoids, cameras, user IDs, and tool textures are checked
 -- before use where needed. Some variables intentionally start as nil until a feature is
@@ -78,113 +78,144 @@ if not RunService:IsClient() or not player then
 end
 
 --==================================================
--- F9 ERROR DIAGNOSTICS (NO ON-SCREEN ERROR TAB)
+-- ERROR MONITOR
 --==================================================
--- The old ErrorB1478ErrorMonitor ScreenGui is removed and is not recreated.
--- Errors remain available in Roblox Studio's F9 Developer Console.
+
 local LogService = game:GetService("LogService")
-local playerGui = player:WaitForChild("PlayerGui")
-local existingErrorGui = playerGui:FindFirstChild("ErrorB1478ErrorMonitor")
+local existingErrorGui = player:WaitForChild("PlayerGui"):FindFirstChild("ErrorB1478ErrorMonitor")
 if existingErrorGui then
     existingErrorGui:Destroy()
 end
-local existingMenuGui = playerGui:FindFirstChild("ErrorB1478Menu")
+local existingMenuGui = player:WaitForChild("PlayerGui"):FindFirstChild("ErrorB1478Menu")
 if existingMenuGui then
     existingMenuGui:Destroy()
 end
+local errorMessages = {}
+local maxLoggedErrors = 30
 
-local __EB1478_seenErrors = __EB1478_seenErrors or {}
-local __EB1478_errorCount = 0
-local __EB1478_errorLines = {}
-local errorMonitorEnabled = false -- OFF by default; can be enabled in Options.
-local errorMonitorGui, errorMonitorFrame, errorMonitorText
+local errorGui = Instance.new("ScreenGui")
+errorGui.Name = "ErrorB1478ErrorMonitor"
+errorGui.ResetOnSpawn = false
+errorGui.IgnoreGuiInset = true
+errorGui.DisplayOrder = 10000
+errorGui.Parent = player:WaitForChild("PlayerGui")
 
-local function buildErrorMonitor()
-    if errorMonitorGui and errorMonitorGui.Parent then return end
-    errorMonitorGui = Instance.new("ScreenGui")
-    errorMonitorGui.Name = "ErrorB1478ErrorMonitor"
-    errorMonitorGui.ResetOnSpawn = false
-    errorMonitorGui.IgnoreGuiInset = true
-    errorMonitorGui.Enabled = false
-    errorMonitorGui.Parent = playerGui
+local errorFrame = Instance.new("Frame")
+errorFrame.Name = "ErrorPanel"
+errorFrame.AnchorPoint = Vector2.new(1, 1)
+errorFrame.Position = UDim2.new(1, -12, 1, -12)
+errorFrame.Size = UDim2.fromOffset(420, 235)
+errorFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
+errorFrame.BorderSizePixel = 0
+errorFrame.Parent = errorGui
 
-    errorMonitorFrame = Instance.new("Frame")
-    errorMonitorFrame.Name = "MonitorPanel"
-    errorMonitorFrame.AnchorPoint = Vector2.new(1, 0)
-    errorMonitorFrame.Position = UDim2.new(1, -16, 0, 80)
-    errorMonitorFrame.Size = UDim2.fromOffset(360, 210)
-    errorMonitorFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
-    errorMonitorFrame.BorderSizePixel = 0
-    errorMonitorFrame.Parent = errorMonitorGui
+local errorFrameCorner = Instance.new("UICorner")
+errorFrameCorner.CornerRadius = UDim.new(0, 8)
+errorFrameCorner.Parent = errorFrame
+
+local errorTitle = Instance.new("TextLabel")
+errorTitle.Name = "Title"
+errorTitle.Position = UDim2.fromOffset(10, 5)
+errorTitle.Size = UDim2.new(1, -160, 0, 28)
+errorTitle.BackgroundTransparency = 1
+errorTitle.Font = Enum.Font.GothamBold
+errorTitle.TextSize = 14
+errorTitle.TextXAlignment = Enum.TextXAlignment.Left
+errorTitle.TextColor3 = Color3.fromRGB(255, 105, 105)
+errorTitle.Text = "ERROR MONITOR (0)"
+errorTitle.Parent = errorFrame
+
+local function makeErrorButton(name, text, width, xOffset)
+    local button = Instance.new("TextButton")
+    button.Name = name
+    button.Size = UDim2.fromOffset(width, 25)
+    button.Position = UDim2.new(1, xOffset, 0, 6)
+    button.BackgroundColor3 = Color3.fromRGB(65, 65, 78)
+    button.BorderSizePixel = 0
+    button.Font = Enum.Font.Gotham
+    button.TextSize = 12
+    button.TextColor3 = Color3.new(1, 1, 1)
+    button.Text = text
+    button.Parent = errorFrame
     local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 10)
-    corner.Parent = errorMonitorFrame
-
-    local heading = Instance.new("TextLabel")
-    heading.Name = "Heading"
-    heading.BackgroundTransparency = 1
-    heading.Position = UDim2.fromOffset(12, 8)
-    heading.Size = UDim2.new(1, -24, 0, 24)
-    heading.Font = Enum.Font.GothamBold
-    heading.Text = "Error Monitor"
-    heading.TextColor3 = Color3.fromRGB(245, 110, 110)
-    heading.TextSize = 14
-    heading.TextXAlignment = Enum.TextXAlignment.Left
-    heading.Parent = errorMonitorFrame
-
-    errorMonitorText = Instance.new("TextLabel")
-    errorMonitorText.Name = "RecentErrors"
-    errorMonitorText.BackgroundTransparency = 1
-    errorMonitorText.Position = UDim2.fromOffset(12, 36)
-    errorMonitorText.Size = UDim2.new(1, -24, 1, -46)
-    errorMonitorText.Font = Enum.Font.Code
-    errorMonitorText.Text = "No errors captured yet."
-    errorMonitorText.TextColor3 = Color3.fromRGB(225, 225, 232)
-    errorMonitorText.TextSize = 11
-    errorMonitorText.TextWrapped = true
-    errorMonitorText.TextXAlignment = Enum.TextXAlignment.Left
-    errorMonitorText.TextYAlignment = Enum.TextYAlignment.Top
-    errorMonitorText.Parent = errorMonitorFrame
+    corner.CornerRadius = UDim.new(0, 5)
+    corner.Parent = button
+    return button
 end
 
-local function setErrorMonitorEnabled(enabled)
-    errorMonitorEnabled = enabled == true
-    if errorMonitorEnabled then
-        buildErrorMonitor()
-        errorMonitorGui.Enabled = true
-    elseif errorMonitorGui and errorMonitorGui.Parent then
-        errorMonitorGui.Enabled = false
+local copyErrorsButton = makeErrorButton("CopyErrors", "Select all", 65, -145)
+local clearErrorsButton = makeErrorButton("ClearErrors", "Clear", 60, -75)
+
+local errorOutput = Instance.new("TextBox")
+errorOutput.Name = "ErrorText"
+errorOutput.Position = UDim2.fromOffset(10, 38)
+errorOutput.Size = UDim2.new(1, -20, 1, -48)
+errorOutput.BackgroundColor3 = Color3.fromRGB(14, 14, 19)
+errorOutput.BorderSizePixel = 0
+errorOutput.ClearTextOnFocus = false
+errorOutput.MultiLine = true
+errorOutput.TextEditable = true
+errorOutput.TextWrapped = true
+errorOutput.TextXAlignment = Enum.TextXAlignment.Left
+errorOutput.TextYAlignment = Enum.TextYAlignment.Top
+errorOutput.Font = Enum.Font.Code
+errorOutput.TextSize = 12
+errorOutput.TextColor3 = Color3.fromRGB(255, 220, 220)
+errorOutput.Text = "No errors recorded. Errors from this client will appear here."
+errorOutput.Parent = errorFrame
+
+local errorOutputCorner = Instance.new("UICorner")
+errorOutputCorner.CornerRadius = UDim.new(0, 5)
+errorOutputCorner.Parent = errorOutput
+
+local function refreshErrorOutput()
+    errorTitle.Text = "ERROR MONITOR (" .. tostring(#errorMessages) .. ")"
+    if #errorMessages == 0 then
+        errorOutput.Text = "No errors recorded. Errors from this client will appear here."
+    else
+        errorOutput.Text = table.concat(errorMessages, "\n\n")
     end
 end
 
 local function recordClientError(message)
-    __EB1478_errorCount += 1
-    local line = "#" .. tostring(__EB1478_errorCount) .. ": " .. tostring(message or "Unknown client error")
-    table.insert(__EB1478_errorLines, line)
-    while #__EB1478_errorLines > 7 do table.remove(__EB1478_errorLines, 1) end
-    warn("[ErrorB1478Menu][F9] Client error " .. line)
-    if errorMonitorEnabled then
-        buildErrorMonitor()
-        if errorMonitorText then
-            errorMonitorText.Text = table.concat(__EB1478_errorLines, "\n")
-        end
+    local errorText = tostring(message or "Unknown client error")
+    table.insert(errorMessages, os.date("%H:%M:%S") .. " | " .. errorText)
+    while #errorMessages > maxLoggedErrors do
+        table.remove(errorMessages, 1)
     end
+    refreshErrorOutput()
+
+    -- Mirror captured errors into the Roblox F9 Developer Console as warnings.
+    -- The listener below only reacts to MessageError, so this warning will not loop.
+    warn("[ErrorB1478Menu][F9] Captured client error: " .. errorText)
 end
 
-print("[ErrorB1478Menu][F9] Diagnostics active. Press F9 and select Client to view errors. Optional Error Monitor is OFF by default.")
+copyErrorsButton.Activated:Connect(function()
+    errorOutput:CaptureFocus()
+    errorOutput.SelectionStart = 1
+    errorOutput.CursorPosition = #errorOutput.Text + 1
+end)
+
+clearErrorsButton.Activated:Connect(function()
+    table.clear(errorMessages)
+    refreshErrorOutput()
+end)
+
+warn("[ErrorB1478Menu][F9] Error logging active. Press F9 and select Client to view logs.")
+
 LogService.MessageOut:Connect(function(message, messageType)
     if messageType == Enum.MessageType.MessageError then
         recordClientError(message)
     end
 end)
 
--- ScriptContext provides the failing script and stack trace when available.
+-- ScriptContext provides the failing script and stack trace when Roblox reports an error.
 -- This is diagnostic only: it cannot resume a top-level script after a fatal error.
 local __EB1478_scriptContextOk, __EB1478_scriptContext = pcall(function()
     return game:GetService("ScriptContext")
 end)
 if __EB1478_scriptContextOk and __EB1478_scriptContext then
-    local __EB1478_connected, __EB1478_connectError = pcall(function()
+    pcall(function()
         __EB1478_scriptContext.Error:Connect(function(message, stackTrace, sourceScript)
             local scriptName = (sourceScript and sourceScript.Name) or "unknown script"
             local key = tostring(message) .. "|" .. tostring(stackTrace)
@@ -197,11 +228,8 @@ if __EB1478_scriptContextOk and __EB1478_scriptContext then
             __EB1478_failedSections[__EB1478_currentSection] = report
         end)
     end)
-    if not __EB1478_connected then
-        warn("[ErrorB1478Menu][DIAGNOSTIC] ScriptContext error listener unavailable: " .. tostring(__EB1478_connectError))
-    end
 else
-    warn("[ErrorB1478Menu][DIAGNOSTIC] ScriptContext unavailable; use F9 Developer Console for errors.")
+    warn("[ErrorB1478Menu][DIAGNOSTIC] ScriptContext error events are unavailable here; using LogService error logging instead.")
 end
 
 --==================================================
@@ -2000,64 +2028,23 @@ local refreshOptionsLabels = nil
 local floatingToggleEnabled = true
 local floatingToggleButton = nil
 
-local TweenService = game:GetService("TweenService")
-local savedMenuPosition = main.Position -- Preserve the last user-selected/draggable position.
-local menuTween = nil
-local menuTransitionId = 0
-local menuSlideDuration = 0.32
+local savedMenuPosition = UDim2.fromScale(0.5, 0.5)
+local offscreenMenuPosition = UDim2.new(2, 0, 2, 0)
 
 main.AnchorPoint = Vector2.new(0.5, 0.5)
 main.Position = savedMenuPosition
 
-local function getMenuOffscreenRightPosition()
-    local camera = workspace.CurrentCamera
-    local viewport = camera and camera.ViewportSize or Vector2.new(1280, 720)
-    return UDim2.new(0, viewport.X + math.floor(main.AbsoluteSize.X / 2) + 24, savedMenuPosition.Y.Scale, savedMenuPosition.Y.Offset)
-end
-
-local function getMenuOffscreenLeftPosition()
-    return UDim2.new(0, -math.floor(main.AbsoluteSize.X / 2) - 24, savedMenuPosition.Y.Scale, savedMenuPosition.Y.Offset)
-end
-
 local function setMenuVisible(visible)
     if destroyed or not gui or not gui.Parent then return end
-    if visible == menuOpen and not (visible and not main.Visible) then return end
-
-    menuTransitionId += 1
-    local thisTransition = menuTransitionId
-    if menuTween then
-        pcall(function() menuTween:Cancel() end)
-        menuTween = nil
-    end
 
     gui.Enabled = true
     menuOpen = visible
-
+    main.Visible = true
     if visible then
-        -- Start just beyond the left edge, then glide back to the remembered position.
-        main.Visible = true
-        main.Position = getMenuOffscreenLeftPosition()
-        local targetPosition = savedMenuPosition
-        menuTween = TweenService:Create(main, TweenInfo.new(menuSlideDuration, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Position = targetPosition})
-        menuTween:Play()
-        menuTween.Completed:Connect(function()
-            if thisTransition ~= menuTransitionId then return end
-            main.Position = targetPosition
-            menuTween = nil
-        end)
+        main.Position = savedMenuPosition
     else
-        -- Save the current position before sliding out to the right; never teleport/hide instantly.
         savedMenuPosition = main.Position
-        local targetPosition = getMenuOffscreenRightPosition()
-        menuTween = TweenService:Create(main, TweenInfo.new(menuSlideDuration, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {Position = targetPosition})
-        menuTween:Play()
-        menuTween.Completed:Connect(function(playbackState)
-            if thisTransition ~= menuTransitionId then return end
-            if playbackState == Enum.PlaybackState.Completed then
-                main.Visible = false
-            end
-            menuTween = nil
-        end)
+        main.Position = offscreenMenuPosition
     end
 
     if floatingToggleButton and floatingToggleButton.Parent then
@@ -2065,7 +2052,7 @@ local function setMenuVisible(visible)
     end
 
     if visible and refreshFolders then
-        pcall(refreshFolders)
+        refreshFolders()
     end
 end
 
@@ -2386,9 +2373,13 @@ end
 
 showPage(homePage)
 
+main.Visible = true
 main.AnchorPoint = Vector2.new(0.5, 0.5)
-main.Position = savedMenuPosition
-main.Visible = menuOpen
+if menuOpen then
+    main.Position = savedMenuPosition
+else
+    main.Position = offscreenMenuPosition
+end
 
 --==================================================
 -- FINAL SAFETY CHECK
@@ -2811,13 +2802,15 @@ __EB1478_safeCall("Premium pages and extras", function()
     local consolePage = makePage("ConsolePage")
     local bssPage = makePage("BSSPage")
     local optionsPage = makePage("OptionsPage")
+    local funPage = makePage("FunPage")
 
     local optionsTab = makeTab("OptionsTab", "⚙  OPTIONS", 184)
     local waypointsTab = makeTab("WaypointsTab", "WAYPOINTS", 228)
     local consoleTab = makeTab("ConsoleTab", "CONSOLE", 272)
     local bssTab = makeTab("BSSTab", "BSS", 316)
+    local funTab = makeTab("FunTab", "✨  FUN", 360)
 
-    local allTabs = {homeButton, movementTabButton, finderTabButton, waypointsTab, consoleTab, bssTab, optionsTab}
+    local allTabs = {homeButton, movementTabButton, finderTabButton, waypointsTab, consoleTab, bssTab, optionsTab, funTab}
     local function highlightTab(active)
         for _, tab in ipairs(allTabs) do
             if tab then
@@ -2848,6 +2841,7 @@ __EB1478_safeCall("Premium pages and extras", function()
         consolePage.Visible = false
         bssPage.Visible = false
         optionsPage.Visible = false
+        funPage.Visible = false
         previousShowPage(page)
         if page == waypointsPage then
             waypointsPage.Visible = true
@@ -2861,6 +2855,9 @@ __EB1478_safeCall("Premium pages and extras", function()
         elseif page == optionsPage then
             optionsPage.Visible = true
             highlightTab(optionsTab)
+        elseif page == funPage then
+            funPage.Visible = true
+            highlightTab(funTab)
         elseif page == homePage then
             highlightTab(homeButton)
         elseif page == movementPage then
@@ -2877,8 +2874,149 @@ __EB1478_safeCall("Premium pages and extras", function()
     consoleTab.Activated:Connect(function() showPage(consolePage) end)
     bssTab.Activated:Connect(function() showPage(bssPage) end)
     optionsTab.Activated:Connect(function() showPage(optionsPage) end)
+    funTab.Activated:Connect(function() showPage(funPage) end)
 
-    -- Fun page intentionally omitted in this build.
+    __EB1478_safeCall("Fun page", function()
+    makeHeader(funPage, "Fun Zone", "Small, temporary effects. Effects clean themselves up and do not run forever.")
+    local funStatus = makeLabel(funPage, "FunStatus", "Choose a fun effect below.", UDim2.fromOffset(22, 101), UDim2.new(1, -44, 0, 28), 11, C.muted, false)
+    local confettiButton = makeButton(funPage, "ConfettiBurst", "🎉 CONFETTI BURST", UDim2.fromOffset(22, 139), UDim2.new(0.48, -8, 0, 42), true)
+    local danceButton = makeButton(funPage, "DanceEmote", "💃 DANCE", UDim2.new(0.52, 0, 0, 139), UDim2.new(0.48, -22, 0, 42), false)
+    local spinButton = makeButton(funPage, "SpinCharacter", "🌀 SPIN FOR 2 SECONDS", UDim2.fromOffset(22, 190), UDim2.new(0.48, -8, 0, 42), false)
+    local jumpBoostButton = makeButton(funPage, "JumpBoost", "🚀 JUMP BOOST: OFF", UDim2.new(0.52, 0, 0, 190), UDim2.new(0.48, -22, 0, 42), false)
+    local sparkleButton = makeButton(funPage, "SparkleTrail", "✨ SPARKLE TRAIL: OFF", UDim2.fromOffset(22, 241), UDim2.new(1, -44, 0, 42), false)
+    local fovButton = makeButton(funPage, "WideFOV", "👁 WIDE FOV: OFF", UDim2.fromOffset(22, 292), UDim2.new(1, -44, 0, 42), false)
+    local jumpBoostEnabled = false
+    local wideFovEnabled = false
+    local savedFieldOfView = nil
+    local sparkleAttachment = nil
+    local sparkleEmitter = nil
+    local originalFunJumpPower = nil
+    local originalFunJumpHeight = nil
+    local spinBusy = false
+
+    local function setFunStatus(message, color)
+        funStatus.Text = message
+        funStatus.TextColor3 = color or C.muted
+    end
+
+    confettiButton.Activated:Connect(function()
+        local root = getRoot()
+        if not root then setFunStatus("Your character is not ready.", C.red); return end
+        local attachment = Instance.new("Attachment")
+        attachment.Name = "B1478ConfettiAttachment"
+        attachment.Parent = root
+        local emitter = Instance.new("ParticleEmitter")
+        emitter.Name = "B1478ConfettiBurst"
+        emitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+        emitter.Rate = 0
+        emitter.Lifetime = NumberRange.new(0.6, 1.4)
+        emitter.Speed = NumberRange.new(8, 16)
+        emitter.SpreadAngle = Vector2.new(180, 180)
+        emitter.Rotation = NumberRange.new(0, 360)
+        emitter.RotSpeed = NumberRange.new(-160, 160)
+        emitter.LightEmission = 0.65
+        emitter.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 90, 120)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(100, 150, 255)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 220, 90)),
+        })
+        emitter.Parent = attachment
+        emitter:Emit(36)
+        game:GetService("Debris"):AddItem(attachment, 2)
+        setFunStatus("Confetti! The effect cleans itself up automatically.", C.green)
+    end)
+
+    danceButton.Activated:Connect(function()
+        local h = getHumanoid()
+        if not h then setFunStatus("Your character is not ready.", C.red); return end
+        local ok, played = pcall(function() return h:PlayEmote("dance") end)
+        if ok and played then setFunStatus("Dance emote started.", C.green)
+        else setFunStatus("Dance emote is unavailable in this experience.", C.yellow) end
+    end)
+
+    spinButton.Activated:Connect(function()
+        local root = getRoot()
+        if not root or spinBusy then return end
+        spinBusy = true
+        local oldAngularVelocity = root.AssemblyAngularVelocity
+        root.AssemblyAngularVelocity = Vector3.new(0, 18, 0)
+        setFunStatus("Spinning for two seconds…", C.green)
+        task.delay(2, function()
+            if root and root.Parent then root.AssemblyAngularVelocity = oldAngularVelocity end
+            spinBusy = false
+            if not destroyed then setFunStatus("Spin finished.") end
+        end)
+    end)
+
+    jumpBoostButton.Activated:Connect(function()
+        local h = getHumanoid()
+        if not h then setFunStatus("Your character is not ready.", C.red); return end
+        jumpBoostEnabled = not jumpBoostEnabled
+        if jumpBoostEnabled then
+            originalFunJumpPower = h.JumpPower
+            originalFunJumpHeight = h.JumpHeight
+            if h.UseJumpPower then h.JumpPower = 100 else h.JumpHeight = 18 end
+            jumpBoostButton.Text = "🚀 JUMP BOOST: ON"
+            jumpBoostButton.BackgroundColor3 = C.green
+            setFunStatus("Jump boost enabled for this character.", C.green)
+        else
+            if h.UseJumpPower and originalFunJumpPower then h.JumpPower = originalFunJumpPower end
+            if not h.UseJumpPower and originalFunJumpHeight then h.JumpHeight = originalFunJumpHeight end
+            jumpBoostButton.Text = "🚀 JUMP BOOST: OFF"
+            jumpBoostButton.BackgroundColor3 = C.panel2
+            setFunStatus("Jump boost disabled.")
+        end
+    end)
+
+    sparkleButton.Activated:Connect(function()
+        if sparkleEmitter then
+            sparkleEmitter.Enabled = false
+            if sparkleAttachment then sparkleAttachment:Destroy() end
+            sparkleAttachment, sparkleEmitter = nil, nil
+            sparkleButton.Text = "✨ SPARKLE TRAIL: OFF"
+            sparkleButton.BackgroundColor3 = C.panel2
+            setFunStatus("Sparkle trail disabled.")
+            return
+        end
+        local root = getRoot()
+        if not root then setFunStatus("Your character is not ready.", C.red); return end
+        sparkleAttachment = Instance.new("Attachment")
+        sparkleAttachment.Name = "B1478SparkleAttachment"
+        sparkleAttachment.Parent = root
+        sparkleEmitter = Instance.new("ParticleEmitter")
+        sparkleEmitter.Name = "B1478SparkleTrail"
+        sparkleEmitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+        sparkleEmitter.Rate = 8
+        sparkleEmitter.Lifetime = NumberRange.new(0.35, 0.7)
+        sparkleEmitter.Speed = NumberRange.new(0.5, 2)
+        sparkleEmitter.SpreadAngle = Vector2.new(180, 180)
+        sparkleEmitter.LightEmission = 0.8
+        sparkleEmitter.Parent = sparkleAttachment
+        sparkleButton.Text = "✨ SPARKLE TRAIL: ON"
+        sparkleButton.BackgroundColor3 = C.green
+        setFunStatus("Sparkle trail enabled. Toggle it off to clean it up.", C.green)
+    end)
+
+    fovButton.Activated:Connect(function()
+        local camera = workspace.CurrentCamera
+        if not camera then setFunStatus("Camera is not ready.", C.red); return end
+        wideFovEnabled = not wideFovEnabled
+        if wideFovEnabled then
+            savedFieldOfView = camera.FieldOfView
+            camera.FieldOfView = 100
+            fovButton.Text = "👁 WIDE FOV: ON"
+            fovButton.BackgroundColor3 = C.green
+            setFunStatus("Wide field of view enabled.", C.green)
+        else
+            camera.FieldOfView = savedFieldOfView or 70
+            savedFieldOfView = nil
+            fovButton.Text = "👁 WIDE FOV: OFF"
+            fovButton.BackgroundColor3 = C.panel2
+            setFunStatus("Field of view restored.")
+        end
+    end)
+
+    end)
 
     __EB1478_safeCall("Options page and keybinds", function()
     makeHeader(optionsPage, "Options & Keybinds", "Click a key button, then press the key you want to use.")
@@ -2905,12 +3043,6 @@ __EB1478_safeCall("Premium pages and extras", function()
         floatingButtonSetting.Text = "Floating toggle: " .. (floatingToggleEnabled and "ON" or "OFF")
         optionsStatus.Text = floatingToggleEnabled and "Floating UI toggle is visible." or "Floating UI toggle is hidden. Use the Menu keybind to reopen the menu."
     end)
-    local errorMonitorSetting = makeButton(optionsPage, "ErrorMonitorSetting", "Error Monitor: OFF", UDim2.fromOffset(22, 401), UDim2.new(1, -44, 0, 36), true)
-    errorMonitorSetting.Activated:Connect(function()
-        setErrorMonitorEnabled(not errorMonitorEnabled)
-        errorMonitorSetting.Text = "Error Monitor: " .. (errorMonitorEnabled and "ON" or "OFF")
-        optionsStatus.Text = errorMonitorEnabled and "Error Monitor enabled. Turn it off here to remove the panel." or "Error Monitor disabled; F9 diagnostics remain available."
-    end)
     refreshOptionsLabels = function()
         menuKeyButton.Text = "KEY: " .. menuToggleKey.Name
         flyKeyButton.Text = "KEY: " .. flyToggleKey.Name
@@ -2918,7 +3050,6 @@ __EB1478_safeCall("Premium pages and extras", function()
         jumpKeyButton.Text = "KEY: " .. jumpToggleKey.Name
         espKeyButton.Text = "KEY: " .. espToggleKey.Name
         floatingButtonSetting.Text = "Floating toggle: " .. (floatingToggleEnabled and "ON" or "OFF")
-        errorMonitorSetting.Text = "Error Monitor: " .. (errorMonitorEnabled and "ON" or "OFF")
     end
     refreshOptionsLabels()
 
@@ -3303,12 +3434,10 @@ __EB1478_safeCall("Premium pages and extras", function()
             local viewport = camera.ViewportSize
             scale.Scale = math.clamp(math.min(viewport.X / 850, viewport.Y / 760, 1), 0.62, 1)
             main.AnchorPoint = Vector2.new(0.5, 0.5)
-            if not menuTween then
-                if menuOpen then
-                    main.Position = savedMenuPosition
-                else
-                    main.Position = getMenuOffscreenRightPosition()
-                end
+            if menuOpen then
+                main.Position = savedMenuPosition
+            else
+                main.Position = offscreenMenuPosition
             end
         end
         resizeMenu()
@@ -3321,7 +3450,7 @@ __EB1478_safeCall("Premium pages and extras", function()
     end)
 
     showPage(homePage)
-    print("Premium UI loaded. Added Options/keybinds, Waypoints, Console, and BSS. Fun page is disabled in this build.")
+    print("Premium UI loaded. Added Options/keybinds, Waypoints, Console, BSS, and Fun page.")
 
 end)
 
@@ -3333,6 +3462,7 @@ local __EB1478_expected = {
     {"Home page", homePage},
     {"Movement page", movementPage},
     {"Finder page", finderPage},
+    {"Error monitor", errorGui},
 }
 for _, item in ipairs(__EB1478_expected) do
     if item[2] == nil then
