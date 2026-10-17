@@ -1,11 +1,3 @@
--- Combined Roblox Studio LocalScript
--- Place in StarterPlayer > StarterPlayerScripts.
--- Local-player-only LocalScript for your own Roblox Studio experience.
--- All character movement, noclip, jump, fly, spin, and teleport actions target Players.LocalPlayer.Character only.
--- ESP may DISPLAY other players for information, but does not modify their characters.
--- Client-side changes are not secure server-authoritative mechanics and may be overridden by the server.
--- Performance: UI toggling moves the menu off-screen without rebuilding it; ESP refresh is throttled.
-
 --==================================================
 -- Combined script
 -- SETUP + MAIN GUI + HOME PAGE
@@ -18,8 +10,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local player = Players.LocalPlayer
 
--- Strict client/local-player guard. This script must be a LocalScript.
--- All character-changing helpers below resolve the local player's character.
 if not RunService:IsClient() or not player then
     warn("[ErrorB1478Menu] This must be a LocalScript in StarterPlayer > StarterPlayerScripts (not a Script or ModuleScript).")
     return
@@ -107,8 +97,6 @@ end
 -- GUI
 --==================================================
 
--- KEEP-LOADED RULE: this ScreenGui is created once and is not destroyed when hidden.
--- ResetOnSpawn=false keeps it alive across character respawns.
 local gui = Instance.new("ScreenGui")
 gui.Name = "ErrorB1478Menu"
 gui.ResetOnSpawn = false
@@ -336,8 +324,6 @@ local function createProfileCard(
     return card
 end
 
--- Creator profile.
-
 local creatorUserId = getUserId("Error_B1478")
 
 createProfileCard(
@@ -348,8 +334,6 @@ createProfileCard(
     20,
     125
 )
-
--- Current player profile.
 
 createProfileCard(
     homePage,
@@ -403,7 +387,6 @@ movementTabButton = createTabButton("Movement", 105)
 finderTabButton = createTabButton("Finder", 155)
 
 homeButton.BackgroundColor3 = Color3.fromRGB(65, 105, 180)
-
 
 --==================================================
 -- Combined script
@@ -734,9 +717,6 @@ local function setNoclip(enabled)
         return
     end
 
-    -- Keep collision values from the current character only, so disabling
-    -- noclip restores the game's original CanCollide settings instead of
-    -- incorrectly forcing every part to collide.
     if noclipCharacter ~= character then
         noclipOriginalCanCollide = {}
         noclipCharacter = character
@@ -762,9 +742,6 @@ local function setNoclip(enabled)
             end
         end)
 
-        -- Enforce only while noclip is active. This handles other local scripts
-        -- that repeatedly set CanCollide back to true. It is a small character-only
-        -- scan, not a scan of the whole Workspace.
         noclipEnforceConnection = RunService.Stepped:Connect(function()
             if destroyed or not noclip then return end
             local activeCharacter = getCharacter()
@@ -1028,8 +1005,6 @@ table.insert(
     connections,
     flyConnection
 )
-
--- Noclip is event-driven in setNoclip(); no per-frame character scan.
 
 --==================================================
 -- INFINITE JUMP
@@ -1380,13 +1355,11 @@ local function refreshFolders()
     selectedLabel.Text =
         "Selected: None"
 
-    -- Workspace folders.
     collectFolders(
         workspace,
         "Workspace"
     )
 
-    -- ReplicatedStorage folders.
     collectFolders(
         ReplicatedStorage,
         "ReplicatedStorage"
@@ -1685,8 +1658,6 @@ local function refreshPlayerEsp(targetPlayer)
     data.highlight.Adornee = character
     data.billboard.Adornee = adornee
 
-    -- Show each Tool's inventory icon (Tool.TextureId) beside its name.
-    -- [E] means equipped; [I] means stored in the Backpack.
     data.title.Text = targetPlayer.DisplayName .. "  |  Tools"
     local toolItems = {}
     local seenTools = {}
@@ -1717,7 +1688,6 @@ local function refreshPlayerEsp(targetPlayer)
     end
     local signature = table.concat(signatureParts, "|")
 
-    -- Rebuild rows only when the inventory changes, not on every refresh tick.
     if data.toolSignature ~= signature then
         data.toolSignature = signature
         for _, child in ipairs(data.list:GetChildren()) do
@@ -1776,8 +1746,6 @@ local function refreshPlayerEsp(targetPlayer)
     end
 end
 
--- ESP is observational only: it creates local GUI/highlight objects for display.
--- It never writes movement, physics, health, or CFrame properties on targetPlayer.Character.
 local function setPlayerEspEnabled(enabled)
     playerEspEnabled = enabled
     if not enabled then
@@ -1815,8 +1783,6 @@ local espRefreshConnection = RunService.Heartbeat:Connect(function(deltaTime)
     end
     espRefreshElapsed = 0
     for _, targetPlayer in ipairs(Players:GetPlayers()) do
-        -- Character changes can happen during a refresh; isolate one player's refresh
-        -- so it cannot stop updates for every other player.
         local ok, err = pcall(refreshPlayerEsp, targetPlayer)
         if not ok then
             warn("[ErrorB1478Menu] ESP refresh failed for " .. targetPlayer.Name .. ": " .. tostring(err))
@@ -1839,9 +1805,6 @@ local refreshOptionsLabels = nil
 local floatingToggleEnabled = true
 local floatingToggleButton = nil
 
--- HIDE/SHOW BY MOVING OFF-SCREEN ONLY. No transparency changes are made when toggling.
--- Keep the same GUI and scripts alive; restore the saved on-screen position when shown.
--- The menu starts centered. Its last on-screen position is remembered when hidden.
 local savedMenuPosition = UDim2.fromScale(0.5, 0.5)
 local offscreenMenuPosition = UDim2.new(2, 0, 2, 0)
 
@@ -1857,12 +1820,10 @@ local function setMenuVisible(visible)
     if visible then
         main.Position = savedMenuPosition
     else
-        -- Save the current position before moving the window fully off-screen.
         savedMenuPosition = main.Position
         main.Position = offscreenMenuPosition
     end
 
-    -- The floating toggle is outside main, so it remains available while hidden.
     if floatingToggleButton and floatingToggleButton.Parent then
         floatingToggleButton.Visible = floatingToggleEnabled
     end
@@ -1877,7 +1838,6 @@ local inputConnection = UserInputService.InputBegan:Connect(
         if destroyed then return end
         if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
 
-        -- Options buttons can request the next keyboard key as a new binding.
         if keyCaptureTarget then
             local target = keyCaptureTarget
             keyCaptureTarget = nil
@@ -1937,8 +1897,6 @@ local characterConnection =
                 return
             end
 
-            -- Restore the currently selected
-            -- movement settings after respawn.
             humanoid.WalkSpeed =
                 savedWalkSpeed
 
@@ -1953,7 +1911,6 @@ local characterConnection =
                     savedJumpHeight
             end
 
-            -- Re-enable noclip if it was enabled.
             if noclip then
                 setNoclip(true)
             end
@@ -2018,10 +1975,6 @@ local function restoreCharacter()
         return
     end
 
-    -- Do not force every part to CanCollide=true: accessories and custom
-    -- characters may intentionally have non-collidable parts. setNoclip(false)
-    -- restores the local character's recorded collision values before this runs.
-
     local humanoid =
         character:FindFirstChildOfClass(
             "Humanoid"
@@ -2061,7 +2014,6 @@ local function panic()
         noclipEnforceConnection = nil
     end
 
-    -- Disable custom movement and restore collision values before cleanup.
     flying = false
     if noclip then
         setNoclip(false)
@@ -2070,7 +2022,6 @@ local function panic()
     end
     infiniteJump = false
 
-    -- Remove fly objects.
     if bodyVelocity then
         bodyVelocity:Destroy()
         bodyVelocity = nil
@@ -2081,14 +2032,10 @@ local function panic()
         bodyGyro = nil
     end
 
-    -- Restore original game movement.
     restoreCharacter()
 
-    -- Remove player outlines and tool labels.
     setPlayerEspEnabled(false)
 
-    -- Disconnect every connection
-    -- created by this script.
     for _, connection in ipairs(
         connections
     ) do
@@ -2101,13 +2048,11 @@ local function panic()
 
     table.clear(connections)
 
-    -- Remove GUI.
     if gui then
         gui:Destroy()
         gui = nil
     end
 
-    -- Remove this LocalScript.
     pcall(function()
         script:Destroy()
     end)
@@ -2205,7 +2150,6 @@ end
 
 showPage(homePage)
 
--- Keep the same frame loaded. When closed, move it off-screen rather than hiding/recreating it.
 main.Visible = true
 main.AnchorPoint = Vector2.new(0.5, 0.5)
 if menuOpen then
@@ -2227,12 +2171,8 @@ print("G = Menu")
 print("F = Fly")
 print("N = Noclip")
 
-
-
 --==================================================
 -- UI UPGRADE PACK: MODERN DARK THEME + RESPONSIVE SCALE
--- Keep this section at the VERY END of the same LocalScript.
--- It styles the existing menu and any UI objects added later.
 --==================================================
 
 do
@@ -2375,7 +2315,6 @@ do
             elseif object == uiContent then
                 object.BackgroundColor3 = UI.background
             elseif object.BackgroundTransparency < 1 then
-                -- Give existing cards/rows a consistent modern surface.
                 object.BackgroundColor3 = UI.panel
                 addCorner(object, 11)
                 addStroke(object, UI.border, 0.68, 1)
@@ -2388,7 +2327,6 @@ do
         end
     end
 
-    -- Main window details.
     uiMain.ClipsDescendants = true
     if not uiMain:FindFirstChild("UIUpgradeScale") then
         local scale = Instance.new("UIScale")
@@ -2411,7 +2349,6 @@ do
         end
     end
 
-    -- Subtle blue accent line under the header.
     if not uiTopBar:FindFirstChild("UIUpgradeAccent") then
         local accentLine = Instance.new("Frame")
         accentLine.Name = "UIUpgradeAccent"
@@ -2430,12 +2367,10 @@ do
         gradient.Parent = accentLine
     end
 
-    -- Style everything already created.
     for _, object in ipairs(uiGui:GetDescendants()) do
         styleObject(object)
     end
 
-    -- Also style buttons/cards created later by waypoint, console, and options code.
     uiGui.DescendantAdded:Connect(function(object)
         task.defer(function()
             if object and object.Parent then
@@ -2444,7 +2379,6 @@ do
         end)
     end)
 
-    -- Small accessibility polish.
     for _, object in ipairs(uiGui:GetDescendants()) do
         if object:IsA("TextButton") or object:IsA("TextBox") then
             object.Selectable = true
@@ -2456,8 +2390,6 @@ end
 
 --==================================================
 -- PREMIUM UI ADD-ON: WAYPOINTS, CONSOLE, AND BSS
--- This section must remain in the SAME LocalScript as the menu above.
--- BSS page searches workspace.HiddenStickers and provides one-click teleports.
 --==================================================
 
 do
@@ -2518,7 +2450,6 @@ do
         return label
     end
 
-    -- Shared button factory: all new buttons have the same shape, font, outline and hover.
     local function makeButton(parent, name, text, position, size, primary)
         local button = Instance.new("TextButton")
         button.Name = name
@@ -2614,7 +2545,6 @@ do
         return button
     end
 
-    -- Keep the original three tabs but normalize their appearance and spacing.
     local function restyleTab(button, text, y)
         if not button then return end
         button.Position = UDim2.fromOffset(10, y)
@@ -2650,7 +2580,6 @@ do
     local optionsPage = makePage("OptionsPage")
     local funPage = makePage("FunPage")
 
-    -- Keep all pages in the sidebar and add the new FUN page.
     local optionsTab = makeTab("OptionsTab", "⚙  OPTIONS", 184)
     local waypointsTab = makeTab("WaypointsTab", "WAYPOINTS", 228)
     local consoleTab = makeTab("ConsoleTab", "CONSOLE", 272)
@@ -2723,7 +2652,6 @@ do
     optionsTab.Activated:Connect(function() showPage(optionsPage) end)
     funTab.Activated:Connect(function() showPage(funPage) end)
 
-    -- FUN PAGE: lightweight, temporary local visual effects and character actions.
     makeHeader(funPage, "Fun Zone", "Small, temporary effects. Effects clean themselves up and do not run forever.")
     local funStatus = makeLabel(funPage, "FunStatus", "Choose a fun effect below.", UDim2.fromOffset(22, 101), UDim2.new(1, -44, 0, 28), 11, C.muted, false)
     local confettiButton = makeButton(funPage, "ConfettiBurst", "🎉 CONFETTI BURST", UDim2.fromOffset(22, 139), UDim2.new(0.48, -8, 0, 42), true)
@@ -2863,7 +2791,6 @@ do
         end
     end)
 
-    -- OPTIONS PAGE: configurable keys and floating UI toggle.
     makeHeader(optionsPage, "Options & Keybinds", "Click a key button, then press the key you want to use.")
     local optionsStatus = makeLabel(optionsPage, "OptionsStatus", "Changes apply immediately for this session.", UDim2.fromOffset(22, 101), UDim2.new(1, -44, 0, 24), 11, C.muted, false)
     local function makeKeyRow(y, title, keyName, target)
@@ -2898,8 +2825,6 @@ do
     end
     refreshOptionsLabels()
 
-    -- A separate floating button remains clickable while the main window is hidden.
-    -- Parent to ScreenGui (NOT main), so it remains clickable while main is hidden.
     floatingToggleButton = makeButton(gui, "FloatingMenuToggle", "B1478  •  MENU", UDim2.new(0, 22, 0.55, 0), UDim2.fromOffset(142, 38), true)
     floatingToggleButton.ZIndex = 100
     floatingToggleButton.Visible = floatingToggleEnabled
@@ -3043,7 +2968,6 @@ do
         refreshWaypoints()
     end)
 
-    -- CONSOLE PAGE. Client-side only: server Output/errors are not available here.
     makeHeader(consolePage, "Console", "Live client output captured from when this page loads onward.")
     local consoleStatus = makeLabel(consolePage, "ConsoleStatus", "Listening for client messages…", UDim2.fromOffset(22, 103), UDim2.new(1, -44, 0, 23), 11, C.muted, false)
     local consoleList = Instance.new("ScrollingFrame")
@@ -3117,7 +3041,6 @@ do
     end)
     addLog("Menu UI and extra pages loaded.", "SUCCESS")
 
-    -- BSS PAGE: list BaseParts and Models under workspace.HiddenStickers.
     makeHeader(bssPage, "BSS • HiddenStickers", "Browse objects in workspace.HiddenStickers and teleport to them.")
     local bssStatus = makeLabel(bssPage, "BSSStatus", "Checking workspace.HiddenStickers…", UDim2.fromOffset(22, 104), UDim2.new(1, -235, 0, 34), 11, C.muted, false)
     local refreshBSS = makeButton(bssPage, "RefreshBSS", "↻  REFRESH", UDim2.new(1, -145, 0, 103), UDim2.fromOffset(123, 36), true)
@@ -3214,7 +3137,6 @@ do
     refreshBSS.Activated:Connect(refreshBSSObjects)
     refreshBSSObjects()
 
-    -- Finish the shared window styling and keep all tabs/pages in the same theme.
     main.BackgroundColor3 = C.background
     main.BorderSizePixel = 0
     main.ClipsDescendants = true
@@ -3228,7 +3150,6 @@ do
     sidebarTitle.Font = Enum.Font.GothamBold
     sidebarTitle.TextSize = 10
 
-    -- Drag the menu from its top bar. The saved position is restored after hiding.
     do
         local draggingMenu = false
         local dragInput = nil
@@ -3263,7 +3184,6 @@ do
         end)
     end
 
-    -- Responsive scale for the complete menu.
     if not main:FindFirstChild("PremiumMenuScale") then
         local scale = Instance.new("UIScale")
         scale.Name = "PremiumMenuScale"
