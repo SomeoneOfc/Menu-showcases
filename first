@@ -2985,6 +2985,60 @@ __EB1478_safeCall("Premium pages and extras", function()
     local rainbowTrailButton = makeButton(funPage, "RainbowTrail", "🌈 RAINBOW TRAIL: OFF", UDim2.fromOffset(22, 496), UDim2.new(1, -44, 0, 42), false)
     local colorPopButton = makeButton(funPage, "ColorPop", "🎨 RANDOM COLOR POP", UDim2.fromOffset(22, 547), UDim2.new(1, -44, 0, 42), false)
 
+    -- Put the entire Fun control list in a scrollable area so every feature is reachable.
+    local funScroll = Instance.new("ScrollingFrame")
+    funScroll.Name = "FunFeatureScroll"
+    funScroll.Position = UDim2.fromOffset(12, 132)
+    funScroll.Size = UDim2.new(1, -24, 1, -142)
+    funScroll.BackgroundTransparency = 1
+    funScroll.BorderSizePixel = 0
+    funScroll.ScrollBarThickness = 5
+    funScroll.ScrollBarImageColor3 = C.accent
+    funScroll.CanvasSize = UDim2.fromOffset(0, 1550)
+    funScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    funScroll.ScrollingDirection = Enum.ScrollingDirection.Y
+    funScroll.ClipsDescendants = true
+    funScroll.Parent = funPage
+
+    local existingFunButtons = {confettiButton, danceButton, spinButton, jumpBoostButton, sparkleButton, fovButton,
+        rainbowUiButton, fovPulseButton, fireworksButton, rainbowTrailButton, colorPopButton}
+    for _, button in ipairs(existingFunButtons) do
+        button.Parent = funScroll
+        button.Position = UDim2.new(button.Position.X.Scale, button.Position.X.Offset, 0, button.Position.Y.Offset - 130)
+    end
+
+    local extraFunButtons = {}
+    local function makeExtraFunButton(index, name, label)
+        local button = makeButton(funScroll, name, label, UDim2.fromOffset(10, 468 + (index - 1) * 48), UDim2.new(1, -20, 0, 40), false)
+        extraFunButtons[name] = button
+        return button
+    end
+
+    -- 22 additional local-only effects. They are intentionally cosmetic and do not
+    -- affect other players or require remote events.
+    local rainbowBodyButton = makeExtraFunButton(1, "RainbowBody", "🌈 RAINBOW BODY: OFF")
+    local neonBodyButton = makeExtraFunButton(2, "NeonBody", "💡 NEON BODY: OFF")
+    local ghostButton = makeExtraFunButton(3, "GhostMode", "👻 GHOST MODE: OFF")
+    local headGlowButton = makeExtraFunButton(4, "HeadGlow", "✨ HEAD GLOW: OFF")
+    local bubbleAuraButton = makeExtraFunButton(5, "BubbleAura", "🫧 BUBBLE AURA: OFF")
+    local heartAuraButton = makeExtraFunButton(6, "HeartAura", "💗 HEART AURA: OFF")
+    local starAuraButton = makeExtraFunButton(7, "StarAura", "⭐ STAR AURA: OFF")
+    local snowBurstButton = makeExtraFunButton(8, "SnowBurst", "❄️ SNOW BURST")
+    local rainbowBurstButton = makeExtraFunButton(9, "RainbowBurst", "🎊 RAINBOW BURST")
+    local moonJumpButton = makeExtraFunButton(10, "MoonJump", "🌙 MOON JUMP: OFF")
+    local speedBoostButton = makeExtraFunButton(11, "FunSpeedBoost", "⚡ SPEED BOOST: OFF")
+    local lowGravityButton = makeExtraFunButton(12, "LowGravity", "🪐 LOW GRAVITY: OFF")
+    local bigHeadButton = makeExtraFunButton(13, "BigHead", "🤪 BIG HEAD: OFF")
+    local tinyModeButton = makeExtraFunButton(14, "TinyMode", "🐜 TINY MODE: OFF")
+    local cameraWobbleButton = makeExtraFunButton(15, "CameraWobble", "🎥 CAMERA WOBBLE: OFF")
+    local cameraRollButton = makeExtraFunButton(16, "CameraRoll", "🌀 CAMERA ROLL: OFF")
+    local screenFlashButton = makeExtraFunButton(17, "ScreenFlash", "🌟 SCREEN FLASH")
+    local randomBodyButton = makeExtraFunButton(18, "RandomBodyColors", "🎨 RANDOM BODY COLORS")
+    local footstepSparksButton = makeExtraFunButton(19, "FootstepSparks", "👟 FOOTSTEP SPARKS: OFF")
+    local magicTrailButton = makeExtraFunButton(20, "MagicTrail", "🪄 MAGIC TRAIL: OFF")
+    local fireflyAuraButton = makeExtraFunButton(21, "FireflyAura", "🪲 FIREFLY AURA: OFF")
+    local superBounceButton = makeExtraFunButton(22, "SuperBounce", "🏀 SUPER BOUNCE: OFF")
+
     local rainbowUiEnabled = false
     local rainbowUiConnection = nil
     local fovPulseEnabled = false
@@ -3115,6 +3169,335 @@ __EB1478_safeCall("Premium pages and extras", function()
         C.accent = color
         setFunStatus("Color pop applied! Turn Rainbow UI on for moving colours.", C.green)
     end)
+
+    local function setExtraState(button, label, enabled)
+        button.Text = label .. (enabled and ": ON" or ": OFF")
+        button.BackgroundColor3 = enabled and C.green or C.panel2
+    end
+    local function characterParts()
+        local character = getCharacter()
+        local parts = {}
+        if character then
+            for _, item in ipairs(character:GetDescendants()) do
+                if item:IsA("BasePart") and item.Name ~= "HumanoidRootPart" then
+                    table.insert(parts, item)
+                end
+            end
+        end
+        return character, parts
+    end
+    local function attachAura(button, name, texture, colorSequence, rate)
+        local existing = button:GetAttribute("AuraEnabled") == true
+        if existing then
+            local character = getCharacter()
+            if character then
+                local old = character:FindFirstChild(name, true)
+                if old then
+                    local parent = old.Parent
+                    if parent and parent:IsA("Attachment") then parent:Destroy() else old:Destroy() end
+                end
+            end
+            button:SetAttribute("AuraEnabled", false)
+            setExtraState(button, button:GetAttribute("BaseLabel") or name, false)
+            setFunStatus(name .. " disabled.")
+            return
+        end
+        local root = getRoot()
+        if not root then setFunStatus("Your character is not ready.", C.red); return end
+        local attachment = Instance.new("Attachment")
+        attachment.Name = name .. "Attachment"
+        attachment.Parent = root
+        local emitter = Instance.new("ParticleEmitter")
+        emitter.Name = name
+        emitter.Texture = texture
+        emitter.Rate = rate or 10
+        emitter.Lifetime = NumberRange.new(0.6, 1.2)
+        emitter.Speed = NumberRange.new(0.5, 2)
+        emitter.SpreadAngle = Vector2.new(180, 180)
+        emitter.LightEmission = 0.8
+        emitter.Size = NumberSequence.new(0.35)
+        emitter.Color = colorSequence
+        emitter.Parent = attachment
+        button:SetAttribute("AuraEnabled", true)
+        setExtraState(button, button:GetAttribute("BaseLabel") or name, true)
+        setFunStatus(name .. " enabled. Toggle again to remove it.", C.green)
+    end
+
+    local rainbowBodyOn, rainbowBodyOriginals, rainbowBodyConnection = false, {}, nil
+    rainbowBodyButton.Activated:Connect(function()
+        rainbowBodyOn = not rainbowBodyOn
+        if rainbowBodyOn then
+            rainbowBodyOriginals = {}
+            local _, parts = characterParts()
+            for _, part in ipairs(parts) do rainbowBodyOriginals[part] = part.Color end
+            local hue = 0
+            rainbowBodyConnection = RunService.Heartbeat:Connect(function(dt)
+                hue = (hue + dt * 0.35) % 1
+                local _, currentParts = characterParts()
+                for _, part in ipairs(currentParts) do part.Color = Color3.fromHSV((hue + part.Position.Y * 0.015) % 1, 0.85, 1) end
+            end)
+        else
+            if rainbowBodyConnection then rainbowBodyConnection:Disconnect(); rainbowBodyConnection = nil end
+            for part, color in pairs(rainbowBodyOriginals) do if part and part.Parent then part.Color = color end end
+        end
+        setExtraState(rainbowBodyButton, "🌈 RAINBOW BODY", rainbowBodyOn)
+        setFunStatus(rainbowBodyOn and "Rainbow body enabled." or "Original body colours restored.", C.green)
+    end)
+
+    local neonOn, neonOriginals = false, {}
+    neonBodyButton.Activated:Connect(function()
+        neonOn = not neonOn
+        local _, parts = characterParts()
+        if neonOn then
+            neonOriginals = {}
+            for _, part in ipairs(parts) do neonOriginals[part] = part.Material; part.Material = Enum.Material.Neon end
+        else
+            for part, material in pairs(neonOriginals) do if part and part.Parent then part.Material = material end end
+        end
+        setExtraState(neonBodyButton, "💡 NEON BODY", neonOn)
+        setFunStatus(neonOn and "Neon material enabled." or "Original materials restored.", C.green)
+    end)
+
+    local ghostOn, ghostOriginals = false, {}
+    ghostButton.Activated:Connect(function()
+        ghostOn = not ghostOn
+        local _, parts = characterParts()
+        if ghostOn then
+            ghostOriginals = {}
+            for _, part in ipairs(parts) do ghostOriginals[part] = part.LocalTransparencyModifier; part.LocalTransparencyModifier = 0.55 end
+        else
+            for part, transparency in pairs(ghostOriginals) do if part and part.Parent then part.LocalTransparencyModifier = transparency end end
+        end
+        setExtraState(ghostButton, "👻 GHOST MODE", ghostOn)
+        setFunStatus(ghostOn and "Ghost appearance enabled locally." or "Original transparency restored.", C.green)
+    end)
+
+    local headGlowOn = false
+    headGlowButton.Activated:Connect(function()
+        local character = getCharacter()
+        if not character then setFunStatus("Your character is not ready.", C.red); return end
+        local head = character:FindFirstChild("Head")
+        if not head then setFunStatus("Head part not found.", C.red); return end
+        headGlowOn = not headGlowOn
+        if headGlowOn then
+            local light = Instance.new("PointLight"); light.Name = "B1478HeadGlow"; light.Color = C.accentLight; light.Range = 12; light.Brightness = 1.5; light.Parent = head
+        else
+            local light = head:FindFirstChild("B1478HeadGlow"); if light then light:Destroy() end
+        end
+        setExtraState(headGlowButton, "✨ HEAD GLOW", headGlowOn)
+        setFunStatus(headGlowOn and "Head glow enabled." or "Head glow removed.", C.green)
+    end)
+
+    local auraColors = {
+        BubbleAura = ColorSequence.new(Color3.fromRGB(110, 210, 255)),
+        HeartAura = ColorSequence.new(Color3.fromRGB(255, 95, 165)),
+        StarAura = ColorSequence.new(Color3.fromRGB(255, 220, 95)),
+        FootstepSparks = ColorSequence.new(Color3.fromRGB(120, 255, 190)),
+        MagicTrail = ColorSequence.new({ColorSequenceKeypoint.new(0, Color3.fromRGB(100, 120, 255)), ColorSequenceKeypoint.new(1, Color3.fromRGB(240, 100, 255))}),
+        FireflyAura = ColorSequence.new({ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 245, 130)), ColorSequenceKeypoint.new(1, Color3.fromRGB(120, 255, 170))}),
+    }
+    for _, item in ipairs({
+        {bubbleAuraButton, "BubbleAura", "rbxasset://textures/particles/bubble_main.dds", 9, "🫧 BUBBLE AURA"},
+        {heartAuraButton, "HeartAura", "rbxasset://textures/particles/heart_main.dds", 7, "💗 HEART AURA"},
+        {starAuraButton, "StarAura", "rbxasset://textures/particles/sparkles_main.dds", 8, "⭐ STAR AURA"},
+        {footstepSparksButton, "FootstepSparks", "rbxasset://textures/particles/sparkles_main.dds", 14, "👟 FOOTSTEP SPARKS"},
+        {magicTrailButton, "MagicTrail", "rbxasset://textures/particles/sparkles_main.dds", 11, "🪄 MAGIC TRAIL"},
+        {fireflyAuraButton, "FireflyAura", "rbxasset://textures/particles/sparkles_main.dds", 6, "🪲 FIREFLY AURA"},
+    }) do
+        local button, name, texture, rate, label = item[1], item[2], item[3], item[4], item[5]
+        button:SetAttribute("BaseLabel", label)
+        button.Activated:Connect(function() attachAura(button, name, texture, auraColors[name], rate) end)
+    end
+
+    local function burst(button, name, color, amount)
+        local root = getRoot()
+        if not root then setFunStatus("Your character is not ready.", C.red); return end
+        local attachment = Instance.new("Attachment"); attachment.Name = name .. "Attachment"; attachment.Parent = root
+        local emitter = Instance.new("ParticleEmitter")
+        emitter.Name = name; emitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"; emitter.Rate = 0
+        emitter.Lifetime = NumberRange.new(0.7, 1.4); emitter.Speed = NumberRange.new(8, 18)
+        emitter.SpreadAngle = Vector2.new(180, 180); emitter.Rotation = NumberRange.new(0, 360)
+        emitter.RotSpeed = NumberRange.new(-180, 180); emitter.LightEmission = 1
+        emitter.Color = color; emitter.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.55), NumberSequenceKeypoint.new(1, 0)})
+        emitter.Parent = attachment; emitter:Emit(amount or 45); game:GetService("Debris"):AddItem(attachment, 2.5)
+        setFunStatus(name .. " burst! It cleans itself up.", C.green)
+    end
+    snowBurstButton.Activated:Connect(function()
+        burst(snowBurstButton, "SnowBurst", ColorSequence.new(Color3.fromRGB(220, 245, 255)), 60)
+    end)
+    rainbowBurstButton.Activated:Connect(function()
+        burst(rainbowBurstButton, "RainbowBurst", ColorSequence.new({ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 80, 110)), ColorSequenceKeypoint.new(0.25, Color3.fromRGB(255, 220, 70)), ColorSequenceKeypoint.new(0.5, Color3.fromRGB(80, 255, 150)), ColorSequenceKeypoint.new(0.75, Color3.fromRGB(80, 170, 255)), ColorSequenceKeypoint.new(1, Color3.fromRGB(220, 90, 255))}), 90)
+    end)
+
+    local jumpOriginals = {}
+    local function setJumpMode(button, label, multiplier, enabledKey)
+        local humanoid = getHumanoid()
+        if not humanoid then setFunStatus("Your character is not ready.", C.red); return end
+        local enabled = button:GetAttribute("ToggleEnabled") == true
+        if not enabled then
+            jumpOriginals[enabledKey] = {UseJumpPower = humanoid.UseJumpPower, JumpPower = humanoid.JumpPower, JumpHeight = humanoid.JumpHeight}
+            if humanoid.UseJumpPower then humanoid.JumpPower = multiplier else humanoid.JumpHeight = multiplier / 5 end
+            button:SetAttribute("ToggleEnabled", true)
+        else
+            local old = jumpOriginals[enabledKey]
+            if old then humanoid.UseJumpPower = old.UseJumpPower; humanoid.JumpPower = old.JumpPower; humanoid.JumpHeight = old.JumpHeight end
+            jumpOriginals[enabledKey] = nil; button:SetAttribute("ToggleEnabled", false)
+        end
+        setExtraState(button, label, not enabled)
+        setFunStatus(label .. (not enabled and " enabled." or " disabled."), C.green)
+    end
+    moonJumpButton.Activated:Connect(function() setJumpMode(moonJumpButton, "🌙 MOON JUMP", 115, "MoonJump") end)
+    superBounceButton.Activated:Connect(function() setJumpMode(superBounceButton, "🏀 SUPER BOUNCE", 150, "SuperBounce") end)
+
+    local speedOriginal = nil
+    speedBoostButton.Activated:Connect(function()
+        local humanoid = getHumanoid(); if not humanoid then setFunStatus("Your character is not ready.", C.red); return end
+        local enabled = speedBoostButton:GetAttribute("ToggleEnabled") == true
+        if not enabled then speedOriginal = humanoid.WalkSpeed; humanoid.WalkSpeed = 28 else humanoid.WalkSpeed = speedOriginal or 16 end
+        speedBoostButton:SetAttribute("ToggleEnabled", not enabled); setExtraState(speedBoostButton, "⚡ SPEED BOOST", not enabled)
+        setFunStatus(not enabled and "Local movement speed increased." or "Original movement speed restored.", C.green)
+    end)
+
+    local gravityOriginal = nil
+    lowGravityButton.Activated:Connect(function()
+        local enabled = lowGravityButton:GetAttribute("ToggleEnabled") == true
+        if not enabled then gravityOriginal = workspace.Gravity; workspace.Gravity = 110 else workspace.Gravity = gravityOriginal or 196.2 end
+        lowGravityButton:SetAttribute("ToggleEnabled", not enabled); setExtraState(lowGravityButton, "🪐 LOW GRAVITY", not enabled)
+        setFunStatus(not enabled and "Low gravity enabled for this client simulation." or "Original gravity restored.", C.green)
+    end)
+
+    local bigHeadOriginal = nil
+    bigHeadButton.Activated:Connect(function()
+        local character = getCharacter(); local head = character and character:FindFirstChild("Head")
+        if not head or not head:IsA("BasePart") then setFunStatus("Head part not found.", C.red); return end
+        local enabled = bigHeadButton:GetAttribute("ToggleEnabled") == true
+        if not enabled then bigHeadOriginal = head.Size; head.Size = bigHeadOriginal * 1.5 else head.Size = bigHeadOriginal or Vector3.new(2, 1, 1) end
+        bigHeadButton:SetAttribute("ToggleEnabled", not enabled); setExtraState(bigHeadButton, "🤪 BIG HEAD", not enabled)
+        setFunStatus(not enabled and "Big head enabled locally." or "Head size restored.", C.green)
+    end)
+
+    local tinyOriginals = nil
+    tinyModeButton.Activated:Connect(function()
+        local character = getCharacter(); local humanoid = getHumanoid()
+        if not character or not humanoid then setFunStatus("Your character is not ready.", C.red); return end
+        local enabled = tinyModeButton:GetAttribute("ToggleEnabled") == true
+        local scaleNames = {"BodyHeightScale", "BodyWidthScale", "BodyDepthScale", "HeadScale"}
+        if not enabled then
+            tinyOriginals = {}
+            for _, scaleName in ipairs(scaleNames) do
+                local value = humanoid:FindFirstChild(scaleName)
+                if value and value:IsA("NumberValue") then tinyOriginals[scaleName] = value.Value; value.Value = math.max(0.5, value.Value * 0.65) end
+            end
+        else
+            for scaleName, value in pairs(tinyOriginals or {}) do local scale = humanoid:FindFirstChild(scaleName); if scale and scale:IsA("NumberValue") then scale.Value = value end end
+            tinyOriginals = nil
+        end
+        tinyModeButton:SetAttribute("ToggleEnabled", not enabled); setExtraState(tinyModeButton, "🐜 TINY MODE", not enabled)
+        setFunStatus(not enabled and "Tiny mode applied where avatar scaling is supported." or "Avatar scales restored where supported.", C.green)
+    end)
+
+    local cameraWobbleOn, cameraWobbleConnection = false, nil
+    cameraWobbleButton.Activated:Connect(function()
+        cameraWobbleOn = not cameraWobbleOn
+        if cameraWobbleOn then
+            local t = 0
+            cameraWobbleConnection = RunService.RenderStepped:Connect(function(dt)
+                local camera = workspace.CurrentCamera; if not camera then return end
+                t += dt; camera.CFrame = camera.CFrame * CFrame.Angles(math.sin(t * 3) * 0.003, 0, 0)
+            end)
+        else if cameraWobbleConnection then cameraWobbleConnection:Disconnect(); cameraWobbleConnection = nil end end
+        setExtraState(cameraWobbleButton, "🎥 CAMERA WOBBLE", cameraWobbleOn); setFunStatus(cameraWobbleOn and "Camera wobble enabled." or "Camera wobble disabled.", C.green)
+    end)
+
+    local cameraRollOn, cameraRollConnection = false, nil
+    cameraRollButton.Activated:Connect(function()
+        cameraRollOn = not cameraRollOn
+        if cameraRollOn then
+            local t = 0
+            cameraRollConnection = RunService.RenderStepped:Connect(function(dt)
+                local camera = workspace.CurrentCamera; if not camera then return end
+                t += dt; camera.CFrame = camera.CFrame * CFrame.Angles(0, 0, math.sin(t * 1.5) * 0.002)
+            end)
+        else if cameraRollConnection then cameraRollConnection:Disconnect(); cameraRollConnection = nil end end
+        setExtraState(cameraRollButton, "🌀 CAMERA ROLL", cameraRollOn); setFunStatus(cameraRollOn and "Camera roll enabled." or "Camera roll disabled.", C.green)
+    end)
+
+    screenFlashButton.Activated:Connect(function()
+        local flash = Instance.new("Frame"); flash.Name = "B1478FunFlash"; flash.Size = UDim2.fromScale(1, 1)
+        flash.BackgroundColor3 = Color3.fromHSV(math.random(), 0.65, 1); flash.BackgroundTransparency = 0.25
+        flash.BorderSizePixel = 0; flash.ZIndex = 1000; flash.Parent = uiGui
+        TweenService:Create(flash, TweenInfo.new(0.7), {BackgroundTransparency = 1}):Play()
+        game:GetService("Debris"):AddItem(flash, 0.8); setFunStatus("Screen flash! It fades automatically.", C.green)
+    end)
+
+    randomBodyButton.Activated:Connect(function()
+        local _, parts = characterParts(); local originals = {}
+        for _, part in ipairs(parts) do originals[part] = part.Color; part.Color = Color3.fromHSV(math.random(), 0.75, 1) end
+        task.delay(4, function() for part, color in pairs(originals) do if part and part.Parent then part.Color = color end end end)
+        setFunStatus("Random body colours applied for four seconds.", C.green)
+    end)
+
+    -- Pagination: six fun controls per page, with bottom navigation arrows.
+    -- Existing click handlers stay attached when the buttons are reparented.
+    local allFunButtons = {
+        confettiButton, danceButton, spinButton, jumpBoostButton, sparkleButton, fovButton,
+        rainbowUiButton, fovPulseButton, fireworksButton, rainbowTrailButton, colorPopButton,
+        rainbowBodyButton, neonBodyButton, ghostButton, headGlowButton, bubbleAuraButton,
+        heartAuraButton, starAuraButton, snowBurstButton, rainbowBurstButton, moonJumpButton,
+        speedBoostButton, lowGravityButton, bigHeadButton, tinyModeButton, cameraWobbleButton,
+        cameraRollButton, screenFlashButton, randomBodyButton, footstepSparksButton,
+        magicTrailButton, fireflyAuraButton, superBounceButton
+    }
+    local controlsPerPage = 6
+    local pageCount = math.ceil(#allFunButtons / controlsPerPage)
+    local funPages = {funScroll}
+    funScroll.Size = UDim2.new(1, -24, 1, -210)
+    funScroll.CanvasSize = UDim2.fromOffset(0, 305)
+    funScroll.AutomaticCanvasSize = Enum.AutomaticSize.None
+    funScroll.ScrollBarThickness = 0
+    for pageNumber = 2, pageCount do
+        local pageFrame = funScroll:Clone()
+        pageFrame.Name = "FunFeaturePage" .. pageNumber
+        for _, child in ipairs(pageFrame:GetChildren()) do
+            child:Destroy()
+        end
+        pageFrame.Visible = false
+        pageFrame.Parent = funPage
+        funPages[pageNumber] = pageFrame
+    end
+    for index, button in ipairs(allFunButtons) do
+        local pageNumber = math.ceil(index / controlsPerPage)
+        local slot = (index - 1) % controlsPerPage
+        button.Parent = funPages[pageNumber]
+        button.Position = UDim2.new(0, 10, 0, 8 + slot * 48)
+        button.Size = UDim2.new(1, -20, 0, 40)
+        button.Visible = true
+    end
+
+    local previousPageButton = makeButton(funPage, "FunPreviousPage", "◀ BACK", UDim2.new(0, 16, 1, -63), UDim2.fromOffset(105, 36), false)
+    local nextPageButton = makeButton(funPage, "FunNextPage", "NEXT ▶", UDim2.new(1, -121, 1, -63), UDim2.fromOffset(105, 36), true)
+    local pageIndicator = makeLabel(funPage, "FunPageIndicator", "PAGE 1 / " .. pageCount,
+        UDim2.new(0, 127, 1, -61), UDim2.new(1, -254, 0, 32), 12, C.text, true)
+    pageIndicator.TextXAlignment = Enum.TextXAlignment.Center
+    local currentFunPage = 1
+    local function showFunPage(pageNumber)
+        currentFunPage = math.clamp(pageNumber, 1, pageCount)
+        for i, frame in ipairs(funPages) do
+            frame.Visible = (i == currentFunPage)
+            frame.CanvasPosition = Vector2.new(0, 0)
+        end
+        pageIndicator.Text = "PAGE " .. currentFunPage .. " / " .. pageCount
+        previousPageButton.Text = currentFunPage == 1 and "◀ FIRST" or "◀ BACK"
+        nextPageButton.Text = currentFunPage == pageCount and "LAST ▶" or "NEXT ▶"
+    end
+    previousPageButton.Activated:Connect(function()
+        if currentFunPage > 1 then showFunPage(currentFunPage - 1) end
+    end)
+    nextPageButton.Activated:Connect(function()
+        if currentFunPage < pageCount then showFunPage(currentFunPage + 1) end
+    end)
+    showFunPage(1)
+    setFunStatus("Fun Zone: 33 features across " .. pageCount .. " pages. Use the arrows below.", C.green)
 
     end)
 
