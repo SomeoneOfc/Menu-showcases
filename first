@@ -1,12 +1,12 @@
 -- ERRORB1478 MENU - REVIEWED SAFE-LOAD BUILD (NO FUN PAGE)
 -- Install as a LocalScript in StarterPlayer > StarterPlayerScripts.
 -- Do not use loadstring/HttpGet in a normal Studio LocalScript.
--- Optional UI add-on blocks are protected with xpcall via __EB1478_safeCall.
+-- Diagnostics are F9-only; optional UI add-on blocks are not all individually isolated by __EB1478_safeCall.
 -- This prevents an add-on runtime error from stopping the core menu, but it cannot
 -- guarantee all features work without running in the target Roblox experience.
 
 -- SELF-DIAGNOSTIC BUILD NOTES:
--- Adds section context, ScriptContext error reports, and startup checks. It reports failures but cannot resume execution after a fatal top-level error.
+-- Adds section context, ScriptContext error reports, and startup checks. Error reporting is F9-only; the on-screen Error Monitor is removed. Fatal top-level errors still stop execution.
 -- NIL-GUARD AUDIT NOTES:
 -- Optional character parts, humanoids, cameras, user IDs, and tool textures are checked
 -- before use where needed. Some variables intentionally start as nil until a feature is
@@ -78,144 +78,42 @@ if not RunService:IsClient() or not player then
 end
 
 --==================================================
--- ERROR MONITOR
+-- F9 ERROR DIAGNOSTICS (NO ON-SCREEN ERROR TAB)
 --==================================================
-
+-- The old ErrorB1478ErrorMonitor ScreenGui is removed and is not recreated.
+-- Errors remain available in Roblox Studio's F9 Developer Console.
 local LogService = game:GetService("LogService")
-local existingErrorGui = player:WaitForChild("PlayerGui"):FindFirstChild("ErrorB1478ErrorMonitor")
+local playerGui = player:WaitForChild("PlayerGui")
+local existingErrorGui = playerGui:FindFirstChild("ErrorB1478ErrorMonitor")
 if existingErrorGui then
     existingErrorGui:Destroy()
 end
-local existingMenuGui = player:WaitForChild("PlayerGui"):FindFirstChild("ErrorB1478Menu")
+local existingMenuGui = playerGui:FindFirstChild("ErrorB1478Menu")
 if existingMenuGui then
     existingMenuGui:Destroy()
 end
-local errorMessages = {}
-local maxLoggedErrors = 30
 
-local errorGui = Instance.new("ScreenGui")
-errorGui.Name = "ErrorB1478ErrorMonitor"
-errorGui.ResetOnSpawn = false
-errorGui.IgnoreGuiInset = true
-errorGui.DisplayOrder = 10000
-errorGui.Parent = player:WaitForChild("PlayerGui")
-
-local errorFrame = Instance.new("Frame")
-errorFrame.Name = "ErrorPanel"
-errorFrame.AnchorPoint = Vector2.new(1, 1)
-errorFrame.Position = UDim2.new(1, -12, 1, -12)
-errorFrame.Size = UDim2.fromOffset(420, 235)
-errorFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
-errorFrame.BorderSizePixel = 0
-errorFrame.Parent = errorGui
-
-local errorFrameCorner = Instance.new("UICorner")
-errorFrameCorner.CornerRadius = UDim.new(0, 8)
-errorFrameCorner.Parent = errorFrame
-
-local errorTitle = Instance.new("TextLabel")
-errorTitle.Name = "Title"
-errorTitle.Position = UDim2.fromOffset(10, 5)
-errorTitle.Size = UDim2.new(1, -160, 0, 28)
-errorTitle.BackgroundTransparency = 1
-errorTitle.Font = Enum.Font.GothamBold
-errorTitle.TextSize = 14
-errorTitle.TextXAlignment = Enum.TextXAlignment.Left
-errorTitle.TextColor3 = Color3.fromRGB(255, 105, 105)
-errorTitle.Text = "ERROR MONITOR (0)"
-errorTitle.Parent = errorFrame
-
-local function makeErrorButton(name, text, width, xOffset)
-    local button = Instance.new("TextButton")
-    button.Name = name
-    button.Size = UDim2.fromOffset(width, 25)
-    button.Position = UDim2.new(1, xOffset, 0, 6)
-    button.BackgroundColor3 = Color3.fromRGB(65, 65, 78)
-    button.BorderSizePixel = 0
-    button.Font = Enum.Font.Gotham
-    button.TextSize = 12
-    button.TextColor3 = Color3.new(1, 1, 1)
-    button.Text = text
-    button.Parent = errorFrame
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 5)
-    corner.Parent = button
-    return button
-end
-
-local copyErrorsButton = makeErrorButton("CopyErrors", "Select all", 65, -145)
-local clearErrorsButton = makeErrorButton("ClearErrors", "Clear", 60, -75)
-
-local errorOutput = Instance.new("TextBox")
-errorOutput.Name = "ErrorText"
-errorOutput.Position = UDim2.fromOffset(10, 38)
-errorOutput.Size = UDim2.new(1, -20, 1, -48)
-errorOutput.BackgroundColor3 = Color3.fromRGB(14, 14, 19)
-errorOutput.BorderSizePixel = 0
-errorOutput.ClearTextOnFocus = false
-errorOutput.MultiLine = true
-errorOutput.TextEditable = true
-errorOutput.TextWrapped = true
-errorOutput.TextXAlignment = Enum.TextXAlignment.Left
-errorOutput.TextYAlignment = Enum.TextYAlignment.Top
-errorOutput.Font = Enum.Font.Code
-errorOutput.TextSize = 12
-errorOutput.TextColor3 = Color3.fromRGB(255, 220, 220)
-errorOutput.Text = "No errors recorded. Errors from this client will appear here."
-errorOutput.Parent = errorFrame
-
-local errorOutputCorner = Instance.new("UICorner")
-errorOutputCorner.CornerRadius = UDim.new(0, 5)
-errorOutputCorner.Parent = errorOutput
-
-local function refreshErrorOutput()
-    errorTitle.Text = "ERROR MONITOR (" .. tostring(#errorMessages) .. ")"
-    if #errorMessages == 0 then
-        errorOutput.Text = "No errors recorded. Errors from this client will appear here."
-    else
-        errorOutput.Text = table.concat(errorMessages, "\n\n")
-    end
-end
-
+local __EB1478_seenErrors = __EB1478_seenErrors or {}
+local __EB1478_errorCount = 0
 local function recordClientError(message)
-    local errorText = tostring(message or "Unknown client error")
-    table.insert(errorMessages, os.date("%H:%M:%S") .. " | " .. errorText)
-    while #errorMessages > maxLoggedErrors do
-        table.remove(errorMessages, 1)
-    end
-    refreshErrorOutput()
-
-    -- Mirror captured errors into the Roblox F9 Developer Console as warnings.
-    -- The listener below only reacts to MessageError, so this warning will not loop.
-    warn("[ErrorB1478Menu][F9] Captured client error: " .. errorText)
+    __EB1478_errorCount += 1
+    warn("[ErrorB1478Menu][F9] Client error #" .. tostring(__EB1478_errorCount) .. ": " .. tostring(message or "Unknown client error"))
 end
 
-copyErrorsButton.Activated:Connect(function()
-    errorOutput:CaptureFocus()
-    errorOutput.SelectionStart = 1
-    errorOutput.CursorPosition = #errorOutput.Text + 1
-end)
-
-clearErrorsButton.Activated:Connect(function()
-    table.clear(errorMessages)
-    refreshErrorOutput()
-end)
-
-warn("[ErrorB1478Menu][F9] Error logging active. Press F9 and select Client to view logs.")
-
+print("[ErrorB1478Menu][F9] Diagnostics active. Press F9 and select Client to view errors. No on-screen error tab will be shown.")
 LogService.MessageOut:Connect(function(message, messageType)
     if messageType == Enum.MessageType.MessageError then
         recordClientError(message)
     end
 end)
 
--- ScriptContext provides the failing script and stack trace when Roblox reports an error.
+-- ScriptContext provides the failing script and stack trace when available.
 -- This is diagnostic only: it cannot resume a top-level script after a fatal error.
 local __EB1478_scriptContextOk, __EB1478_scriptContext = pcall(function()
     return game:GetService("ScriptContext")
 end)
 if __EB1478_scriptContextOk and __EB1478_scriptContext then
-    pcall(function()
+    local __EB1478_connected, __EB1478_connectError = pcall(function()
         __EB1478_scriptContext.Error:Connect(function(message, stackTrace, sourceScript)
             local scriptName = (sourceScript and sourceScript.Name) or "unknown script"
             local key = tostring(message) .. "|" .. tostring(stackTrace)
@@ -228,8 +126,11 @@ if __EB1478_scriptContextOk and __EB1478_scriptContext then
             __EB1478_failedSections[__EB1478_currentSection] = report
         end)
     end)
+    if not __EB1478_connected then
+        warn("[ErrorB1478Menu][DIAGNOSTIC] ScriptContext error listener unavailable: " .. tostring(__EB1478_connectError))
+    end
 else
-    warn("[ErrorB1478Menu][DIAGNOSTIC] ScriptContext error events are unavailable here; using LogService error logging instead.")
+    warn("[ErrorB1478Menu][DIAGNOSTIC] ScriptContext unavailable; use F9 Developer Console for errors.")
 end
 
 --==================================================
@@ -3315,7 +3216,6 @@ local __EB1478_expected = {
     {"Home page", homePage},
     {"Movement page", movementPage},
     {"Finder page", finderPage},
-    {"Error monitor", errorGui},
 }
 for _, item in ipairs(__EB1478_expected) do
     if item[2] == nil then
