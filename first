@@ -1800,14 +1800,20 @@ local floatingToggleEnabled = true
 local floatingToggleButton = nil
 
 -- HIDE/SHOW WITHOUT DESTROYING THE GUI.
--- This preserves the current page, controls, settings, and UI state and avoids
--- rebuilding the interface each time it is toggled. Only the explicit Panic
--- action below performs a full cleanup/deletion.
+-- Hiding changes only main.Visible; ScreenGui stays enabled and loaded.
+-- This preserves pages, controls, settings, and UI state. The explicit Panic
+-- button is the only action that performs a full cleanup/deletion.
 local function setMenuVisible(visible)
+    -- Never destroy, disable, or recreate the ScreenGui to hide the menu.
+    -- Keep the ScreenGui enabled so the separate floating toggle stays clickable.
     if destroyed or not gui or not gui.Parent then return end
+
+    gui.Enabled = true
     menuOpen = visible
     main.Visible = visible
-    if visible then
+
+    -- Refresh only when opening; the existing GUI and its state remain loaded.
+    if visible and refreshFolders then
         refreshFolders()
     end
 end
