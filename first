@@ -1799,27 +1799,79 @@ local refreshOptionsLabels = nil
 local floatingToggleEnabled = true
 local floatingToggleButton = nil
 
--- HIDE/SHOW WITHOUT DESTROYING THE GUI.
--- Hiding changes only main.Visible; ScreenGui stays enabled and loaded.
--- This preserves pages, controls, settings, and UI state. The explicit Panic
--- button is the only action that performs a full cleanup/deletion.
+-- HIDE/SHOW BY TRANSPARENCY, WITHOUT DESTROYING OR RECREATING THE GUI.
+-- The main frame stays loaded and its scripts keep running. While hidden, all
+-- visual transparency properties are set to 1; the separate floating toggle
+-- is not inside main, so it remains visible and clickable.
+local transparencyProperties = {
+    "BackgroundTransparency", "TextTransparency", "TextStrokeTransparency",
+    "ImageTransparency", "ScrollBarImageTransparency", "Transparency",
+    "GroupTransparency"
+}
+local hiddenPropertyCache = setmetatable({}, { __mode = "k" })
+local menuHiddenTransparency = false
+
+local function cacheAndSetProperty(instance, propertyName, value)
+    local ok, original = pcall(function() return instance[propertyName] end)
+    if not ok then return end
+    hiddenPropertyCache[instance] = hiddenPropertyCache[instance] or {}
+    local cache = hiddenPropertyCache[instance]
+    if cache[propertyName] == nil then
+        cache[propertyName] = original
+    end
+    pcall(function() instance[propertyName] = value end)
+end
+
+local function setObjectHiddenAppearance(instance, hidden)
+    if hidden then
+        for _, propertyName in ipairs(transparencyProperties) do
+            cacheAndSetProperty(instance, propertyName, 1)
+        end
+        -- Disable button interaction while invisible, when this property exists.
+        cacheAndSetProperty(instance, "Interactable", false)
+    else
+        local cache = hiddenPropertyCache[instance]
+        if cache then
+            for propertyName, original in pairs(cache) do
+                pcall(function() instance[propertyName] = original end)
+            end
+            hiddenPropertyCache[instance] = nil
+        end
+    end
+end
+
+local function setMenuTransparency(hidden)
+    menuHiddenTransparency = hidden
+    setObjectHiddenAppearance(main, hidden)
+    for _, descendant in ipairs(main:GetDescendants()) do
+        setObjectHiddenAppearance(descendant, hidden)
+    end
+end
+
+-- New controls created while the menu is hidden are made transparent too.
+main.DescendantAdded:Connect(function(descendant)
+    if menuHiddenTransparency then
+        setObjectHiddenAppearance(descendant, true)
+        for _, child in ipairs(descendant:GetDescendants()) do
+            setObjectHiddenAppearance(child, true)
+        end
+    end
+end)
+
 local function setMenuVisible(visible)
-    -- IMPORTANT: hiding the menu must NEVER stop this LocalScript,
-    -- disable the ScreenGui, destroy UI objects, or recreate the interface.
-    -- Only the main window is hidden. The floating toggle remains available.
     if destroyed or not gui or not gui.Parent then return end
 
     gui.Enabled = true
     menuOpen = visible
-    main.Visible = visible
+    -- Keep main.Visible true at all times; only change its transparency.
+    main.Visible = true
+    setMenuTransparency(not visible)
 
-    -- Keep the separate floating toggle visible while the main window is hidden,
-    -- unless the user has turned that button off in Options.
+    -- The floating toggle is outside main, so it remains available while hidden.
     if floatingToggleButton and floatingToggleButton.Parent then
         floatingToggleButton.Visible = floatingToggleEnabled
     end
 
-    -- Refresh folder contents when opening; preserve the same GUI and state.
     if visible and refreshFolders then
         refreshFolders()
     end
@@ -2149,8 +2201,9 @@ end
 
 showPage(homePage)
 
--- Initial state only; subsequent hiding uses setMenuVisible and never destroys the GUI.
-main.Visible = menuOpen
+-- Keep the main frame loaded at all times; initial visibility is transparency-based.
+main.Visible = true
+setMenuTransparency(not menuOpen)
 
 --==================================================
 -- FINAL SAFETY CHECK
