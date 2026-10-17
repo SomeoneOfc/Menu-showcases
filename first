@@ -2562,10 +2562,11 @@ do
     local bssPage = makePage("BSSPage")
     local optionsPage = makePage("OptionsPage")
 
-    local waypointsTab = makeTab("WaypointsTab", "WAYPOINTS", 184)
-    local consoleTab = makeTab("ConsoleTab", "CONSOLE", 228)
-    local bssTab = makeTab("BSSTab", "BSS", 272)
-    local optionsTab = makeTab("OptionsTab", "OPTIONS", 316)
+    -- Keep OPTIONS directly in the main PAGES list, immediately after Finder.
+    local optionsTab = makeTab("OptionsTab", "⚙  OPTIONS", 184)
+    local waypointsTab = makeTab("WaypointsTab", "WAYPOINTS", 228)
+    local consoleTab = makeTab("ConsoleTab", "CONSOLE", 272)
+    local bssTab = makeTab("BSSTab", "BSS", 316)
 
     local allTabs = {homeButton, movementTabButton, finderTabButton, waypointsTab, consoleTab, bssTab, optionsTab}
     local function highlightTab(active)
@@ -3014,5 +3015,5 @@ do
     end
 
     showPage(homePage)
-    print("Premium UI loaded. Added Waypoints, Console, Options/keybinds, floating UI toggle, and BSS HiddenStickers teleports.")
+    print("Premium UI loaded. Added Options/keybinds directly to the Pages list, floating UI toggle, Waypoints, Console, and BSS HiddenStickers teleports.")
 end
