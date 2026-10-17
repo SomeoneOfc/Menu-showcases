@@ -1,7 +1,11 @@
+-- Combined Roblox Studio LocalScript
+-- Place in StarterPlayer > StarterPlayerScripts.
+-- This creates a client-side movement/finder menu for your own experience.
+-- Note: client-only movement changes are not secure server-authoritative game mechanics.
 
 --==================================================
--- ERROR_B1478 MENU
--- PART 1: SETUP, GUI AND HOME PAGE
+-- Combined script
+-- SETUP + MAIN GUI + HOME PAGE
 --==================================================
 
 local Players = game:GetService("Players")
@@ -11,12 +15,17 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local player = Players.LocalPlayer
 
+--==================================================
 -- STATE
+--==================================================
+
 local destroyed = false
 local menuOpen = true
+
 local flying = false
 local noclip = false
 local infiniteJump = false
+
 local currentFlySpeed = 70
 
 local humanoid = nil
@@ -33,9 +42,13 @@ local savedJumpHeight = 7.2
 
 local bodyVelocity = nil
 local bodyGyro = nil
+
 local connections = {}
 
--- CHARACTER REFERENCES
+--==================================================
+-- CHARACTER
+--==================================================
+
 local function updateCharacterReferences()
     local character = player.Character
 
@@ -76,7 +89,10 @@ local function getCharacter()
     return player.Character
 end
 
+--==================================================
 -- GUI
+--==================================================
+
 local gui = Instance.new("ScreenGui")
 gui.Name = "ErrorB1478Menu"
 gui.ResetOnSpawn = false
@@ -126,7 +142,10 @@ hint.TextSize = 11
 hint.Font = Enum.Font.Gotham
 hint.Parent = topBar
 
+--==================================================
 -- SIDEBAR
+--==================================================
+
 local sidebar = Instance.new("Frame")
 sidebar.Size = UDim2.fromOffset(155, 615)
 sidebar.Position = UDim2.fromOffset(0, 55)
@@ -145,7 +164,10 @@ sidebarTitle.Font = Enum.Font.GothamBold
 sidebarTitle.TextXAlignment = Enum.TextXAlignment.Left
 sidebarTitle.Parent = sidebar
 
+--==================================================
 -- CONTENT
+--==================================================
+
 local content = Instance.new("Frame")
 content.Size = UDim2.new(1, -155, 1, -55)
 content.Position = UDim2.fromOffset(155, 55)
@@ -153,7 +175,10 @@ content.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
 content.BorderSizePixel = 0
 content.Parent = main
 
+--==================================================
 -- HOME PAGE
+--==================================================
+
 local homePage = Instance.new("Frame")
 homePage.Size = UDim2.fromScale(1, 1)
 homePage.BackgroundTransparency = 1
@@ -181,7 +206,10 @@ homeSubtitle.Font = Enum.Font.Gotham
 homeSubtitle.TextXAlignment = Enum.TextXAlignment.Left
 homeSubtitle.Parent = homePage
 
--- PROFILE HELPERS
+--==================================================
+-- PROFILE THUMBNAILS
+--==================================================
+
 local function getUserThumbnail(userId)
     local success, imageUrl = pcall(function()
         local contentUrl = Players:GetUserThumbnailAsync(
@@ -189,6 +217,7 @@ local function getUserThumbnail(userId)
             Enum.ThumbnailType.HeadShot,
             Enum.ThumbnailSize.Size420x420
         )
+
         return contentUrl
     end)
 
@@ -289,7 +318,8 @@ local function createProfileCard(
     return card
 end
 
--- CREATOR PROFILE
+-- Creator profile.
+
 local creatorUserId = getUserId("Error_B1478")
 
 createProfileCard(
@@ -301,7 +331,8 @@ createProfileCard(
     125
 )
 
--- CURRENT PLAYER PROFILE
+-- Current player profile.
+
 createProfileCard(
     homePage,
     "Using this menu",
@@ -326,7 +357,10 @@ homeInfo.TextWrapped = true
 homeInfo.TextXAlignment = Enum.TextXAlignment.Left
 homeInfo.Parent = homePage
 
--- TAB BUTTON HELPER
+--==================================================
+-- BASIC TAB BUTTONS
+--==================================================
+
 local function createTabButton(text, y)
     local button = Instance.new("TextButton")
     button.Size = UDim2.fromOffset(135, 42)
@@ -346,21 +380,19 @@ local function createTabButton(text, y)
     return button
 end
 
-local homeButton = createTabButton("Home", 55)
-local movementTabButton = createTabButton("Movement", 105)
-local finderTabButton = createTabButton("Finder", 155)
+homeButton = createTabButton("Home", 55)
+movementTabButton = createTabButton("Movement", 105)
+finderTabButton = createTabButton("Finder", 155)
 
 homeButton.BackgroundColor3 = Color3.fromRGB(65, 105, 180)
 
--- PART 1 ENDS HERE
--- Continue with Part 2 directly below this code.
 
 --==================================================
--- PART 2: MOVEMENT PAGE
+-- Combined script
+-- MOVEMENT TAB
 --==================================================
 
 local movementPage = Instance.new("Frame")
-movementPage.Name = "MovementPage"
 movementPage.Size = UDim2.fromScale(1, 1)
 movementPage.BackgroundTransparency = 1
 movementPage.Visible = false
@@ -378,28 +410,37 @@ movementTitle.TextXAlignment = Enum.TextXAlignment.Left
 movementTitle.Parent = movementPage
 
 local movementSubtitle = Instance.new("TextLabel")
-movementSubtitle.Size = UDim2.fromOffset(500, 25)
+movementSubtitle.Size = UDim2.fromOffset(500, 30)
 movementSubtitle.Position = UDim2.fromOffset(20, 62)
 movementSubtitle.BackgroundTransparency = 1
-movementSubtitle.Text = "Adjust movement settings for your character"
+movementSubtitle.Text = "Movement controls"
 movementSubtitle.TextColor3 = Color3.fromRGB(145, 145, 155)
-movementSubtitle.TextSize = 12
+movementSubtitle.TextSize = 13
 movementSubtitle.Font = Enum.Font.Gotham
 movementSubtitle.TextXAlignment = Enum.TextXAlignment.Left
 movementSubtitle.Parent = movementPage
 
--- MOVEMENT UI HELPERS
-local function createMovementButton(text, x, y, width)
+--==================================================
+-- BUTTON HELPERS
+--==================================================
+
+local function createMovementButton(
+    text,
+    x,
+    y,
+    width,
+    color
+)
     local button = Instance.new("TextButton")
-    button.Size = UDim2.fromOffset(width or 210, 42)
+    button.Size = UDim2.fromOffset(width, 40)
     button.Position = UDim2.fromOffset(x, y)
-    button.BackgroundColor3 = Color3.fromRGB(38, 38, 49)
+    button.BackgroundColor3 =
+        color or Color3.fromRGB(48, 48, 58)
     button.BorderSizePixel = 0
     button.Text = text
     button.TextColor3 = Color3.new(1, 1, 1)
-    button.TextSize = 13
+    button.TextSize = 12
     button.Font = Enum.Font.Gotham
-    button.AutoButtonColor = true
     button.Parent = movementPage
 
     local corner = Instance.new("UICorner")
@@ -409,32 +450,25 @@ local function createMovementButton(text, x, y, width)
     return button
 end
 
-local function createMovementLabel(text, x, y, width)
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.fromOffset(width or 210, 25)
-    label.Position = UDim2.fromOffset(x, y)
-    label.BackgroundTransparency = 1
-    label.Text = text
-    label.TextColor3 = Color3.fromRGB(190, 190, 200)
-    label.TextSize = 12
-    label.Font = Enum.Font.Gotham
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Parent = movementPage
-
-    return label
-end
-
-local function createMovementBox(defaultText, x, y, width)
+local function createMovementBox(
+    text,
+    placeholder,
+    x,
+    y,
+    width
+)
     local box = Instance.new("TextBox")
-    box.Size = UDim2.fromOffset(width or 210, 38)
+    box.Size = UDim2.fromOffset(width, 40)
     box.Position = UDim2.fromOffset(x, y)
-    box.BackgroundColor3 = Color3.fromRGB(32, 32, 42)
+    box.BackgroundColor3 =
+        Color3.fromRGB(35, 35, 43)
     box.BorderSizePixel = 0
-    box.Text = defaultText
-    box.PlaceholderText = defaultText
+    box.Text = text
+    box.PlaceholderText = placeholder
+    box.PlaceholderColor3 =
+        Color3.fromRGB(130, 130, 140)
     box.TextColor3 = Color3.new(1, 1, 1)
-    box.PlaceholderColor3 = Color3.fromRGB(125, 125, 135)
-    box.TextSize = 13
+    box.TextSize = 12
     box.Font = Enum.Font.Gotham
     box.ClearTextOnFocus = false
     box.Parent = movementPage
@@ -446,61 +480,199 @@ local function createMovementBox(defaultText, x, y, width)
     return box
 end
 
--- MOVEMENT STATUS
-local function updateMovementButton(button, label, enabled)
-    button.Text = label .. ": " .. (enabled and "ON" or "OFF")
+--==================================================
+-- MOVEMENT CONTROLS
+--==================================================
 
-    if enabled then
-        button.BackgroundColor3 = Color3.fromRGB(45, 110, 75)
+local flyButton = createMovementButton(
+    "Fly: OFF",
+    20,
+    105,
+    140
+)
+
+local noclipButton = createMovementButton(
+    "Noclip: OFF",
+    175,
+    105,
+    140
+)
+
+local infiniteJumpButton = createMovementButton(
+    "Inf Jump: OFF",
+    330,
+    105,
+    140
+)
+
+local speedBox = createMovementBox(
+    tostring(originalWalkSpeed),
+    "Walk speed",
+    20,
+    165,
+    140
+)
+
+local setSpeedButton = createMovementButton(
+    "Set Speed",
+    175,
+    165,
+    140,
+    Color3.fromRGB(55, 90, 145)
+)
+
+local flySpeedBox = createMovementBox(
+    tostring(currentFlySpeed),
+    "Fly speed",
+    330,
+    165,
+    140
+)
+
+local setFlySpeedButton = createMovementButton(
+    "Set Fly Speed",
+    20,
+    220,
+    140,
+    Color3.fromRGB(55, 90, 145)
+)
+
+local jumpStartingValue
+
+if originalUseJumpPower then
+    jumpStartingValue = originalJumpPower
+else
+    jumpStartingValue = originalJumpHeight
+end
+
+local jumpBox = createMovementBox(
+    tostring(jumpStartingValue),
+    originalUseJumpPower
+        and "Jump power"
+        or "Jump height",
+    175,
+    220,
+    140
+)
+
+local setJumpButton = createMovementButton(
+    originalUseJumpPower
+        and "Set Jump Power"
+        or "Set Jump Height",
+    330,
+    220,
+    140,
+    Color3.fromRGB(55, 90, 145)
+)
+
+local resetMovementButton = createMovementButton(
+    "Revert Movement",
+    20,
+    280,
+    450,
+    Color3.fromRGB(75, 75, 85)
+)
+
+local movementInfo = Instance.new("TextLabel")
+movementInfo.Size = UDim2.fromOffset(450, 100)
+movementInfo.Position = UDim2.fromOffset(20, 340)
+movementInfo.BackgroundTransparency = 1
+movementInfo.Text =
+    "F = Fly\n" ..
+    "N = Noclip\n" ..
+    "J = Infinite Jump\n" ..
+    "G = Open / minimize menu"
+movementInfo.TextColor3 =
+    Color3.fromRGB(130, 130, 140)
+movementInfo.TextSize = 12
+movementInfo.Font = Enum.Font.Gotham
+movementInfo.TextWrapped = true
+movementInfo.TextXAlignment =
+    Enum.TextXAlignment.Left
+movementInfo.Parent = movementPage
+
+--==================================================
+-- MOVEMENT FUNCTIONS
+--==================================================
+
+local function setFlyButtonState()
+    if flying then
+        flyButton.Text = "Fly: ON"
+        flyButton.BackgroundColor3 =
+            Color3.fromRGB(45, 130, 75)
     else
-        button.BackgroundColor3 = Color3.fromRGB(38, 38, 49)
+        flyButton.Text = "Fly: OFF"
+        flyButton.BackgroundColor3 =
+            Color3.fromRGB(48, 48, 58)
     end
 end
 
--- WALK SPEED
-createMovementLabel("Walk speed", 20, 110, 210)
-
-local speedBox = createMovementBox("16", 20, 138, 210)
-local speedButton = createMovementButton("Apply walk speed", 20, 183, 210)
-
-speedButton.MouseButton1Click:Connect(function()
-    local characterHumanoid = getHumanoid()
-    local value = tonumber(speedBox.Text)
-
-    if characterHumanoid and value then
-        value = math.clamp(value, 0, 250)
-        savedWalkSpeed = value
-        characterHumanoid.WalkSpeed = value
+local function setNoclipButtonState()
+    if noclip then
+        noclipButton.Text = "Noclip: ON"
+        noclipButton.BackgroundColor3 =
+            Color3.fromRGB(45, 130, 75)
+    else
+        noclipButton.Text = "Noclip: OFF"
+        noclipButton.BackgroundColor3 =
+            Color3.fromRGB(48, 48, 58)
     end
-end)
+end
 
--- JUMP POWER
-createMovementLabel("Jump power / height", 255, 110, 210)
-
-local jumpBox = createMovementBox("50", 255, 138, 210)
-local jumpButton = createMovementButton("Apply jump setting", 255, 183, 210)
-
-jumpButton.MouseButton1Click:Connect(function()
-    local characterHumanoid = getHumanoid()
-    local value = tonumber(jumpBox.Text)
-
-    if characterHumanoid and value then
-        value = math.clamp(value, 0, 250)
-
-        if characterHumanoid.UseJumpPower then
-            savedJumpPower = value
-            characterHumanoid.JumpPower = value
-        else
-            savedJumpHeight = value
-            characterHumanoid.JumpHeight = value
-        end
+local function setInfiniteJumpButtonState()
+    if infiniteJump then
+        infiniteJumpButton.Text = "Inf Jump: ON"
+        infiniteJumpButton.BackgroundColor3 =
+            Color3.fromRGB(45, 130, 75)
+    else
+        infiniteJumpButton.Text = "Inf Jump: OFF"
+        infiniteJumpButton.BackgroundColor3 =
+            Color3.fromRGB(48, 48, 58)
     end
-end)
+end
 
+--==================================================
 -- FLY
-local flyButton = createMovementButton("Fly: OFF", 20, 250, 210)
+--==================================================
 
-local function stopFlying()
+local function startFly()
+    if destroyed or flying then
+        return
+    end
+
+    local root = getRoot()
+
+    if not root then
+        return
+    end
+
+    flying = true
+
+    bodyVelocity = Instance.new("BodyVelocity")
+    bodyVelocity.Name = "MenuFlyVelocity"
+    bodyVelocity.MaxForce =
+        Vector3.new(100000, 100000, 100000)
+    bodyVelocity.Velocity = Vector3.zero
+    bodyVelocity.Parent = root
+
+    bodyGyro = Instance.new("BodyGyro")
+    bodyGyro.Name = "MenuFlyGyro"
+    bodyGyro.MaxTorque =
+        Vector3.new(100000, 100000, 100000)
+    bodyGyro.P = 10000
+    bodyGyro.CFrame = root.CFrame
+    bodyGyro.Parent = root
+
+    local h = getHumanoid()
+
+    if h then
+        h.AutoRotate = false
+    end
+
+    setFlyButtonState()
+end
+
+local function stopFly()
     flying = false
 
     if bodyVelocity then
@@ -513,244 +685,356 @@ local function stopFlying()
         bodyGyro = nil
     end
 
-    local characterHumanoid = getHumanoid()
+    local h = getHumanoid()
 
-    if characterHumanoid then
-        characterHumanoid.PlatformStand = false
+    if h then
+        h.AutoRotate = true
     end
 
-    updateMovementButton(flyButton, "Fly", false)
+    setFlyButtonState()
 end
 
-local function startFlying()
-    local characterRoot = getRoot()
-    local characterHumanoid = getHumanoid()
-
-    if not characterRoot or not characterHumanoid then
-        return
-    end
-
-    stopFlying()
-
-    characterRoot = getRoot()
-    characterHumanoid = getHumanoid()
-
-    if not characterRoot or not characterHumanoid then
-        return
-    end
-
-    flying = true
-    characterHumanoid.PlatformStand = true
-
-    bodyVelocity = Instance.new("BodyVelocity")
-    bodyVelocity.Name = "MenuFlyVelocity"
-    bodyVelocity.MaxForce = Vector3.new(1e9, 1e9, 1e9)
-    bodyVelocity.Velocity = Vector3.zero
-    bodyVelocity.Parent = characterRoot
-
-    bodyGyro = Instance.new("BodyGyro")
-    bodyGyro.Name = "MenuFlyGyro"
-    bodyGyro.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
-    bodyGyro.P = 10000
-    bodyGyro.CFrame = characterRoot.CFrame
-    bodyGyro.Parent = characterRoot
-
-    updateMovementButton(flyButton, "Fly", true)
-end
-
-flyButton.MouseButton1Click:Connect(function()
-    if flying then
-        stopFlying()
-    else
-        startFlying()
-    end
-end)
-
--- FLY SPEED
-createMovementLabel("Fly speed", 255, 250, 210)
-
-local flySpeedBox = createMovementBox("70", 255, 278, 210)
-local flySpeedButton = createMovementButton("Apply fly speed", 255, 323, 210)
-
-flySpeedButton.MouseButton1Click:Connect(function()
-    local value = tonumber(flySpeedBox.Text)
-
-    if value then
-        currentFlySpeed = math.clamp(value, 1, 250)
-    end
-end)
-
+--==================================================
 -- NOCLIP
-local noclipButton = createMovementButton("Noclip: OFF", 20, 380, 210)
+--==================================================
 
 local function setNoclip(enabled)
     noclip = enabled
 
-    if not enabled then
-        local character = getCharacter()
+    local character = getCharacter()
 
-        if character then
-            for _, item in ipairs(character:GetDescendants()) do
-                if item:IsA("BasePart") then
-                    item.CanCollide = true
-                end
+    if not character then
+        setNoclipButtonState()
+        return
+    end
+
+    if not enabled then
+        for _, object in ipairs(
+            character:GetDescendants()
+        ) do
+            if object:IsA("BasePart") then
+                object.CanCollide = true
             end
         end
     end
 
-    updateMovementButton(noclipButton, "Noclip", noclip)
+    setNoclipButtonState()
 end
 
-noclipButton.MouseButton1Click:Connect(function()
-    setNoclip(not noclip)
-end)
+--==================================================
+-- REVERT MOVEMENT
+--==================================================
 
--- INFINITE JUMP
-local infiniteJumpButton =
-    createMovementButton("Infinite jump: OFF", 255, 380, 210)
+local function revertMovement()
+    local h = getHumanoid()
 
-infiniteJumpButton.MouseButton1Click:Connect(function()
-    infiniteJump = not infiniteJump
-
-    updateMovementButton(
-        infiniteJumpButton,
-        "Infinite jump",
-        infiniteJump
-    )
-end)
-
--- RESET MOVEMENT
-local resetMovementButton =
-    createMovementButton("Reset movement", 20, 435, 210)
-
-resetMovementButton.MouseButton1Click:Connect(function()
-    local characterHumanoid = getHumanoid()
-
-    if characterHumanoid then
-        characterHumanoid.WalkSpeed = originalWalkSpeed
-        characterHumanoid.UseJumpPower = originalUseJumpPower
-        characterHumanoid.JumpPower = originalJumpPower
-        characterHumanoid.JumpHeight = originalJumpHeight
-
-        savedWalkSpeed = originalWalkSpeed
-        savedJumpPower = originalJumpPower
-        savedJumpHeight = originalJumpHeight
-    end
-
-    stopFlying()
-    setNoclip(false)
-    infiniteJump = false
-
-    updateMovementButton(
-        infiniteJumpButton,
-        "Infinite jump",
-        false
-    )
-end)
-
--- FLY MOVEMENT UPDATE
-local function getFlyDirection()
-    local camera = workspace.CurrentCamera
-
-    if not camera then
-        return Vector3.zero
-    end
-
-    local direction = Vector3.zero
-
-    if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-        direction += camera.CFrame.LookVector
-    end
-
-    if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-        direction -= camera.CFrame.LookVector
-    end
-
-    if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-        direction += camera.CFrame.RightVector
-    end
-
-    if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-        direction -= camera.CFrame.RightVector
-    end
-
-    if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-        direction += Vector3.yAxis
-    end
-
-    if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
-        direction -= Vector3.yAxis
-    end
-
-    if direction.Magnitude > 0 then
-        return direction.Unit
-    end
-
-    return Vector3.zero
-end
-
-table.insert(connections, RunService.RenderStepped:Connect(function()
-    if destroyed then
+    if not h then
         return
     end
 
-    if flying and bodyVelocity and bodyGyro then
-        local characterRoot = getRoot()
+    h.WalkSpeed = originalWalkSpeed
+    h.UseJumpPower = originalUseJumpPower
+    h.JumpPower = originalJumpPower
+    h.JumpHeight = originalJumpHeight
 
-        if not characterRoot then
-            stopFlying()
+    savedWalkSpeed = originalWalkSpeed
+    savedJumpPower = originalJumpPower
+    savedJumpHeight = originalJumpHeight
+
+    speedBox.Text =
+        tostring(originalWalkSpeed)
+
+    if originalUseJumpPower then
+        jumpBox.Text =
+            tostring(originalJumpPower)
+    else
+        jumpBox.Text =
+            tostring(originalJumpHeight)
+    end
+end
+
+--==================================================
+-- BUTTON CONNECTIONS
+--==================================================
+
+flyButton.MouseButton1Click:Connect(
+    function()
+        if flying then
+            stopFly()
+        else
+            startFly()
+        end
+    end
+)
+
+noclipButton.MouseButton1Click:Connect(
+    function()
+        setNoclip(not noclip)
+    end
+)
+
+infiniteJumpButton.MouseButton1Click:Connect(
+    function()
+        infiniteJump = not infiniteJump
+        setInfiniteJumpButtonState()
+    end
+)
+
+setSpeedButton.MouseButton1Click:Connect(
+    function()
+        local value =
+            tonumber(speedBox.Text)
+
+        if not value then
+            speedBox.Text =
+                tostring(savedWalkSpeed)
             return
         end
 
-        bodyVelocity.Velocity = getFlyDirection() * currentFlySpeed
+        value = math.clamp(
+            value,
+            0,
+            500
+        )
 
-        local camera = workspace.CurrentCamera
+        savedWalkSpeed = value
 
-        if camera then
-            bodyGyro.CFrame = CFrame.new(
-                characterRoot.Position,
-                characterRoot.Position + camera.CFrame.LookVector
-            )
+        local h = getHumanoid()
+
+        if h then
+            h.WalkSpeed = value
         end
+
+        speedBox.Text =
+            tostring(value)
     end
+)
 
-    if noclip then
-        local character = getCharacter()
+setFlySpeedButton.MouseButton1Click:Connect(
+    function()
+        local value =
+            tonumber(flySpeedBox.Text)
 
-        if character then
-            for _, item in ipairs(character:GetDescendants()) do
-                if item:IsA("BasePart") then
-                    item.CanCollide = false
+        if not value then
+            flySpeedBox.Text =
+                tostring(currentFlySpeed)
+            return
+        end
+
+        currentFlySpeed =
+            math.clamp(
+                value,
+                10,
+                500
+            )
+
+        flySpeedBox.Text =
+            tostring(currentFlySpeed)
+    end
+)
+
+setJumpButton.MouseButton1Click:Connect(
+    function()
+        local value =
+            tonumber(jumpBox.Text)
+
+        if not value then
+            return
+        end
+
+        local h = getHumanoid()
+
+        if not h then
+            return
+        end
+
+        value = math.clamp(
+            value,
+            0,
+            500
+        )
+
+        if originalUseJumpPower then
+            savedJumpPower = value
+            h.UseJumpPower = true
+            h.JumpPower = value
+        else
+            savedJumpHeight = value
+            h.UseJumpPower = false
+            h.JumpHeight = value
+        end
+
+        jumpBox.Text =
+            tostring(value)
+    end
+)
+
+resetMovementButton.MouseButton1Click:Connect(
+    function()
+        revertMovement()
+    end
+)
+
+--==================================================
+-- FLY UPDATE
+--==================================================
+
+local flyConnection =
+    RunService.RenderStepped:Connect(
+        function()
+            if destroyed or not flying then
+                return
+            end
+
+            if not bodyVelocity then
+                return
+            end
+
+            local root = getRoot()
+            local camera = workspace.CurrentCamera
+
+            if not root or not camera then
+                return
+            end
+
+            local direction =
+                Vector3.zero
+
+            if UserInputService:IsKeyDown(
+                Enum.KeyCode.W
+            ) then
+                direction +=
+                    camera.CFrame.LookVector
+            end
+
+            if UserInputService:IsKeyDown(
+                Enum.KeyCode.S
+            ) then
+                direction -=
+                    camera.CFrame.LookVector
+            end
+
+            if UserInputService:IsKeyDown(
+                Enum.KeyCode.A
+            ) then
+                direction -=
+                    camera.CFrame.RightVector
+            end
+
+            if UserInputService:IsKeyDown(
+                Enum.KeyCode.D
+            ) then
+                direction +=
+                    camera.CFrame.RightVector
+            end
+
+            if UserInputService:IsKeyDown(
+                Enum.KeyCode.Space
+            ) then
+                direction +=
+                    Vector3.new(0, 1, 0)
+            end
+
+            if UserInputService:IsKeyDown(
+                Enum.KeyCode.LeftControl
+            ) then
+                direction -=
+                    Vector3.new(0, 1, 0)
+            end
+
+            if direction.Magnitude > 0 then
+                direction =
+                    direction.Unit *
+                    currentFlySpeed
+            end
+
+            bodyVelocity.Velocity =
+                direction
+
+            if bodyGyro then
+                bodyGyro.CFrame =
+                    camera.CFrame
+            end
+        end
+    )
+
+table.insert(
+    connections,
+    flyConnection
+)
+
+--==================================================
+-- NOCLIP UPDATE
+--==================================================
+
+local noclipConnection =
+    RunService.Stepped:Connect(
+        function()
+            if destroyed or not noclip then
+                return
+            end
+
+            local character =
+                getCharacter()
+
+            if not character then
+                return
+            end
+
+            for _, object in ipairs(
+                character:GetDescendants()
+            ) do
+                if object:IsA("BasePart") then
+                    object.CanCollide = false
                 end
             end
         end
-    end
-end))
+    )
 
--- INFINITE JUMP INPUT
-table.insert(connections, UserInputService.JumpRequest:Connect(function()
-    if not infiniteJump or destroyed then
-        return
-    end
-
-    local characterHumanoid = getHumanoid()
-
-    if characterHumanoid then
-        characterHumanoid:ChangeState(
-            Enum.HumanoidStateType.Jumping
-        )
-    end
-end))
-
--- PART 2 ENDS HERE
--- Continue with Part 3 directly below this code.
+table.insert(
+    connections,
+    noclipConnection
+)
 
 --==================================================
--- PART 3: FINDER PAGE
+-- INFINITE JUMP
+--==================================================
+
+local jumpConnection =
+    UserInputService.JumpRequest:Connect(
+        function()
+            if destroyed or not infiniteJump then
+                return
+            end
+
+            local h = getHumanoid()
+
+            if h then
+                h:ChangeState(
+                    Enum.HumanoidStateType.Jumping
+                )
+            end
+        end
+    )
+
+table.insert(
+    connections,
+    jumpConnection
+)
+
+--==================================================
+-- Combined script
+-- FINDER TAB
+--==================================================
+
+local selectedFolder = nil
+local allFolders = {}
+
+--==================================================
+-- FINDER PAGE
 --==================================================
 
 local finderPage = Instance.new("Frame")
-finderPage.Name = "FinderPage"
 finderPage.Size = UDim2.fromScale(1, 1)
 finderPage.BackgroundTransparency = 1
 finderPage.Visible = false
@@ -768,27 +1052,30 @@ finderTitle.TextXAlignment = Enum.TextXAlignment.Left
 finderTitle.Parent = finderPage
 
 local finderSubtitle = Instance.new("TextLabel")
-finderSubtitle.Size = UDim2.fromOffset(500, 25)
+finderSubtitle.Size = UDim2.fromOffset(500, 30)
 finderSubtitle.Position = UDim2.fromOffset(20, 62)
 finderSubtitle.BackgroundTransparency = 1
-finderSubtitle.Text = "Search for objects by name"
+finderSubtitle.Text = "Browse folders and teleport to locations"
 finderSubtitle.TextColor3 = Color3.fromRGB(145, 145, 155)
-finderSubtitle.TextSize = 12
+finderSubtitle.TextSize = 13
 finderSubtitle.Font = Enum.Font.Gotham
 finderSubtitle.TextXAlignment = Enum.TextXAlignment.Left
 finderSubtitle.Parent = finderPage
 
--- SEARCH INPUT
+--==================================================
+-- SEARCH BOX
+--==================================================
+
 local searchBox = Instance.new("TextBox")
-searchBox.Size = UDim2.new(1, -40, 0, 42)
+searchBox.Size = UDim2.fromOffset(450, 40)
 searchBox.Position = UDim2.fromOffset(20, 100)
-searchBox.BackgroundColor3 = Color3.fromRGB(32, 32, 42)
+searchBox.BackgroundColor3 = Color3.fromRGB(35, 35, 43)
 searchBox.BorderSizePixel = 0
-searchBox.PlaceholderText = "Enter an object name..."
 searchBox.Text = ""
-searchBox.TextColor3 = Color3.new(1, 1, 1)
+searchBox.PlaceholderText = "Search folders..."
 searchBox.PlaceholderColor3 = Color3.fromRGB(130, 130, 140)
-searchBox.TextSize = 13
+searchBox.TextColor3 = Color3.new(1, 1, 1)
+searchBox.TextSize = 12
 searchBox.Font = Enum.Font.Gotham
 searchBox.ClearTextOnFocus = false
 searchBox.Parent = finderPage
@@ -797,856 +1084,897 @@ local searchCorner = Instance.new("UICorner")
 searchCorner.CornerRadius = UDim.new(0, 8)
 searchCorner.Parent = searchBox
 
-local searchButton = Instance.new("TextButton")
-searchButton.Size = UDim2.fromOffset(130, 38)
-searchButton.Position = UDim2.fromOffset(20, 153)
-searchButton.BackgroundColor3 = Color3.fromRGB(65, 105, 180)
-searchButton.BorderSizePixel = 0
-searchButton.Text = "Search"
-searchButton.TextColor3 = Color3.new(1, 1, 1)
-searchButton.TextSize = 13
-searchButton.Font = Enum.Font.GothamBold
-searchButton.Parent = finderPage
+--==================================================
+-- FOLDER LIST
+--==================================================
 
-local searchButtonCorner = Instance.new("UICorner")
-searchButtonCorner.CornerRadius = UDim.new(0, 8)
-searchButtonCorner.Parent = searchButton
+local folderList = Instance.new("ScrollingFrame")
+folderList.Size = UDim2.fromOffset(450, 270)
+folderList.Position = UDim2.fromOffset(20, 150)
+folderList.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+folderList.BorderSizePixel = 0
+folderList.ScrollBarThickness = 5
+folderList.CanvasSize = UDim2.fromOffset(0, 0)
+folderList.Parent = finderPage
 
-local resultsLabel = Instance.new("TextLabel")
-resultsLabel.Size = UDim2.new(1, -40, 0, 25)
-resultsLabel.Position = UDim2.fromOffset(20, 200)
-resultsLabel.BackgroundTransparency = 1
-resultsLabel.Text = "Results: 0"
-resultsLabel.TextColor3 = Color3.fromRGB(170, 170, 180)
-resultsLabel.TextSize = 12
-resultsLabel.Font = Enum.Font.Gotham
-resultsLabel.TextXAlignment = Enum.TextXAlignment.Left
-resultsLabel.Parent = finderPage
+local folderListCorner = Instance.new("UICorner")
+folderListCorner.CornerRadius = UDim.new(0, 8)
+folderListCorner.Parent = folderList
 
--- SCROLLING RESULTS
-local resultsFrame = Instance.new("ScrollingFrame")
-resultsFrame.Name = "SearchResults"
-resultsFrame.Size = UDim2.new(1, -40, 1, -245)
-resultsFrame.Position = UDim2.fromOffset(20, 230)
-resultsFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 33)
-resultsFrame.BorderSizePixel = 0
-resultsFrame.ScrollBarThickness = 5
-resultsFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-resultsFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
-resultsFrame.Parent = finderPage
+local folderLayout = Instance.new("UIListLayout")
+folderLayout.Padding = UDim.new(0, 5)
+folderLayout.SortOrder = Enum.SortOrder.LayoutOrder
+folderLayout.Parent = folderList
 
-local resultsCorner = Instance.new("UICorner")
-resultsCorner.CornerRadius = UDim.new(0, 8)
-resultsCorner.Parent = resultsFrame
+local folderPadding = Instance.new("UIPadding")
+folderPadding.PaddingTop = UDim.new(0, 5)
+folderPadding.PaddingLeft = UDim.new(0, 5)
+folderPadding.PaddingRight = UDim.new(0, 5)
+folderPadding.Parent = folderList
 
-local resultsPadding = Instance.new("UIPadding")
-resultsPadding.PaddingTop = UDim.new(0, 8)
-resultsPadding.PaddingBottom = UDim.new(0, 8)
-resultsPadding.PaddingLeft = UDim.new(0, 8)
-resultsPadding.PaddingRight = UDim.new(0, 8)
-resultsPadding.Parent = resultsFrame
+--==================================================
+-- SELECTED FOLDER
+--==================================================
 
-local resultsLayout = Instance.new("UIListLayout")
-resultsLayout.Padding = UDim.new(0, 6)
-resultsLayout.SortOrder = Enum.SortOrder.LayoutOrder
-resultsLayout.Parent = resultsFrame
+local selectedLabel = Instance.new("TextLabel")
+selectedLabel.Size = UDim2.fromOffset(450, 35)
+selectedLabel.Position = UDim2.fromOffset(20, 430)
+selectedLabel.BackgroundTransparency = 1
+selectedLabel.Text = "Selected: None"
+selectedLabel.TextColor3 = Color3.fromRGB(145, 145, 155)
+selectedLabel.TextSize = 11
+selectedLabel.Font = Enum.Font.Gotham
+selectedLabel.TextXAlignment = Enum.TextXAlignment.Left
+selectedLabel.TextTruncate = Enum.TextTruncate.AtEnd
+selectedLabel.Parent = finderPage
 
--- FINDER STATUS
-local finderStatus = Instance.new("TextLabel")
-finderStatus.Size = UDim2.new(1, -40, 0, 22)
-finderStatus.Position = UDim2.new(0, 20, 1, -25)
-finderStatus.BackgroundTransparency = 1
-finderStatus.Text = ""
-finderStatus.TextColor3 = Color3.fromRGB(145, 145, 155)
-finderStatus.TextSize = 11
-finderStatus.Font = Enum.Font.Gotham
-finderStatus.TextXAlignment = Enum.TextXAlignment.Left
-finderStatus.Parent = finderPage
+--==================================================
+-- TELEPORT BUTTON
+--==================================================
 
-local function clearFinderResults()
-    for _, child in ipairs(resultsFrame:GetChildren()) do
-        if child ~= resultsLayout and child ~= resultsPadding then
-            child:Destroy()
-        end
-    end
+local teleportButton = Instance.new("TextButton")
+teleportButton.Size = UDim2.fromOffset(215, 42)
+teleportButton.Position = UDim2.fromOffset(20, 470)
+teleportButton.BackgroundColor3 = Color3.fromRGB(55, 90, 145)
+teleportButton.BorderSizePixel = 0
+teleportButton.Text = "Teleport to Folder"
+teleportButton.TextColor3 = Color3.new(1, 1, 1)
+teleportButton.TextSize = 12
+teleportButton.Font = Enum.Font.Gotham
+teleportButton.Parent = finderPage
 
-    resultsLabel.Text = "Results: 0"
-end
+local teleportCorner = Instance.new("UICorner")
+teleportCorner.CornerRadius = UDim.new(0, 8)
+teleportCorner.Parent = teleportButton
 
-local function getSearchRoots()
-    return {
-        workspace,
-        ReplicatedStorage
-    }
-end
+--==================================================
+-- REFRESH BUTTON
+--==================================================
 
-local function findObjects(searchText)
-    local found = {}
-    local query = string.lower(searchText)
+local refreshButton = Instance.new("TextButton")
+refreshButton.Size = UDim2.fromOffset(215, 42)
+refreshButton.Position = UDim2.fromOffset(255, 470)
+refreshButton.BackgroundColor3 = Color3.fromRGB(48, 48, 58)
+refreshButton.BorderSizePixel = 0
+refreshButton.Text = "Refresh Folders"
+refreshButton.TextColor3 = Color3.new(1, 1, 1)
+refreshButton.TextSize = 12
+refreshButton.Font = Enum.Font.Gotham
+refreshButton.Parent = finderPage
 
-    if query == "" then
-        return found
-    end
+local refreshCorner = Instance.new("UICorner")
+refreshCorner.CornerRadius = UDim.new(0, 8)
+refreshCorner.Parent = refreshButton
 
-    for _, root in ipairs(getSearchRoots()) do
-        for _, object in ipairs(root:GetDescendants()) do
-            if string.find(
-                string.lower(object.Name),
-                query,
-                1,
-                true
-            ) then
-                table.insert(found, object)
+--==================================================
+-- FOLDER COLLECTION
+--==================================================
 
-                -- Avoid creating an enormous number of result rows.
-                if #found >= 100 then
-                    return found
-                end
-            end
-        end
-    end
-
-    return found
-end
-
-local function teleportToObject(object)
-    if not object or not object.Parent then
-        finderStatus.Text = "That object no longer exists."
-        return
-    end
-
-    local character = player.Character
-    local characterRoot = character
-        and character:FindFirstChild("HumanoidRootPart")
-
-    if not characterRoot then
-        finderStatus.Text = "Your character is not ready."
-        return
-    end
-
-    local targetPart = nil
-
-    if object:IsA("BasePart") then
-        targetPart = object
-    elseif object:IsA("Model") then
-        targetPart = object.PrimaryPart
-            or object:FindFirstChildWhichIsA("BasePart", true)
-    else
-        targetPart = object:FindFirstAncestorWhichIsA("BasePart")
-
-        if not targetPart then
-            local model = object:FindFirstAncestorWhichIsA("Model")
-
-            if model then
-                targetPart = model.PrimaryPart
-                    or model:FindFirstChildWhichIsA("BasePart", true)
-            end
-        end
-    end
-
-    if not targetPart then
-        finderStatus.Text = "No physical part found for that object."
-        return
-    end
-
-    -- Move the local character slightly above the target.
-    characterRoot.CFrame = targetPart.CFrame * CFrame.new(0, 4, 0)
-    finderStatus.Text = "Teleported to: " .. object.Name
-end
-
-local function createResultRow(object, index)
-    local row = Instance.new("Frame")
-    row.Name = "Result_" .. tostring(index)
-    row.Size = UDim2.new(1, -4, 0, 55)
-    row.BackgroundColor3 = Color3.fromRGB(36, 36, 47)
-    row.BorderSizePixel = 0
-    row.LayoutOrder = index
-    row.Parent = resultsFrame
-
-    local rowCorner = Instance.new("UICorner")
-    rowCorner.CornerRadius = UDim.new(0, 7)
-    rowCorner.Parent = row
-
-    local nameLabel = Instance.new("TextLabel")
-    nameLabel.Size = UDim2.new(1, -145, 0, 27)
-    nameLabel.Position = UDim2.fromOffset(10, 4)
-    nameLabel.BackgroundTransparency = 1
-    nameLabel.Text = object.Name
-    nameLabel.TextColor3 = Color3.new(1, 1, 1)
-    nameLabel.TextSize = 12
-    nameLabel.Font = Enum.Font.GothamBold
-    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-    nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
-    nameLabel.Parent = row
-
-    local classLabel = Instance.new("TextLabel")
-    classLabel.Size = UDim2.new(1, -145, 0, 20)
-    classLabel.Position = UDim2.fromOffset(10, 29)
-    classLabel.BackgroundTransparency = 1
-    classLabel.Text = object.ClassName
-    classLabel.TextColor3 = Color3.fromRGB(145, 145, 155)
-    classLabel.TextSize = 10
-    classLabel.Font = Enum.Font.Gotham
-    classLabel.TextXAlignment = Enum.TextXAlignment.Left
-    classLabel.TextTruncate = Enum.TextTruncate.AtEnd
-    classLabel.Parent = row
-
-    local teleportButton = Instance.new("TextButton")
-    teleportButton.Size = UDim2.fromOffset(115, 35)
-    teleportButton.Position = UDim2.new(1, -125, 0.5, -17)
-    teleportButton.BackgroundColor3 = Color3.fromRGB(65, 105, 180)
-    teleportButton.BorderSizePixel = 0
-    teleportButton.Text = "Teleport"
-    teleportButton.TextColor3 = Color3.new(1, 1, 1)
-    teleportButton.TextSize = 11
-    teleportButton.Font = Enum.Font.GothamBold
-    teleportButton.Parent = row
-
-    local teleportCorner = Instance.new("UICorner")
-    teleportCorner.CornerRadius = UDim.new(0, 6)
-    teleportCorner.Parent = teleportButton
-
-    teleportButton.MouseButton1Click:Connect(function()
-        teleportToObject(object)
-    end)
-
-    return row
-end
-
-local function performSearch()
+local function collectFolders(parent, path)
     if destroyed then
         return
     end
 
-    clearFinderResults()
-    finderStatus.Text = "Searching..."
+    for _, object in ipairs(parent:GetChildren()) do
+        if destroyed then
+            return
+        end
 
-    local query = searchBox.Text
-    local results = findObjects(query)
+        local objectPath =
+            path .. "/" .. object.Name
 
-    resultsLabel.Text = "Results: " .. tostring(#results)
+        if object:IsA("Folder") then
+            table.insert(allFolders, {
+                Object = object,
+                Path = objectPath
+            })
 
-    if #results == 0 then
-        finderStatus.Text = "No matching objects found."
+            collectFolders(
+                object,
+                objectPath
+            )
+        end
+    end
+end
+
+--==================================================
+-- CLEAR FOLDER BUTTONS
+--==================================================
+
+local function clearFolderList()
+    for _, object in ipairs(
+        folderList:GetChildren()
+    ) do
+        if object:IsA("TextButton") then
+            object:Destroy()
+        end
+    end
+end
+
+--==================================================
+-- CREATE FOLDER BUTTON
+--==================================================
+
+local function createFolderButton(data)
+    local button = Instance.new("TextButton")
+
+    button.Size =
+        UDim2.new(1, -10, 0, 32)
+
+    button.BackgroundColor3 =
+        Color3.fromRGB(38, 38, 47)
+
+    button.BorderSizePixel = 0
+    button.Text = data.Path
+    button.TextColor3 =
+        Color3.new(1, 1, 1)
+
+    button.TextSize = 11
+    button.Font = Enum.Font.Gotham
+
+    button.TextXAlignment =
+        Enum.TextXAlignment.Left
+
+    button.TextTruncate =
+        Enum.TextTruncate.AtEnd
+
+    button.Parent = folderList
+
+    local padding = Instance.new("UIPadding")
+    padding.PaddingLeft =
+        UDim.new(0, 8)
+    padding.Parent = button
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius =
+        UDim.new(0, 5)
+    corner.Parent = button
+
+    button.MouseButton1Click:Connect(
+        function()
+            if destroyed then
+                return
+            end
+
+            selectedFolder = data
+
+            selectedLabel.Text =
+                "Selected: " .. data.Path
+
+            for _, other in ipairs(
+                folderList:GetChildren()
+            ) do
+                if other:IsA("TextButton") then
+                    other.BackgroundColor3 =
+                        Color3.fromRGB(
+                            38,
+                            38,
+                            47
+                        )
+                end
+            end
+
+            button.BackgroundColor3 =
+                Color3.fromRGB(
+                    65,
+                    105,
+                    180
+                )
+        end
+    )
+
+    return button
+end
+
+--==================================================
+-- REBUILD LIST
+--==================================================
+
+local function rebuildFolderList()
+    if destroyed then
         return
     end
 
-    for index, object in ipairs(results) do
-        createResultRow(object, index)
+    clearFolderList()
+
+    local query =
+        string.lower(searchBox.Text)
+
+    local visibleCount = 0
+
+    for _, data in ipairs(allFolders) do
+        local pathLower =
+            string.lower(data.Path)
+
+        if query == ""
+            or string.find(
+                pathLower,
+                query,
+                1,
+                true
+            )
+        then
+            createFolderButton(data)
+            visibleCount += 1
+        end
     end
 
-    if #results >= 100 then
-        finderStatus.Text = "Showing the first 100 matching objects."
-    else
-        finderStatus.Text = "Search complete."
-    end
+    folderList.CanvasSize =
+        UDim2.fromOffset(
+            0,
+            math.max(
+                visibleCount * 37 + 10,
+                270
+            )
+        )
 end
 
-searchButton.MouseButton1Click:Connect(performSearch)
-
-searchBox.FocusLost:Connect(function(enterPressed)
-    if enterPressed then
-        performSearch()
-    end
-end)
-
--- PART 3 ENDS HERE
--- Continue with Part 4 directly below this code.
-
 --==================================================
--- PART 4: PLAYER ESP AND TOOL INVENTORY
+-- REFRESH FOLDERS
 --==================================================
 
-local espEnabled = false
-local espObjects = {}
-local espConnections = {}
-
-local ESP_FOLDER_NAME = "ErrorB1478_ESP"
-
--- ESP TOGGLE BUTTON ON THE FINDER PAGE
-local espButton = Instance.new("TextButton")
-espButton.Name = "ESPButton"
-espButton.Size = UDim2.fromOffset(210, 38)
-espButton.Position = UDim2.new(1, -230, 0, 153)
-espButton.BackgroundColor3 = Color3.fromRGB(38, 38, 49)
-espButton.BorderSizePixel = 0
-espButton.Text = "Player ESP: OFF (Y)"
-espButton.TextColor3 = Color3.new(1, 1, 1)
-espButton.TextSize = 12
-espButton.Font = Enum.Font.GothamBold
-espButton.Parent = finderPage
-
-local espButtonCorner = Instance.new("UICorner")
-espButtonCorner.CornerRadius = UDim.new(0, 8)
-espButtonCorner.Parent = espButton
-
--- TEAM COLOUR
-local function getPlayerESPColour(targetPlayer)
-    if targetPlayer.Team then
-        return targetPlayer.Team.TeamColor.Color
+local function refreshFolders()
+    if destroyed then
+        return
     end
 
-    return Color3.fromRGB(155, 155, 165)
+    table.clear(allFolders)
+
+    selectedFolder = nil
+
+    selectedLabel.Text =
+        "Selected: None"
+
+    -- Workspace folders.
+    collectFolders(
+        workspace,
+        "Workspace"
+    )
+
+    -- ReplicatedStorage folders.
+    collectFolders(
+        ReplicatedStorage,
+        "ReplicatedStorage"
+    )
+
+    table.sort(
+        allFolders,
+        function(a, b)
+            return a.Path < b.Path
+        end
+    )
+
+    rebuildFolderList()
 end
 
--- FIND OR CREATE ESP BILLBOARD
-local function getESPFolder(targetPlayer)
-    local character = targetPlayer.Character
-    if not character then
+--==================================================
+-- SEARCH
+--==================================================
+
+searchBox:GetPropertyChangedSignal(
+    "Text"
+):Connect(
+    function()
+        rebuildFolderList()
+    end
+)
+
+--==================================================
+-- REFRESH
+--==================================================
+
+refreshButton.MouseButton1Click:Connect(
+    function()
+        refreshFolders()
+    end
+)
+
+--==================================================
+-- FIND A PART INSIDE FOLDER
+--==================================================
+
+local function findTeleportPart(folder)
+    if not folder then
         return nil
     end
 
-    local folder = character:FindFirstChild(ESP_FOLDER_NAME)
-
-    if not folder then
-        folder = Instance.new("Folder")
-        folder.Name = ESP_FOLDER_NAME
-        folder.Parent = character
+    if folder:IsA("BasePart") then
+        return folder
     end
 
-    return folder
+    local descendants =
+        folder:GetDescendants()
+
+    for _, object in ipairs(descendants) do
+        if object:IsA("BasePart") then
+            return object
+        end
+    end
+
+    return nil
 end
 
-local function removePlayerESP(targetPlayer)
-    local existing = espObjects[targetPlayer]
+--==================================================
+-- TELEPORT
+--==================================================
 
-    if existing then
-        if existing.highlight then
-            existing.highlight:Destroy()
+teleportButton.MouseButton1Click:Connect(
+    function()
+        if destroyed then
+            return
         end
 
-        if existing.billboard then
-            existing.billboard:Destroy()
+        if not selectedFolder then
+            selectedLabel.Text =
+                "Selected: None"
+
+            return
         end
 
-        espObjects[targetPlayer] = nil
+        local root = getRoot()
+
+        if not root then
+            selectedLabel.Text =
+                "Character not found"
+
+            return
+        end
+
+        local target =
+            findTeleportPart(
+                selectedFolder.Object
+            )
+
+        if not target then
+            selectedLabel.Text =
+                "Selected folder has no BasePart"
+
+            return
+        end
+
+        root.CFrame =
+            target.CFrame
+            + Vector3.new(0, 5, 0)
+
+        selectedLabel.Text =
+            "Teleported to: "
+            .. selectedFolder.Path
+    end
+)
+
+--==================================================
+-- INITIAL FOLDER LOAD
+--==================================================
+
+refreshFolders()
+
+--==================================================
+-- TAB SWITCHING
+--==================================================
+
+local function showPage(page)
+    if destroyed then
+        return
     end
 
-    -- Also remove any leftover ESP instances on this client.
+    homePage.Visible = false
+    movementPage.Visible = false
+    finderPage.Visible = false
+
+    homeButton.BackgroundColor3 =
+        Color3.fromRGB(48, 48, 58)
+
+    movementTabButton.BackgroundColor3 =
+        Color3.fromRGB(48, 48, 58)
+
+    finderTabButton.BackgroundColor3 =
+        Color3.fromRGB(48, 48, 58)
+
+    page.Visible = true
+
+    if page == homePage then
+        homeButton.BackgroundColor3 =
+            Color3.fromRGB(65, 105, 180)
+
+    elseif page == movementPage then
+        movementTabButton.BackgroundColor3 =
+            Color3.fromRGB(65, 105, 180)
+
+    elseif page == finderPage then
+        finderTabButton.BackgroundColor3 =
+            Color3.fromRGB(65, 105, 180)
+    end
+end
+
+--==================================================
+-- TAB BUTTON CONNECTIONS
+--==================================================
+
+homeButton.MouseButton1Click:Connect(
+    function()
+        showPage(homePage)
+    end
+)
+
+movementTabButton.MouseButton1Click:Connect(
+    function()
+        showPage(movementPage)
+    end
+)
+
+finderTabButton.MouseButton1Click:Connect(
+    function()
+        showPage(finderPage)
+    end
+)
+
+--==================================================
+-- DEFAULT PAGE
+--==================================================
+
+showPage(homePage)
+
+--==================================================
+-- Combined script
+-- KEYBINDS, RESPAWN, PANIC & FINAL SETUP
+--==================================================
+
+--==================================================
+-- PLAYER OUTLINES + TOOL LIST (Y TO TOGGLE)
+--==================================================
+
+local playerEspEnabled = false
+local playerEspObjects = {}
+local espRefreshElapsed = 0
+
+local function getPlayerEspColor(targetPlayer)
+    if targetPlayer.Team then
+        return targetPlayer.Team.TeamColor.Color
+    end
+    return Color3.fromRGB(155, 155, 165)
+end
+
+local function removePlayerEsp(targetPlayer)
+    local data = playerEspObjects[targetPlayer]
+    if data then
+        if data.highlight then
+            data.highlight:Destroy()
+        end
+        if data.billboard then
+            data.billboard:Destroy()
+        end
+        playerEspObjects[targetPlayer] = nil
+    end
+end
+
+local function refreshPlayerEsp(targetPlayer)
+    if not playerEspEnabled or not targetPlayer.Parent then
+        removePlayerEsp(targetPlayer)
+        return
+    end
+
     local character = targetPlayer.Character
-
-    if character then
-        local folder = character:FindFirstChild(ESP_FOLDER_NAME)
-
-        if folder then
-            folder:Destroy()
-        end
-    end
-end
-
--- TOOL TEXTURE
-local function getToolTexture(tool)
-    local texture = ""
-
-    pcall(function()
-        texture = tool.TextureId or ""
-    end)
-
-    if texture ~= "" then
-        return texture
+    if not character then
+        removePlayerEsp(targetPlayer)
+        return
     end
 
-    -- Some tools use a Handle with a SpecialMesh texture.
-    local handle = tool:FindFirstChild("Handle")
-
-    if handle then
-        local mesh = handle:FindFirstChildWhichIsA("SpecialMesh")
-
-        if mesh and mesh.TextureId ~= "" then
-            return mesh.TextureId
-        end
-
-        local decal = handle:FindFirstChildWhichIsA("Decal")
-
-        if decal and decal.Texture ~= "" then
-            return decal.Texture
-        end
+    local adornee = character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart")
+    if not adornee then
+        return
     end
 
-    return ""
-end
+    local data = playerEspObjects[targetPlayer]
+    if not data or data.character ~= character then
+        removePlayerEsp(targetPlayer)
+        data = { character = character }
+        playerEspObjects[targetPlayer] = data
 
--- GET EQUIPPED AND BACKPACK TOOLS
-local function getPlayerTools(targetPlayer)
-    local tools = {}
-    local seen = {}
+        local highlight = Instance.new("Highlight")
+        highlight.Name = "PlayerTeamOutline"
+        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        highlight.FillTransparency = 0.82
+        highlight.OutlineTransparency = 0
+        highlight.Adornee = character
+        highlight.Parent = character
+        data.highlight = highlight
 
-    local character = targetPlayer.Character
-    local backpack = targetPlayer:FindFirstChildOfClass("Backpack")
+        local billboard = Instance.new("BillboardGui")
+        billboard.Name = "PlayerToolList"
+        billboard.Adornee = adornee
+        billboard.Size = UDim2.fromOffset(300, 170)
+        billboard.StudsOffset = Vector3.new(0, 4.0, 0)
+        billboard.AlwaysOnTop = true
+        billboard.MaxDistance = 500
+        billboard.Parent = player:WaitForChild("PlayerGui")
+        data.billboard = billboard
+
+        local title = Instance.new("TextLabel")
+        title.Name = "PlayerName"
+        title.Size = UDim2.new(1, 0, 0, 26)
+        title.Position = UDim2.fromOffset(0, 0)
+        title.BackgroundTransparency = 1
+        title.TextColor3 = Color3.new(1, 1, 1)
+        title.TextStrokeTransparency = 0.25
+        title.TextStrokeColor3 = Color3.new(0, 0, 0)
+        title.TextSize = 14
+        title.Font = Enum.Font.GothamBold
+        title.Text = targetPlayer.DisplayName
+        title.Parent = billboard
+        data.title = title
+
+        local list = Instance.new("ScrollingFrame")
+        list.Name = "ToolInventory"
+        list.Position = UDim2.fromOffset(0, 27)
+        list.Size = UDim2.new(1, 0, 1, -27)
+        list.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+        list.BackgroundTransparency = 0.25
+        list.BorderSizePixel = 0
+        list.ScrollBarThickness = 4
+        list.CanvasSize = UDim2.new(0, 0, 0, 0)
+        list.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        list.ScrollingDirection = Enum.ScrollingDirection.Y
+        list.Parent = billboard
+        data.list = list
+
+        local listLayout = Instance.new("UIListLayout")
+        listLayout.Padding = UDim.new(0, 3)
+        listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        listLayout.Parent = list
+        data.listLayout = listLayout
+    end
+
+    local color = getPlayerEspColor(targetPlayer)
+    data.highlight.OutlineColor = color
+    data.highlight.FillColor = color
+    data.highlight.Adornee = character
+    data.billboard.Adornee = adornee
+
+    -- Show each Tool's inventory icon (Tool.TextureId) beside its name.
+    -- [E] means equipped; [I] means stored in the Backpack.
+    data.title.Text = targetPlayer.DisplayName .. "  |  Tools"
+    local toolItems = {}
+    local seenTools = {}
 
     local function addTools(container, equipped)
         if not container then
             return
         end
-
         for _, item in ipairs(container:GetChildren()) do
-            if item:IsA("Tool") and not seen[item] then
-                seen[item] = true
-
-                table.insert(tools, {
+            if item:IsA("Tool") and not seenTools[item] then
+                seenTools[item] = true
+                table.insert(toolItems, {
+                    tool = item,
+                    equipped = equipped,
                     name = item.Name,
-                    texture = getToolTexture(item),
-                    equipped = equipped
+                    texture = item.TextureId or ""
                 })
             end
         end
     end
 
     addTools(character, true)
-    addTools(backpack, false)
+    addTools(targetPlayer:FindFirstChildOfClass("Backpack"), false)
 
-    table.sort(tools, function(a, b)
-        if a.equipped ~= b.equipped then
-            return a.equipped
+    local signatureParts = {}
+    for _, entry in ipairs(toolItems) do
+        table.insert(signatureParts, (entry.equipped and "E" or "I") .. ":" .. entry.name .. ":" .. entry.texture)
+    end
+    local signature = table.concat(signatureParts, "|")
+
+    -- Rebuild rows only when the inventory changes, not on every refresh tick.
+    if data.toolSignature ~= signature then
+        data.toolSignature = signature
+        for _, child in ipairs(data.list:GetChildren()) do
+            if child ~= data.listLayout then
+                child:Destroy()
+            end
         end
 
-        return string.lower(a.name) < string.lower(b.name)
-    end)
+        if #toolItems == 0 then
+            local emptyLabel = Instance.new("TextLabel")
+            emptyLabel.Name = "NoTools"
+            emptyLabel.Size = UDim2.new(1, -8, 0, 25)
+            emptyLabel.BackgroundTransparency = 1
+            emptyLabel.Text = "No tools"
+            emptyLabel.TextColor3 = Color3.new(1, 1, 1)
+            emptyLabel.TextSize = 12
+            emptyLabel.Font = Enum.Font.Gotham
+            emptyLabel.Parent = data.list
+        else
+            for index, entry in ipairs(toolItems) do
+                local row = Instance.new("Frame")
+                row.Name = "ToolRow"
+                row.LayoutOrder = index
+                row.Size = UDim2.new(1, -6, 0, 30)
+                row.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
+                row.BackgroundTransparency = 0.2
+                row.BorderSizePixel = 0
+                row.Parent = data.list
 
-    return tools
-end
+                local icon = Instance.new("ImageLabel")
+                icon.Name = "ToolIcon"
+                icon.Position = UDim2.fromOffset(3, 3)
+                icon.Size = UDim2.fromOffset(24, 24)
+                icon.BackgroundColor3 = Color3.fromRGB(65, 65, 75)
+                icon.BackgroundTransparency = 0.15
+                icon.BorderSizePixel = 0
+                icon.ScaleType = Enum.ScaleType.Fit
+                icon.Image = entry.texture
+                icon.Parent = row
 
--- CREATE INVENTORY DISPLAY
-local function createToolInventoryBillboard(targetPlayer, character)
-    local head = character:FindFirstChild("Head")
-    local root = character:FindFirstChild("HumanoidRootPart")
-
-    local adornee = head or root
-    if not adornee then
-        return nil
-    end
-
-    local billboard = Instance.new("BillboardGui")
-    billboard.Name = "PlayerInventoryESP"
-    billboard.Adornee = adornee
-    billboard.Size = UDim2.fromOffset(250, 120)
-    billboard.StudsOffsetWorldSpace = Vector3.new(0, 3.4, 0)
-    billboard.AlwaysOnTop = true
-    billboard.MaxDistance = 1500
-    billboard.LightInfluence = 0
-    billboard.Parent = getESPFolder(targetPlayer) or character
-
-    local background = Instance.new("Frame")
-    background.Name = "Background"
-    background.Size = UDim2.fromScale(1, 1)
-    background.BackgroundColor3 = Color3.fromRGB(18, 18, 25)
-    background.BackgroundTransparency = 0.15
-    background.BorderSizePixel = 0
-    background.Parent = billboard
-
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 8)
-    corner.Parent = background
-
-    local stroke = Instance.new("UIStroke")
-    stroke.Thickness = 1.5
-    stroke.Color = getPlayerESPColour(targetPlayer)
-    stroke.Parent = background
-
-    local playerName = Instance.new("TextLabel")
-    playerName.Name = "PlayerName"
-    playerName.Size = UDim2.new(1, -12, 0, 24)
-    playerName.Position = UDim2.fromOffset(6, 4)
-    playerName.BackgroundTransparency = 1
-    playerName.Text = targetPlayer.DisplayName .. " (@" .. targetPlayer.Name .. ")"
-    playerName.TextColor3 = getPlayerESPColour(targetPlayer)
-    playerName.TextSize = 12
-    playerName.Font = Enum.Font.GothamBold
-    playerName.TextTruncate = Enum.TextTruncate.AtEnd
-    playerName.Parent = background
-
-    local toolScroll = Instance.new("ScrollingFrame")
-    toolScroll.Name = "ToolList"
-    toolScroll.Size = UDim2.new(1, -12, 1, -34)
-    toolScroll.Position = UDim2.fromOffset(6, 30)
-    toolScroll.BackgroundTransparency = 1
-    toolScroll.BorderSizePixel = 0
-    toolScroll.ScrollBarThickness = 3
-    toolScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
-    toolScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    toolScroll.Parent = background
-
-    local padding = Instance.new("UIPadding")
-    padding.PaddingBottom = UDim.new(0, 4)
-    padding.Parent = toolScroll
-
-    local listLayout = Instance.new("UIListLayout")
-    listLayout.Padding = UDim.new(0, 3)
-    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    listLayout.Parent = toolScroll
-
-    return billboard, stroke, playerName, toolScroll
-end
-
--- REFRESH TOOL DISPLAY
-local function refreshPlayerTools(targetPlayer, record)
-    if not record or not record.toolScroll then
-        return
-    end
-
-    local scroll = record.toolScroll
-
-    for _, child in ipairs(scroll:GetChildren()) do
-        if child ~= scroll:FindFirstChildOfClass("UIListLayout")
-            and child ~= scroll:FindFirstChildOfClass("UIPadding") then
-            child:Destroy()
+                local toolLabel = Instance.new("TextLabel")
+                toolLabel.Name = "ToolName"
+                toolLabel.Position = UDim2.fromOffset(32, 0)
+                toolLabel.Size = UDim2.new(1, -36, 1, 0)
+                toolLabel.BackgroundTransparency = 1
+                toolLabel.Text = (entry.equipped and "[E] " or "[I] ") .. entry.name
+                toolLabel.TextColor3 = Color3.new(1, 1, 1)
+                toolLabel.TextStrokeTransparency = 0.5
+                toolLabel.TextSize = 12
+                toolLabel.Font = Enum.Font.GothamBold
+                toolLabel.TextXAlignment = Enum.TextXAlignment.Left
+                toolLabel.TextTruncate = Enum.TextTruncate.AtEnd
+                toolLabel.Parent = row
+            end
         end
     end
+end
 
-    local tools = getPlayerTools(targetPlayer)
-
-    if #tools == 0 then
-        local emptyLabel = Instance.new("TextLabel")
-        emptyLabel.Size = UDim2.new(1, -4, 0, 24)
-        emptyLabel.BackgroundTransparency = 1
-        emptyLabel.Text = "No tools"
-        emptyLabel.TextColor3 = Color3.fromRGB(165, 165, 175)
-        emptyLabel.TextSize = 10
-        emptyLabel.Font = Enum.Font.Gotham
-        emptyLabel.TextXAlignment = Enum.TextXAlignment.Left
-        emptyLabel.Parent = scroll
-        return
-    end
-
-    for index, toolInfo in ipairs(tools) do
-        local row = Instance.new("Frame")
-        row.Name = "Tool_" .. tostring(index)
-        row.Size = UDim2.new(1, -4, 0, 25)
-        row.BackgroundColor3 = toolInfo.equipped
-            and Color3.fromRGB(45, 75, 60)
-            or Color3.fromRGB(35, 35, 45)
-        row.BorderSizePixel = 0
-        row.LayoutOrder = index
-        row.Parent = scroll
-
-        local rowCorner = Instance.new("UICorner")
-        rowCorner.CornerRadius = UDim.new(0, 4)
-        rowCorner.Parent = row
-
-        local icon = Instance.new("ImageLabel")
-        icon.Name = "ToolIcon"
-        icon.Size = UDim2.fromOffset(19, 19)
-        icon.Position = UDim2.fromOffset(3, 3)
-        icon.BackgroundTransparency = 1
-        icon.Image = toolInfo.texture
-        icon.ScaleType = Enum.ScaleType.Fit
-        icon.Parent = row
-
-        local toolLabel = Instance.new("TextLabel")
-        toolLabel.Size = UDim2.new(1, -28, 1, 0)
-        toolLabel.Position = UDim2.fromOffset(27, 0)
-        toolLabel.BackgroundTransparency = 1
-
-        local status = toolInfo.equipped and " [EQUIPPED]" or ""
-        toolLabel.Text = toolInfo.name .. status
-        toolLabel.TextColor3 = toolInfo.equipped
-            and Color3.fromRGB(150, 255, 175)
-            or Color3.fromRGB(225, 225, 235)
-        toolLabel.TextSize = 10
-        toolLabel.Font = Enum.Font.Gotham
-        toolLabel.TextXAlignment = Enum.TextXAlignment.Left
-        toolLabel.TextTruncate = Enum.TextTruncate.AtEnd
-        toolLabel.Parent = row
+local function setPlayerEspEnabled(enabled)
+    playerEspEnabled = enabled
+    if not enabled then
+        for targetPlayer in pairs(playerEspObjects) do
+            removePlayerEsp(targetPlayer)
+        end
+    else
+        for _, targetPlayer in ipairs(Players:GetPlayers()) do
+            refreshPlayerEsp(targetPlayer)
+        end
     end
 end
 
--- CREATE OR UPDATE ONE PLAYER
-local function updatePlayerESP(targetPlayer)
-    if not espEnabled or destroyed then
+local playerAddedConnection = Players.PlayerAdded:Connect(function(targetPlayer)
+    if playerEspEnabled then
+        task.defer(function()
+            refreshPlayerEsp(targetPlayer)
+        end)
+    end
+end)
+table.insert(connections, playerAddedConnection)
+
+local playerRemovingConnection = Players.PlayerRemoving:Connect(function(targetPlayer)
+    removePlayerEsp(targetPlayer)
+end)
+table.insert(connections, playerRemovingConnection)
+
+local espRefreshConnection = RunService.Heartbeat:Connect(function(deltaTime)
+    if not playerEspEnabled or destroyed then
         return
     end
-
-    if targetPlayer == player then
+    espRefreshElapsed += deltaTime
+    if espRefreshElapsed < 0.35 then
         return
     end
-
-    local character = targetPlayer.Character
-    if not character then
-        removePlayerESP(targetPlayer)
-        return
+    espRefreshElapsed = 0
+    for _, targetPlayer in ipairs(Players:GetPlayers()) do
+        refreshPlayerEsp(targetPlayer)
     end
+end)
+table.insert(connections, espRefreshConnection)
 
-    local humanoidTarget = character:FindFirstChildOfClass("Humanoid")
-    local root = character:FindFirstChild("HumanoidRootPart")
+--==================================================
+-- KEYBINDS
+--==================================================
 
-    if not humanoidTarget or not root then
-        return
-    end
-
-    local record = espObjects[targetPlayer]
-
-    if record and record.character ~= character then
-        removePlayerESP(targetPlayer)
-        record = nil
-    end
-
-    if not record then
-        local highlight = Instance.new("Highlight")
-        highlight.Name = "PlayerESPHighlight"
-        highlight.Adornee = character
-        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-        highlight.FillTransparency = 0.88
-        highlight.OutlineTransparency = 0
-        highlight.Parent = getESPFolder(targetPlayer) or character
-
-        local billboard, stroke, nameLabel, toolScroll =
-            createToolInventoryBillboard(targetPlayer, character)
-
-        if not billboard then
-            highlight:Destroy()
+local inputConnection = UserInputService.InputBegan:Connect(
+    function(input, processed)
+        if destroyed then
             return
         end
 
-        record = {
-            character = character,
-            highlight = highlight,
-            billboard = billboard,
-            stroke = stroke,
-            nameLabel = nameLabel,
-            toolScroll = toolScroll,
-            lastToolRefresh = 0
-        }
-
-        espObjects[targetPlayer] = record
-    end
-
-    local colour = getPlayerESPColour(targetPlayer)
-
-    record.highlight.FillColor = colour
-    record.highlight.OutlineColor = colour
-
-    if record.stroke then
-        record.stroke.Color = colour
-    end
-
-    if record.nameLabel then
-        record.nameLabel.TextColor3 = colour
-        record.nameLabel.Text =
-            targetPlayer.DisplayName .. " (@" .. targetPlayer.Name .. ")"
-    end
-
-    local now = os.clock()
-
-    if now - record.lastToolRefresh >= 0.75 then
-        record.lastToolRefresh = now
-        refreshPlayerTools(targetPlayer, record)
-    end
-end
-
--- ENABLE ESP
-local function enableESP()
-    if espEnabled then
-        return
-    end
-
-    espEnabled = true
-    espButton.Text = "Player ESP: ON (Y)"
-    espButton.BackgroundColor3 = Color3.fromRGB(45, 110, 75)
-
-    for _, targetPlayer in ipairs(Players:GetPlayers()) do
-        if targetPlayer ~= player then
-            updatePlayerESP(targetPlayer)
+        if processed then
+            return
         end
-    end
-end
 
--- DISABLE ESP
-local function disableESP()
-    espEnabled = false
-    espButton.Text = "Player ESP: OFF (Y)"
-    espButton.BackgroundColor3 = Color3.fromRGB(38, 38, 49)
+        -- G = open / close menu
+        if input.KeyCode == Enum.KeyCode.G then
+            menuOpen = not menuOpen
+            main.Visible = menuOpen
 
-    for _, targetPlayer in ipairs(Players:GetPlayers()) do
-        removePlayerESP(targetPlayer)
-    end
-end
-
-local function toggleESP()
-    if espEnabled then
-        disableESP()
-    else
-        enableESP()
-    end
-end
-
-espButton.MouseButton1Click:Connect(toggleESP)
-
--- PLAYER JOIN / LEAVE
-table.insert(connections, Players.PlayerAdded:Connect(function(targetPlayer)
-    if espEnabled then
-        task.defer(function()
-            if espEnabled and not destroyed then
-                updatePlayerESP(targetPlayer)
+            if menuOpen then
+                refreshFolders()
             end
-        end)
-    end
-end))
 
-table.insert(connections, Players.PlayerRemoving:Connect(function(targetPlayer)
-    removePlayerESP(targetPlayer)
-end))
+        -- F = fly
+        elseif input.KeyCode == Enum.KeyCode.F then
+            if flying then
+                stopFly()
+            else
+                startFly()
+            end
 
--- CHARACTER RESPAWN
-local function watchPlayerCharacter(targetPlayer)
-    local connection = targetPlayer.CharacterAdded:Connect(function()
-        task.wait(0.5)
+        -- N = noclip
+        elseif input.KeyCode == Enum.KeyCode.N then
+            setNoclip(not noclip)
 
-        if espEnabled and not destroyed then
-            updatePlayerESP(targetPlayer)
-        end
-    end)
+        -- J = infinite jump
+        elseif input.KeyCode == Enum.KeyCode.J then
+            infiniteJump = not infiniteJump
+            setInfiniteJumpButtonState()
 
-    table.insert(espConnections, connection)
-end
-
-for _, targetPlayer in ipairs(Players:GetPlayers()) do
-    if targetPlayer ~= player then
-        watchPlayerCharacter(targetPlayer)
-    end
-end
-
-table.insert(connections, Players.PlayerAdded:Connect(function(targetPlayer)
-    watchPlayerCharacter(targetPlayer)
-end))
-
--- PERIODIC ESP UPDATE
-table.insert(connections, RunService.Heartbeat:Connect(function()
-    if destroyed or not espEnabled then
-        return
-    end
-
-    for _, targetPlayer in ipairs(Players:GetPlayers()) do
-        if targetPlayer ~= player then
-            updatePlayerESP(targetPlayer)
+        -- Y = toggle player team outlines and tool lists
+        elseif input.KeyCode == Enum.KeyCode.Y then
+            setPlayerEspEnabled(not playerEspEnabled)
         end
     end
-end))
+)
 
--- Y TOGGLE IS CONNECTED IN PART 5
--- PART 4 ENDS HERE
--- Continue with Part 5 directly below this code.
+table.insert(
+    connections,
+    inputConnection
+)
 
 --==================================================
--- PART 5: TABS, KEYBINDS AND MENU CONTROLS
+-- RESPAWN HANDLING
 --==================================================
 
--- PAGE SWITCHING
-local currentPage = "Home"
+local characterConnection =
+    player.CharacterAdded:Connect(
+        function(character)
+            if destroyed then
+                return
+            end
 
-local function setActivePage(pageName)
-    if destroyed then
-        return
-    end
+            stopFly()
 
-    currentPage = pageName
+            local humanoid =
+                character:WaitForChild(
+                    "Humanoid",
+                    10
+                )
 
-    homePage.Visible = pageName == "Home"
-    movementPage.Visible = pageName == "Movement"
-    finderPage.Visible = pageName == "Finder"
+            if not humanoid then
+                return
+            end
 
-    homeButton.BackgroundColor3 =
-        pageName == "Home"
-        and Color3.fromRGB(65, 105, 180)
-        or Color3.fromRGB(48, 48, 58)
+            task.wait(0.25)
 
-    movementTabButton.BackgroundColor3 =
-        pageName == "Movement"
-        and Color3.fromRGB(65, 105, 180)
-        or Color3.fromRGB(48, 48, 58)
+            if destroyed then
+                return
+            end
 
-    finderTabButton.BackgroundColor3 =
-        pageName == "Finder"
-        and Color3.fromRGB(65, 105, 180)
-        or Color3.fromRGB(48, 48, 58)
-end
+            -- Restore the currently selected
+            -- movement settings after respawn.
+            humanoid.WalkSpeed =
+                savedWalkSpeed
 
-homeButton.MouseButton1Click:Connect(function()
-    setActivePage("Home")
-end)
+            humanoid.UseJumpPower =
+                originalUseJumpPower
 
-movementTabButton.MouseButton1Click:Connect(function()
-    setActivePage("Movement")
-end)
+            if originalUseJumpPower then
+                humanoid.JumpPower =
+                    savedJumpPower
+            else
+                humanoid.JumpHeight =
+                    savedJumpHeight
+            end
 
-finderTabButton.MouseButton1Click:Connect(function()
-    setActivePage("Finder")
-end)
+            -- Re-enable noclip if it was enabled.
+            if noclip then
+                setNoclip(true)
+            end
+        end
+    )
 
--- TOP-RIGHT CLOSE BUTTON
-local closeButton = Instance.new("TextButton")
-closeButton.Name = "CloseButton"
-closeButton.Size = UDim2.fromOffset(35, 35)
-closeButton.Position = UDim2.new(1, -45, 0, 10)
-closeButton.BackgroundColor3 = Color3.fromRGB(155, 55, 65)
-closeButton.BorderSizePixel = 0
-closeButton.Text = "X"
-closeButton.TextColor3 = Color3.new(1, 1, 1)
-closeButton.TextSize = 16
-closeButton.Font = Enum.Font.GothamBold
-closeButton.Parent = topBar
+table.insert(
+    connections,
+    characterConnection
+)
 
-local closeCorner = Instance.new("UICorner")
-closeCorner.CornerRadius = UDim.new(0, 8)
-closeCorner.Parent = closeButton
-
--- MINIMIZE BUTTON
-local minimizeButton = Instance.new("TextButton")
-minimizeButton.Name = "MinimizeButton"
-minimizeButton.Size = UDim2.fromOffset(135, 38)
-minimizeButton.Position = UDim2.new(0, 10, 1, -105)
-minimizeButton.BackgroundColor3 = Color3.fromRGB(48, 48, 58)
-minimizeButton.BorderSizePixel = 0
-minimizeButton.Text = "Minimize (G)"
-minimizeButton.TextColor3 = Color3.new(1, 1, 1)
-minimizeButton.TextSize = 12
-minimizeButton.Font = Enum.Font.GothamBold
-minimizeButton.Parent = sidebar
-
-local minimizeCorner = Instance.new("UICorner")
-minimizeCorner.CornerRadius = UDim.new(0, 8)
-minimizeCorner.Parent = minimizeButton
-
+--==================================================
 -- PANIC BUTTON
--- This is the permanent shutdown button.
-local panicButton = Instance.new("TextButton")
-panicButton.Name = "PanicButton"
-panicButton.Size = UDim2.fromOffset(135, 38)
-panicButton.Position = UDim2.new(0, 10, 1, -55)
-panicButton.BackgroundColor3 = Color3.fromRGB(145, 45, 55)
+--==================================================
+
+local panicButton =
+    Instance.new("TextButton")
+
+panicButton.Size =
+    UDim2.fromOffset(135, 38)
+
+panicButton.Position =
+    UDim2.fromOffset(10, 565)
+
+panicButton.BackgroundColor3 =
+    Color3.fromRGB(155, 45, 45)
+
 panicButton.BorderSizePixel = 0
-panicButton.Text = "Panic / Stop"
-panicButton.TextColor3 = Color3.new(1, 1, 1)
-panicButton.TextSize = 12
-panicButton.Font = Enum.Font.GothamBold
-panicButton.Parent = sidebar
 
-local panicCorner = Instance.new("UICorner")
-panicCorner.CornerRadius = UDim.new(0, 8)
-panicCorner.Parent = panicButton
+panicButton.Text =
+    "PANIC / DELETE"
 
--- SHOW OR HIDE THE MENU WITHOUT STOPPING THE SCRIPT
-local function setMenuVisible(visible)
-    if destroyed then
+panicButton.TextColor3 =
+    Color3.new(1, 1, 1)
+
+panicButton.TextSize = 11
+
+panicButton.Font =
+    Enum.Font.GothamBold
+
+panicButton.Parent =
+    sidebar
+
+local panicCorner =
+    Instance.new("UICorner")
+
+panicCorner.CornerRadius =
+    UDim.new(0, 8)
+
+panicCorner.Parent =
+    panicButton
+
+--==================================================
+-- PANIC CLEANUP
+--==================================================
+
+local function restoreCharacter()
+    local character =
+        getCharacter()
+
+    if not character then
         return
     end
 
-    menuOpen = visible
-    main.Visible = visible
+    for _, object in ipairs(
+        character:GetDescendants()
+    ) do
+        if object:IsA("BasePart") then
+            object.CanCollide = true
+        end
+    end
+
+    local humanoid =
+        character:FindFirstChildOfClass(
+            "Humanoid"
+        )
+
+    if humanoid then
+        humanoid.AutoRotate = true
+
+        humanoid.WalkSpeed =
+            originalWalkSpeed
+
+        humanoid.UseJumpPower =
+            originalUseJumpPower
+
+        humanoid.JumpPower =
+            originalJumpPower
+
+        humanoid.JumpHeight =
+            originalJumpHeight
+    end
 end
 
-local function toggleMenu()
-    setMenuVisible(not menuOpen)
-end
-
-minimizeButton.MouseButton1Click:Connect(function()
-    setMenuVisible(false)
-end)
-
-closeButton.MouseButton1Click:Connect(function()
-    setMenuVisible(false)
-end)
-
--- PERMANENT SHUTDOWN
 local function panic()
     if destroyed then
         return
@@ -1655,11 +1983,12 @@ local function panic()
     destroyed = true
     menuOpen = false
 
-    -- Stop movement features.
+    -- Disable custom movement.
     flying = false
     noclip = false
     infiniteJump = false
 
+    -- Remove fly objects.
     if bodyVelocity then
         bodyVelocity:Destroy()
         bodyVelocity = nil
@@ -1670,1340 +1999,370 @@ local function panic()
         bodyGyro = nil
     end
 
-    local characterHumanoid = getHumanoid()
+    -- Restore original game movement.
+    restoreCharacter()
 
-    if characterHumanoid then
-        characterHumanoid.PlatformStand = false
-        characterHumanoid.WalkSpeed = originalWalkSpeed
-        characterHumanoid.UseJumpPower = originalUseJumpPower
-        characterHumanoid.JumpPower = originalJumpPower
-        characterHumanoid.JumpHeight = originalJumpHeight
-    end
+    -- Remove player outlines and tool labels.
+    setPlayerEspEnabled(false)
 
-    -- Restore collision on this character.
-    local character = getCharacter()
-
-    if character then
-        for _, object in ipairs(character:GetDescendants()) do
-            if object:IsA("BasePart") then
-                object.CanCollide = true
-            end
+    -- Disconnect every connection
+    -- created by this script.
+    for _, connection in ipairs(
+        connections
+    ) do
+        if connection then
+            pcall(function()
+                connection:Disconnect()
+            end)
         end
-    end
-
-    -- Remove ESP.
-    disableESP()
-
-    -- Disconnect registered background connections.
-    for _, connection in ipairs(connections) do
-        pcall(function()
-            connection:Disconnect()
-        end)
-    end
-
-    for _, connection in ipairs(espConnections) do
-        pcall(function()
-            connection:Disconnect()
-        end)
     end
 
     table.clear(connections)
-    table.clear(espConnections)
 
-    -- Destroy the interface and this LocalScript.
-    gui:Destroy()
-    script:Destroy()
-end
-
-panicButton.MouseButton1Click:Connect(panic)
-
---keybinds
-table.insert(connections, UserInputService.InputBegan:Connect(
-    function(input, gameProcessed)
-        if destroyed or gameProcessed then
-            return
-        end
-    end
-))
-
--- KEEP THE MENU HIDDEN/SHOWN ACCORDING TO ITS STATE.
-main.Visible = menuOpen
-
--- PART 5 ENDS HERE
--- Continue with Part 6 directly below this code.
-
---==================================================
--- PART 6: RESPAWN HANDLING AND FINAL CLEANUP
---==================================================
-
--- REAPPLY MOVEMENT SETTINGS AFTER RESPAWN
-table.insert(connections, player.CharacterAdded:Connect(function(character)
-    if destroyed then
-        return
+    -- Remove GUI.
+    if gui then
+        gui:Destroy()
+        gui = nil
     end
 
-    -- Wait for the character to load.
-    local characterHumanoid =
-        character:WaitForChild("Humanoid", 10)
-
-    character:WaitForChild("HumanoidRootPart", 10)
-
-    if destroyed or not characterHumanoid then
-        return
-    end
-
-    humanoid = characterHumanoid
-    rootPart = character:FindFirstChild("HumanoidRootPart")
-
-    -- Remember the normal settings for the new character.
-    originalWalkSpeed = characterHumanoid.WalkSpeed
-    originalUseJumpPower = characterHumanoid.UseJumpPower
-    originalJumpPower = characterHumanoid.JumpPower
-    originalJumpHeight = characterHumanoid.JumpHeight
-
-    -- Apply the user's saved movement values.
-    characterHumanoid.WalkSpeed = savedWalkSpeed
-
-    if characterHumanoid.UseJumpPower then
-        characterHumanoid.JumpPower = savedJumpPower
-    else
-        characterHumanoid.JumpHeight = savedJumpHeight
-    end
-
-    -- Reset old flight objects before starting again.
-    if bodyVelocity then
-        bodyVelocity:Destroy()
-        bodyVelocity = nil
-    end
-
-    if bodyGyro then
-        bodyGyro:Destroy()
-        bodyGyro = nil
-    end
-
-    flying = false
-
-    if characterHumanoid then
-        characterHumanoid.PlatformStand = false
-    end
-
-    updateMovementButton(flyButton, "Fly", false)
-
-    -- Refresh ESP after the character loads.
-    task.wait(0.5)
-
-    if destroyed then
-        return
-    end
-
-    if espEnabled then
-        for _, targetPlayer in ipairs(Players:GetPlayers()) do
-            if targetPlayer ~= player then
-                updatePlayerESP(targetPlayer)
-            end
-        end
-    end
-end))
-
--- KEEP REFERENCES UPDATED IF THE CHARACTER CHANGES
-table.insert(connections, player.CharacterRemoving:Connect(function()
-    humanoid = nil
-    rootPart = nil
-
-    if bodyVelocity then
-        bodyVelocity:Destroy()
-        bodyVelocity = nil
-    end
-
-    if bodyGyro then
-        bodyGyro:Destroy()
-        bodyGyro = nil
-    end
-
-    flying = false
-end))
-
--- ENSURE THE CORRECT PAGE IS VISIBLE
-setActivePage(currentPage)
-
--- APPLY FINAL GUI STATE
-main.Visible = menuOpen
-
---==================================================
--- SCRIPT INITIALIZED
---==================================================
-
-print("Error_B1478 Menu loaded.")
-print("Press G to show or hide the menu.")
-print("Press Y to toggle player ESP.")
-
--- END OF PART 6
-
---==================================================
--- EXTRA: CUSTOM KEYBINDS FOR FEATURE TOGGLES
--- Paste after Part 6
---==================================================
-
--- Make room for keybind boxes beside the buttons.
-flyButton.Size = UDim2.fromOffset(150, 42)
-noclipButton.Size = UDim2.fromOffset(150, 42)
-infiniteJumpButton.Size = UDim2.fromOffset(150, 42)
-
--- Move the ESP button so its keybind box fits beside it.
-espButton.Size = UDim2.fromOffset(150, 38)
-espButton.Position = UDim2.new(1, -225, 0, 153)
-
-local keybinds = {
-    Fly = nil,
-    Noclip = nil,
-    InfiniteJump = nil,
-    ESP = Enum.KeyCode.Y
-}
-
-local keybindBoxes = {}
-local activeKeybindBox = nil
-
-local function createKeybindBox(featureName, position, size)
-    local box = Instance.new("TextBox")
-    box.Name = featureName .. "Keybind"
-    box.Size = size
-    box.Position = position
-    box.BackgroundColor3 = Color3.fromRGB(32, 32, 42)
-    box.BorderSizePixel = 0
-    box.Text = featureName == "ESP" and "Y" or "None"
-    box.PlaceholderText = "Key"
-    box.TextColor3 = Color3.fromRGB(120, 190, 255)
-    box.PlaceholderColor3 = Color3.fromRGB(130, 130, 140)
-    box.TextSize = 11
-    box.Font = Enum.Font.GothamBold
-    box.ClearTextOnFocus = false
-    box.TextEditable = false
-    box.Parent = featureName == "ESP" and finderPage or movementPage
-
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 7)
-    corner.Parent = box
-
-    local stroke = Instance.new("UIStroke")
-    stroke.Color = Color3.fromRGB(65, 75, 95)
-    stroke.Thickness = 1
-    stroke.Parent = box
-
-    box.Focused:Connect(function()
-        activeKeybindBox = box
-        box.Text = "Press key"
+    -- Remove this LocalScript.
+    pcall(function()
+        script:Destroy()
     end)
-
-    box.FocusLost:Connect(function()
-        if activeKeybindBox == box then
-            activeKeybindBox = nil
-        end
-    end)
-
-    keybindBoxes[box] = featureName
-    return box
 end
 
--- KEYBIND BOXES BESIDE THE MOVEMENT BUTTONS
-createKeybindBox(
-    "Fly",
-    UDim2.fromOffset(175, 250),
-    UDim2.fromOffset(65, 42)
+panicButton.MouseButton1Click:Connect(
+    function()
+        panic()
+    end
 )
 
-createKeybindBox(
-    "Noclip",
-    UDim2.fromOffset(175, 380),
-    UDim2.fromOffset(65, 42)
-)
+--==================================================
+-- MINIMIZE BUTTON
+--==================================================
 
-createKeybindBox(
-    "InfiniteJump",
-    UDim2.fromOffset(410, 380),
-    UDim2.fromOffset(65, 42)
-)
+local minimizeButton =
+    Instance.new("TextButton")
 
--- KEYBIND BOX BESIDE ESP
-createKeybindBox(
-    "ESP",
-    UDim2.new(1, -70, 0, 153),
-    UDim2.fromOffset(50, 38)
-)
+minimizeButton.Size =
+    UDim2.fromOffset(135, 38)
 
-local function setKeybind(featureName, keyCode, box)
-    keybinds[featureName] = keyCode
-    box.Text = keyCode.Name
-    box:ReleaseFocus()
-end
+minimizeButton.Position =
+    UDim2.fromOffset(10, 520)
 
--- CAPTURE A KEY WHEN A KEYBIND BOX IS SELECTED
-table.insert(connections, UserInputService.InputBegan:Connect(
-    function(input, gameProcessed)
+minimizeButton.BackgroundColor3 =
+    Color3.fromRGB(48, 48, 58)
+
+minimizeButton.BorderSizePixel = 0
+
+minimizeButton.Text =
+    "Minimize"
+
+minimizeButton.TextColor3 =
+    Color3.new(1, 1, 1)
+
+minimizeButton.TextSize = 12
+
+minimizeButton.Font =
+    Enum.Font.Gotham
+
+minimizeButton.Parent =
+    sidebar
+
+local minimizeCorner =
+    Instance.new("UICorner")
+
+minimizeCorner.CornerRadius =
+    UDim.new(0, 8)
+
+minimizeCorner.Parent =
+    minimizeButton
+
+minimizeButton.MouseButton1Click:Connect(
+    function()
         if destroyed then
             return
         end
 
-        if input.UserInputType ~= Enum.UserInputType.Keyboard then
-            return
-        end
-
-        -- The user is choosing a new key.
-        if activeKeybindBox then
-            local box = activeKeybindBox
-            local featureName = keybindBoxes[box]
-
-            -- G controls the menu, and Y remains the default ESP key.
-            -- Keep those keys reserved to avoid conflicting toggles.
-            if input.KeyCode == Enum.KeyCode.G then
-                box.Text = "Reserved"
-                box:ReleaseFocus()
-                return
-            end
-
-            if input.KeyCode == Enum.KeyCode.Y
-                and featureName ~= "ESP" then
-                box.Text = "Reserved"
-                box:ReleaseFocus()
-                return
-            end
-
-            setKeybind(featureName, input.KeyCode, box)
-            return
-        end
-
-        if gameProcessed then
-            return
-        end
-
-        -- G and Y already have their original handlers in Part 5.
-        if input.KeyCode == Enum.KeyCode.G
-            or input.KeyCode == Enum.KeyCode.Y then
-            return
-        end
-
-        -- Toggle the feature assigned to the pressed key.
-        for featureName, assignedKey in pairs(keybinds) do
-            if assignedKey and input.KeyCode == assignedKey then
-                if featureName == "Fly" then
-                    if flying then
-                        stopFlying()
-                    else
-                        startFlying()
-                    end
-
-                elseif featureName == "Noclip" then
-                    setNoclip(not noclip)
-
-                elseif featureName == "InfiniteJump" then
-                    infiniteJump = not infiniteJump
-
-                    updateMovementButton(
-                        infiniteJumpButton,
-                        "Infinite jump",
-                        infiniteJump
-                    )
-
-                elseif featureName == "ESP" then
-                    toggleESP()
-                end
-            end
-        end
+        menuOpen = false
+        main.Visible = false
     end
-))
-
-print("Custom feature keybinds loaded.")
-
---==================================================
--- PART 7: OPTIONS SIDEBAR + KEYBINDS + FLOATING BUTTON
---==================================================
-
-menuToggleKey = Enum.KeyCode.G
-espToggleKey = Enum.KeyCode.Y
-
---==================================================
--- OPTIONS PAGE
---==================================================
-
-local optionsPage = Instance.new("Frame")
-optionsPage.Name = "OptionsPage"
-optionsPage.Size = UDim2.fromScale(1, 1)
-optionsPage.BackgroundTransparency = 1
-optionsPage.Visible = false
-optionsPage.Parent = content
-
-local function createLabel(parent, name, text, position, size)
-    local label = Instance.new("TextLabel")
-    label.Name = name
-    label.Text = text
-    label.Position = position
-    label.Size = size
-    label.BackgroundTransparency = 1
-    label.TextColor3 = Color3.fromRGB(235, 240, 255)
-    label.TextSize = 13
-    label.Font = Enum.Font.GothamSemibold
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.TextWrapped = true
-    label.Parent = parent
-    return label
-end
-
-local function createButton(parent, name, text, position, size)
-    local button = Instance.new("TextButton")
-    button.Name = name
-    button.Text = text
-    button.Position = position
-    button.Size = size
-    button.BackgroundColor3 = Color3.fromRGB(38, 42, 58)
-    button.BorderSizePixel = 0
-    button.TextColor3 = Color3.fromRGB(235, 240, 255)
-    button.TextSize = 12
-    button.Font = Enum.Font.GothamSemibold
-    button.AutoButtonColor = true
-    button.Parent = parent
-
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 8)
-    corner.Parent = button
-
-    return button
-end
-
-createLabel(
-    optionsPage,
-    "OptionsTitle",
-    "Options",
-    UDim2.fromOffset(15, 12),
-    UDim2.new(1, -30, 0, 40)
-).TextSize = 22
-
-createLabel(
-    optionsPage,
-    "OptionsDescription",
-    "Change your menu controls and floating button.",
-    UDim2.fromOffset(15, 53),
-    UDim2.new(1, -30, 0, 38)
-)
-
-createLabel(
-    optionsPage,
-    "MenuKeyLabel",
-    "Menu toggle key",
-    UDim2.fromOffset(15, 105),
-    UDim2.new(1, -30, 0, 25)
-)
-
-local menuKeyButton = createButton(
-    optionsPage,
-    "MenuKeyButton",
-    "G",
-    UDim2.fromOffset(15, 135),
-    UDim2.fromOffset(150, 38)
-)
-
-createLabel(
-    optionsPage,
-    "ESPKeyLabel",
-    "Player/tool ESP toggle key",
-    UDim2.fromOffset(15, 190),
-    UDim2.new(1, -30, 0, 25)
-)
-
-local espKeyButton = createButton(
-    optionsPage,
-    "ESPKeyButton",
-    "Y",
-    UDim2.fromOffset(15, 220),
-    UDim2.fromOffset(150, 38)
-)
-
-createLabel(
-    optionsPage,
-    "KeyHint",
-    "Click a key button, then press the key you want.",
-    UDim2.fromOffset(15, 265),
-    UDim2.new(1, -30, 0, 40)
 )
 
 --==================================================
--- ADD OPTIONS TO THE EXISTING SIDEBAR
+-- INITIAL BUTTON STATES
 --==================================================
 
-local optionsTabButton = createButton(
-    sidebar,
-    "OptionsTabButton",
-    "Options",
-    UDim2.new(0, 10, 0, 230),
-    UDim2.new(1, -20, 0, 35)
-)
-
-optionsTabButton.Visible = true
-optionsTabButton.ZIndex = 10
-
--- Preserve the existing page switching.
-local originalSetActivePage = setActivePage
-
-setActivePage = function(pageName)
-    if pageName == "options" then
-        homePage.Visible = false
-        movementPage.Visible = false
-        finderPage.Visible = false
-        optionsPage.Visible = true
-
-        currentPage = "options"
-
-        homeButton.BackgroundColor3 = Color3.fromRGB(38, 42, 58)
-        movementTabButton.BackgroundColor3 = Color3.fromRGB(38, 42, 58)
-        finderTabButton.BackgroundColor3 = Color3.fromRGB(38, 42, 58)
-        optionsTabButton.BackgroundColor3 = Color3.fromRGB(65, 95, 155)
-    else
-        optionsPage.Visible = false
-        optionsTabButton.BackgroundColor3 = Color3.fromRGB(38, 42, 58)
-        originalSetActivePage(pageName)
-    end
-end
-
-optionsTabButton.Activated:Connect(function()
-    setActivePage("options")
-end)
+setFlyButtonState()
+setNoclipButtonState()
+setInfiniteJumpButtonState()
 
 --==================================================
--- CONFIGURABLE KEY SELECTION
+-- INITIAL MOVEMENT VALUES
 --==================================================
 
-local waitingForKey = nil
+local initialHumanoid =
+    getHumanoid()
 
-local function updateKeyLabels()
-    menuKeyButton.Text = menuToggleKey.Name
-    espKeyButton.Text = espToggleKey.Name
+if initialHumanoid then
+    initialHumanoid.WalkSpeed =
+        originalWalkSpeed
+
+    initialHumanoid.UseJumpPower =
+        originalUseJumpPower
+
+    initialHumanoid.JumpPower =
+        originalJumpPower
+
+    initialHumanoid.JumpHeight =
+        originalJumpHeight
 end
-
-menuKeyButton.Activated:Connect(function()
-    waitingForKey = "Menu"
-    menuKeyButton.Text = "Press a key..."
-end)
-
-espKeyButton.Activated:Connect(function()
-    waitingForKey = "ESP"
-    espKeyButton.Text = "Press a key..."
-end)
-
-updateKeyLabels()
 
 --==================================================
--- FLOATING MENU BUTTON
+-- INITIAL PAGE / MENU STATE
 --==================================================
 
-local floatingButton = Instance.new("TextButton")
-floatingButton.Name = "FloatingMenuButton"
-floatingButton.Size = UDim2.fromOffset(58, 58)
-floatingButton.Position = UDim2.new(0, 25, 0.5, -29)
-floatingButton.BackgroundColor3 = Color3.fromRGB(55, 95, 170)
-floatingButton.BorderSizePixel = 0
-floatingButton.Text = "MENU"
-floatingButton.TextColor3 = Color3.new(1, 1, 1)
-floatingButton.TextSize = 12
-floatingButton.Font = Enum.Font.GothamBold
-floatingButton.Active = true
-floatingButton.Visible = true
-floatingButton.ZIndex = 20
-floatingButton.Parent = gui
+showPage(homePage)
 
-local floatingCorner = Instance.new("UICorner")
-floatingCorner.CornerRadius = UDim.new(1, 0)
-floatingCorner.Parent = floatingButton
-
-local floatingStroke = Instance.new("UIStroke")
-floatingStroke.Color = Color3.fromRGB(135, 180, 255)
-floatingStroke.Thickness = 2
-floatingStroke.Parent = floatingButton
-
-local floatingEnabled = true
-local dragging = false
-local dragStart = nil
-local startPosition = nil
-local dragged = false
-
-local floatingToggleButton = createButton(
-    optionsPage,
-    "FloatingButtonToggle",
-    "Floating button: ON",
-    UDim2.fromOffset(15, 325),
-    UDim2.fromOffset(190, 38)
-)
-
-floatingToggleButton.Activated:Connect(function()
-    floatingEnabled = not floatingEnabled
-    floatingButton.Visible = floatingEnabled
-
-    floatingToggleButton.Text = floatingEnabled
-        and "Floating button: ON"
-        or "Floating button: OFF"
-end)
-
--- Start dragging.
-floatingButton.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1
-        or input.UserInputType == Enum.UserInputType.Touch then
-
-        dragging = true
-        dragged = false
-        dragStart = input.Position
-        startPosition = floatingButton.Position
-    end
-end)
-
--- Move the button while dragging.
-UserInputService.InputChanged:Connect(function(input)
-    if not dragging or not dragStart or not startPosition then
-        return
-    end
-
-    if input.UserInputType == Enum.UserInputType.MouseMovement
-        or input.UserInputType == Enum.UserInputType.Touch then
-
-        local delta = input.Position - dragStart
-
-        if math.abs(delta.X) > 5 or math.abs(delta.Y) > 5 then
-            dragged = true
-        end
-
-        floatingButton.Position = UDim2.new(
-            startPosition.X.Scale,
-            startPosition.X.Offset + delta.X,
-            startPosition.Y.Scale,
-            startPosition.Y.Offset + delta.Y
-        )
-    end
-end)
-
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1
-        or input.UserInputType == Enum.UserInputType.Touch then
-
-        dragging = false
-        dragStart = nil
-        startPosition = nil
-    end
-end)
-
--- Clicking toggles the menu; dragging only moves the button.
-floatingButton.Activated:Connect(function()
-    if dragged then
-        dragged = false
-        return
-    end
-
-    if not destroyed then
-        toggleMenu()
-    end
-end)
+main.Visible =
+    menuOpen
 
 --==================================================
--- FIXED KEY HANDLER + 2-SECOND ACTIVATION DELAY
+-- FINAL SAFETY CHECK
 --==================================================
 
-local menuKeyReadyAt = 0.25
-local espKeyReadyAt = 0.25
-local keybindDelay = 0.25
-
-local function updateKeyLabels()
-    menuKeyButton.Text = menuToggleKey.Name
-    espKeyButton.Text = espToggleKey.Name
+if destroyed then
+    return
 end
 
--- Select a new key and start its 2-second cooldown.
-table.insert(connections, UserInputService.InputBegan:Connect(
-    function(input, gameProcessed)
-        if destroyed then
-            return
-        end
+print("Menu loaded successfully.")
+print("G = Menu")
+print("F = Fly")
+print("N = Noclip")
 
-        if input.UserInputType ~= Enum.UserInputType.Keyboard then
-            return
-        end
 
-        -- Capture the selected key.
-        if waitingForKey then
-            if input.KeyCode == Enum.KeyCode.Unknown then
-                return
-            end
 
-            if waitingForKey == "Menu"
-                and input.KeyCode == espToggleKey then
-                menuKeyButton.Text = "Already used"
-                return
-            end
+--==================================================
+-- UI UPGRADE PACK: MODERN DARK THEME + RESPONSIVE SCALE
+-- Keep this section at the VERY END of the same LocalScript.
+-- It styles the existing menu and any UI objects added later.
+--==================================================
 
-            if waitingForKey == "ESP"
-                and input.KeyCode == menuToggleKey then
-                espKeyButton.Text = "Already used"
-                return
-            end
+do
+    local TweenService = game:GetService("TweenService")
+    local UserInputService = game:GetService("UserInputService")
+    local uiGui = gui
+    local uiMain = main
+    local uiTopBar = topBar
+    local uiSidebar = sidebar
+    local uiContent = content
 
-            if waitingForKey == "Menu" then
-                menuToggleKey = input.KeyCode
-                menuKeyReadyAt = os.clock() + keybindDelay
-            else
-                espToggleKey = input.KeyCode
-                espKeyReadyAt = os.clock() + keybindDelay
-            end
-
-            waitingForKey = nil
-            updateKeyLabels()
-            return
-        end
-
-        if gameProcessed then
-            return
-        end
-
-        -- Menu toggle key: wait 2 seconds after assignment.
-        if input.KeyCode == menuToggleKey then
-            if os.clock() < menuKeyReadyAt then
-                return
-            end
-
-            toggleMenu()
-            return
-        end
-
-        -- ESP toggle key: wait 2 seconds after assignment.
-        if input.KeyCode == espToggleKey then
-            if os.clock() < espKeyReadyAt then
-                return
-            end
-
-            toggleESP()
-            return
-        end
-    end
-))
-
-print("Part 7 keybind fix loaded.")
-
--- PART 8: WAYPOINTS, CONFIGURATION, AND CONSOLE PAGE
-
-local HttpService = game:GetService("HttpService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Players = game:GetService("Players")
-
-local waypointPlayer = Players.LocalPlayer
-local waypoints = {}
-local consoleMessages = {}
-local consoleLogFunction
-
--- Reuse the existing menu
-local waypointContent = content
-local waypointSidebar = sidebar
-
--- Create or reuse a page
-local function p8CreatePage(name)
-    local page = waypointContent:FindFirstChild(name)
-    if not page then
-        page = Instance.new("Frame")
-        page.Name = name
-        page.Size = UDim2.new(1, 0, 1, 0)
-        page.Position = UDim2.new(0, 0, 0, 0)
-        page.BackgroundTransparency = 1
-        page.Visible = false
-        page.Parent = waypointContent
-    end
-    return page
-end
-
-local waypointsPage = p8CreatePage("WaypointsPage")
-local consolePage = p8CreatePage("ConsolePage")
-
-local function p8MakeLabel(parent, name, text, position, size)
-    local label = Instance.new("TextLabel")
-    label.Name = name
-    label.Position = position
-    label.Size = size
-    label.BackgroundTransparency = 1
-    label.Text = text
-    label.TextColor3 = Color3.new(1, 1, 1)
-    label.TextSize = 15
-    label.TextWrapped = true
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Parent = parent
-    return label
-end
-
-local function p8MakeButton(parent, name, text, position, size)
-    local button = Instance.new("TextButton")
-    button.Name = name
-    button.Position = position
-    button.Size = size
-    button.Text = text
-    button.TextSize = 14
-    button.TextColor3 = Color3.new(1, 1, 1)
-    button.BackgroundColor3 = Color3.fromRGB(55, 55, 68)
-    button.BorderSizePixel = 0
-    button.Parent = parent
-    return button
-end
-
-local function p8MakeTab(name, text, y)
-    local button = waypointSidebar:FindFirstChild(name)
-    if not button then
-        button = p8MakeButton(
-            waypointSidebar,
-            name,
-            text,
-            UDim2.new(0, 10, 0, y),
-            UDim2.new(1, -20, 0, 32)
-        )
-    end
-    return button
-end
-
--- WAYPOINTS PAGE
-p8MakeLabel(
-    waypointsPage,
-    "WaypointTitle",
-    "Waypoints",
-    UDim2.new(0, 10, 0, 5),
-    UDim2.new(1, -20, 0, 32)
-).TextSize = 22
-
-p8MakeLabel(
-    waypointsPage,
-    "WaypointDescription",
-    "Create a named location, teleport to it, or delete it.",
-    UDim2.new(0, 10, 0, 38),
-    UDim2.new(1, -20, 0, 35)
-)
-
-local waypointNameBox = Instance.new("TextBox")
-waypointNameBox.Name = "WaypointNameBox"
-waypointNameBox.Position = UDim2.new(0, 10, 0, 78)
-waypointNameBox.Size = UDim2.new(0.65, -10, 0, 32)
-waypointNameBox.PlaceholderText = "Enter waypoint name"
-waypointNameBox.Text = ""
-waypointNameBox.ClearTextOnFocus = false
-waypointNameBox.TextColor3 = Color3.new(1, 1, 1)
-waypointNameBox.BackgroundColor3 = Color3.fromRGB(35, 35, 43)
-waypointNameBox.TextSize = 14
-waypointNameBox.Parent = waypointsPage
-
-local createWaypointButton = p8MakeButton(
-    waypointsPage,
-    "CreateWaypointButton",
-    "Create",
-    UDim2.new(0.67, 0, 0, 78),
-    UDim2.new(0.30, -10, 0, 32)
-)
-
-local waypointStatus = p8MakeLabel(
-    waypointsPage,
-    "WaypointStatus",
-    "Ready.",
-    UDim2.new(0, 10, 0, 115),
-    UDim2.new(1, -20, 0, 25)
-)
-
-local waypointList = Instance.new("ScrollingFrame")
-waypointList.Name = "WaypointList"
-waypointList.Position = UDim2.new(0, 10, 0, 145)
-waypointList.Size = UDim2.new(1, -20, 1, -155)
-waypointList.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
-waypointList.BorderSizePixel = 0
-waypointList.ScrollBarThickness = 6
-waypointList.AutomaticCanvasSize = Enum.AutomaticSize.Y
-waypointList.CanvasSize = UDim2.new(0, 0, 0, 0)
-waypointList.Parent = waypointsPage
-
-local waypointLayout = Instance.new("UIListLayout")
-waypointLayout.Padding = UDim.new(0, 5)
-waypointLayout.SortOrder = Enum.SortOrder.LayoutOrder
-waypointLayout.Parent = waypointList
-
-local function p8Log(message, kind)
-    if consoleLogFunction then
-        consoleLogFunction(message, kind or "Info")
-    end
-end
-
-local function rebuildWaypointRows()
-    for _, child in ipairs(waypointList:GetChildren()) do
-        if child ~= waypointLayout then
-            child:Destroy()
-        end
-    end
-
-    for index, waypoint in ipairs(waypoints) do
-        local row = Instance.new("Frame")
-        row.Name = "WaypointRow"
-        row.Size = UDim2.new(1, -8, 0, 42)
-        row.BackgroundColor3 = Color3.fromRGB(42, 42, 52)
-        row.BorderSizePixel = 0
-        row.LayoutOrder = index
-        row.Parent = waypointList
-
-        local nameLabel = Instance.new("TextLabel")
-        nameLabel.Size = UDim2.new(0.42, 0, 1, 0)
-        nameLabel.Position = UDim2.new(0, 6, 0, 0)
-        nameLabel.BackgroundTransparency = 1
-        nameLabel.TextColor3 = Color3.new(1, 1, 1)
-        nameLabel.TextSize = 13
-        nameLabel.TextWrapped = true
-        nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-        nameLabel.Text = waypoint.name
-        nameLabel.Parent = row
-
-        local teleportButton = p8MakeButton(
-            row,
-            "TeleportButton",
-            "Teleport",
-            UDim2.new(0.44, 0, 0, 5),
-            UDim2.new(0.27, -3, 0, 32)
-        )
-
-        local deleteButton = p8MakeButton(
-            row,
-            "DeleteButton",
-            "Delete",
-            UDim2.new(0.72, 0, 0, 5),
-            UDim2.new(0.27, -3, 0, 32)
-        )
-
-        teleportButton.Activated:Connect(function()
-            local character = waypointPlayer.Character
-            local root = character and character:FindFirstChild("HumanoidRootPart")
-
-            if not root then
-                waypointStatus.Text = "ERROR: Character not found."
-                p8Log("Cannot teleport: character not found.", "Error")
-                return
-            end
-
-            local success, err = pcall(function()
-                root.CFrame = CFrame.new(
-                    waypoint.x,
-                    waypoint.y + 3,
-                    waypoint.z
-                )
-            end)
-
-            if success then
-                waypointStatus.Text = "Teleported to " .. waypoint.name
-                p8Log("Teleported to waypoint: " .. waypoint.name, "Success")
-            else
-                waypointStatus.Text = "Teleport failed."
-                p8Log("Teleport failed: " .. tostring(err), "Error")
-            end
-        end)
-
-        deleteButton.Activated:Connect(function()
-            table.remove(waypoints, index)
-            rebuildWaypointRows()
-            waypointStatus.Text = "Deleted " .. waypoint.name
-            p8Log("Deleted waypoint: " .. waypoint.name, "Success")
-        end)
-    end
-end
-
-createWaypointButton.Activated:Connect(function()
-    if #waypoints >= 100 then
-        waypointStatus.Text = "Maximum of 100 waypoints reached."
-        p8Log("Waypoint limit reached.", "Warning")
-        return
-    end
-
-    local character = waypointPlayer.Character
-    local root = character and character:FindFirstChild("HumanoidRootPart")
-
-    if not root then
-        waypointStatus.Text = "ERROR: Character not found."
-        p8Log("Cannot create waypoint: character not found.", "Error")
-        return
-    end
-
-    local name = waypointNameBox.Text:gsub("^%s+", ""):gsub("%s+$", "")
-    if name == "" then
-        name = "Waypoint " .. tostring(#waypoints + 1)
-    end
-
-    for _, waypoint in ipairs(waypoints) do
-        if waypoint.name:lower() == name:lower() then
-            waypointStatus.Text = "That name is already in use."
-            p8Log("Duplicate waypoint name: " .. name, "Warning")
-            return
-        end
-    end
-
-    local position = root.Position
-    table.insert(waypoints, {
-        name = name,
-        x = position.X,
-        y = position.Y,
-        z = position.Z,
-    })
-
-    waypointNameBox.Text = ""
-    rebuildWaypointRows()
-    waypointStatus.Text = "Created " .. name
-    p8Log("Created waypoint: " .. name, "Success")
-end)
-
--- CONSOLE PAGE
-p8MakeLabel(
-    consolePage,
-    "ConsoleTitle",
-    "Console",
-    UDim2.new(0, 10, 0, 5),
-    UDim2.new(1, -120, 0, 32)
-).TextSize = 22
-
-local consoleList = Instance.new("ScrollingFrame")
-consoleList.Name = "ConsoleList"
-consoleList.Position = UDim2.new(0, 10, 0, 45)
-consoleList.Size = UDim2.new(1, -20, 1, -90)
-consoleList.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-consoleList.BorderSizePixel = 0
-consoleList.ScrollBarThickness = 6
-consoleList.AutomaticCanvasSize = Enum.AutomaticSize.Y
-consoleList.CanvasSize = UDim2.new(0, 0, 0, 0)
-consoleList.Parent = consolePage
-
-local consoleLayout = Instance.new("UIListLayout")
-consoleLayout.Padding = UDim.new(0, 4)
-consoleLayout.SortOrder = Enum.SortOrder.LayoutOrder
-consoleLayout.Parent = consoleList
-
-consoleLogFunction = function(message, kind)
-    kind = kind or "Info"
-
-    local colours = {
-        Success = Color3.fromRGB(100, 235, 130),
-        Error = Color3.fromRGB(255, 100, 100),
-        Warning = Color3.fromRGB(255, 205, 95),
-        Info = Color3.fromRGB(220, 220, 220),
+    local UI = {
+        background = Color3.fromRGB(13, 16, 24),
+        panel = Color3.fromRGB(20, 25, 36),
+        panelSoft = Color3.fromRGB(27, 34, 48),
+        panelHover = Color3.fromRGB(38, 49, 68),
+        accent = Color3.fromRGB(93, 132, 255),
+        accentBright = Color3.fromRGB(121, 154, 255),
+        text = Color3.fromRGB(239, 243, 255),
+        muted = Color3.fromRGB(151, 163, 185),
+        border = Color3.fromRGB(53, 66, 91),
+        success = Color3.fromRGB(83, 210, 151),
     }
 
-    local line = Instance.new("TextLabel")
-    line.Name = "ConsoleMessage"
-    line.Size = UDim2.new(1, -10, 0, 0)
-    line.AutomaticSize = Enum.AutomaticSize.Y
-    line.BackgroundTransparency = 1
-    line.TextColor3 = colours[kind] or colours.Info
-    line.TextSize = 13
-    line.TextWrapped = true
-    line.TextXAlignment = Enum.TextXAlignment.Left
-    line.Font = Enum.Font.Code
-    line.Text = "[" .. os.date("%H:%M:%S") .. "] [" ..
-        string.upper(kind) .. "] " .. tostring(message)
-    line.Parent = consoleList
+    local styled = setmetatable({}, { __mode = "k" })
+    local hoverConnections = setmetatable({}, { __mode = "k" })
 
-    table.insert(consoleMessages, tostring(message))
-
-    task.defer(function()
-        consoleList.CanvasPosition = Vector2.new(
-            0,
-            math.max(0, consoleList.AbsoluteCanvasSize.Y)
-        )
-    end)
-end
-
-local clearConsoleButton = p8MakeButton(
-    consolePage,
-    "ClearConsoleButton",
-    "Clear",
-    UDim2.new(1, -105, 0, 5),
-    UDim2.new(0, 95, 0, 30)
-)
-
-clearConsoleButton.Activated:Connect(function()
-    for _, child in ipairs(consoleList:GetChildren()) do
-        if child.Name == "ConsoleMessage" then
-            child:Destroy()
+    local function addCorner(object, radius)
+        if not object:FindFirstChildOfClass("UICorner") then
+            local corner = Instance.new("UICorner")
+            corner.CornerRadius = UDim.new(0, radius or 10)
+            corner.Parent = object
         end
     end
-    table.clear(consoleMessages)
-    consoleLogFunction("Console cleared.", "Success")
-end)
 
--- Create both sidebar tabs
-local waypointsTabButton = p8MakeTab(
-    "WaypointsTabButton", "Waypoints", 270
-)
-local consoleTabButton = p8MakeTab(
-    "ConsoleTabButton", "Console", 310
-)
+    local function addStroke(object, color, transparency, thickness)
+        local stroke = object:FindFirstChildOfClass("UIStroke")
+        if not stroke then
+            stroke = Instance.new("UIStroke")
+            stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+            stroke.Parent = object
+        end
+        stroke.Color = color or UI.border
+        stroke.Transparency = transparency == nil and 0.35 or transparency
+        stroke.Thickness = thickness or 1
+    end
 
--- Keep the original pages working while adding our two pages
-local p8PreviousSetActivePage = setActivePage
+    local function styleObject(object)
+        if styled[object] then return end
+        if not object:IsDescendantOf(uiGui) then return end
+        styled[object] = true
 
-setActivePage = function(pageName)
-    if pageName == "Waypoints" or pageName == "Console" then
-        for _, child in ipairs(waypointContent:GetChildren()) do
-            if child:IsA("GuiObject") then
-                child.Visible = false
+        if object:IsA("TextLabel") then
+            object.Font = object.TextSize >= 18 and Enum.Font.GothamBold or Enum.Font.Gotham
+            if object.TextColor3 ~= UI.accent and object.TextColor3 ~= UI.success then
+                object.TextColor3 = (object.TextSize <= 12) and UI.muted or UI.text
             end
-        end
+            object.TextWrapped = object.TextWrapped or object.TextSize <= 13
+            object.BackgroundTransparency = object.BackgroundTransparency
 
-        if pageName == "Waypoints" then
-            waypointsPage.Visible = true
-        else
-            consolePage.Visible = true
-        end
-
-        return
-    end
-
-    waypointsPage.Visible = false
-    consolePage.Visible = false
-
-    if p8PreviousSetActivePage then
-        p8PreviousSetActivePage(pageName)
-    end
-end
-
-waypointsTabButton.Activated:Connect(function()
-    setActivePage("Waypoints")
-end)
-
-consoleTabButton.Activated:Connect(function()
-    setActivePage("Console")
-end)
-
--- Configuration save/load and JSON import/export
--- Requires the WaypointConfigFunction RemoteFunction and server script
--- described below.
-
-local optionsPage = waypointContent:FindFirstChild("OptionsPage")
-local configRemote = ReplicatedStorage:FindFirstChild("WaypointConfigFunction")
-
-local function buildConfig()
-    local config = {
-        waypoints = waypoints,
-    }
-
-    if menuToggleKey then
-        config.menuKey = menuToggleKey.Name
-    end
-    if espToggleKey then
-        config.espKey = espToggleKey.Name
-    end
-    if floatingEnabled ~= nil then
-        config.floatingEnabled = floatingEnabled
-    end
-
-    if keybinds then
-        config.featureKeys = {}
-        for name, key in pairs(keybinds) do
-            if typeof(key) == "EnumItem" then
-                config.featureKeys[name] = key.Name
-            end
-        end
-    end
-
-    return config
-end
-
-local function applyConfig(config)
-    if typeof(config) ~= "table" then
-        error("Configuration must be a table.")
-    end
-
-    if typeof(config.waypoints) == "table" then
-        waypoints = {}
-
-        for _, waypoint in ipairs(config.waypoints) do
-            if typeof(waypoint) == "table"
-                and typeof(waypoint.name) == "string"
-                and typeof(waypoint.x) == "number"
-                and typeof(waypoint.y) == "number"
-                and typeof(waypoint.z) == "number" then
-                table.insert(waypoints, {
-                    name = waypoint.name,
-                    x = waypoint.x,
-                    y = waypoint.y,
-                    z = waypoint.z,
-                })
-            end
-
-            if #waypoints >= 100 then
-                break
-            end
-        end
-    end
-
-    if typeof(config.menuKey) == "string" then
-        local key = Enum.KeyCode[config.menuKey]
-        if key then menuToggleKey = key end
-    end
-
-    if typeof(config.espKey) == "string" then
-        local key = Enum.KeyCode[config.espKey]
-        if key then espToggleKey = key end
-    end
-
-    if typeof(config.floatingEnabled) == "boolean" then
-        floatingEnabled = config.floatingEnabled
-        if floatingButton then
-            floatingButton.Visible = floatingEnabled
-        end
-    end
-
-    if typeof(config.featureKeys) == "table" and keybinds then
-        for name, keyName in pairs(config.featureKeys) do
-            local key = typeof(keyName) == "string"
-                and Enum.KeyCode[keyName]
-
-            if key and keybinds[name] ~= nil then
-                keybinds[name] = key
-            end
-        end
-    end
-
-    if updateKeyLabels then
-        updateKeyLabels()
-    end
-
-    rebuildWaypointRows()
-end
-
-local function p8ConfigAction(action, config)
-    if not configRemote or not configRemote:IsA("RemoteFunction") then
-        p8Log("Config remote is missing. Add the server script.", "Error")
-        return false, nil, "Config remote missing."
-    end
-
-    local ok, result, data, message = pcall(function()
-        return configRemote:InvokeServer(action, config)
-    end)
-
-    if not ok then
-        p8Log("Config request failed: " .. tostring(result), "Error")
-        return false, nil, tostring(result)
-    end
-
-    if not result then
-        p8Log(tostring(message or "Config action failed."), "Error")
-        return false, nil, message
-    end
-
-    p8Log(tostring(message or "Config action succeeded."), "Success")
-    return true, data, message
-end
-
-if optionsPage then
-    local saveButton = p8MakeButton(
-        optionsPage, "SaveConfigButton", "Save",
-        UDim2.new(0, 10, 0, 405), UDim2.new(0, 100, 0, 32)
-    )
-
-    local loadButton = p8MakeButton(
-        optionsPage, "LoadConfigButton", "Load",
-        UDim2.new(0, 120, 0, 405), UDim2.new(0, 100, 0, 32)
-    )
-
-    local jsonBox = Instance.new("TextBox")
-    jsonBox.Name = "ConfigJsonBox"
-    jsonBox.Position = UDim2.new(0, 10, 0, 445)
-    jsonBox.Size = UDim2.new(1, -20, 0, 80)
-    jsonBox.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
-    jsonBox.TextColor3 = Color3.new(1, 1, 1)
-    jsonBox.TextSize = 12
-    jsonBox.TextWrapped = true
-    jsonBox.TextXAlignment = Enum.TextXAlignment.Left
-    jsonBox.TextYAlignment = Enum.TextYAlignment.Top
-    jsonBox.ClearTextOnFocus = false
-    jsonBox.MultiLine = true
-    jsonBox.PlaceholderText = "Exported JSON appears here. Paste JSON here to import."
-    jsonBox.Text = ""
-    jsonBox.Parent = optionsPage
-
-    local exportButton = p8MakeButton(
-        optionsPage, "ExportConfigButton", "Export JSON",
-        UDim2.new(0, 10, 0, 532), UDim2.new(0, 120, 0, 32)
-    )
-
-    local importButton = p8MakeButton(
-        optionsPage, "ImportConfigButton", "Import JSON",
-        UDim2.new(0, 140, 0, 532), UDim2.new(0, 120, 0, 32)
-    )
-
-    saveButton.Activated:Connect(function()
-        local ok, _, message = p8ConfigAction("Save", buildConfig())
-        if not ok then
-            p8Log(tostring(message), "Error")
-        end
-    end)
-
-    loadButton.Activated:Connect(function()
-        local ok, data = p8ConfigAction("Load")
-        if ok and data then
-            local applied, err = pcall(applyConfig, data)
-            if applied then
-                p8Log("Configuration applied.", "Success")
+        elseif object:IsA("TextButton") then
+            object.AutoButtonColor = false
+            object.Font = Enum.Font.GothamSemibold
+            object.TextColor3 = UI.text
+            object.TextSize = math.clamp(object.TextSize, 12, 15)
+            object.BorderSizePixel = 0
+            if object.BackgroundTransparency >= 1 then
+                object.BackgroundTransparency = 0
+                object.BackgroundColor3 = UI.panelSoft
+            elseif object.BackgroundColor3 == Color3.fromRGB(65, 105, 180) then
+                object.BackgroundColor3 = UI.accent
             else
-                p8Log("Could not apply configuration: " .. tostring(err), "Error")
+                object.BackgroundColor3 = UI.panelSoft
             end
+            addCorner(object, 9)
+            addStroke(object, UI.border, 0.55, 1)
+
+            if not hoverConnections[object] then
+                local baseColor = object.BackgroundColor3
+                local hovering = false
+                hoverConnections[object] = true
+                object.MouseEnter:Connect(function()
+                    hovering = true
+                    TweenService:Create(object, TweenInfo.new(0.12), {
+                        BackgroundColor3 = UI.panelHover
+                    }):Play()
+                end)
+                object.MouseLeave:Connect(function()
+                    hovering = false
+                    local target = baseColor
+                    if not object.Parent then return end
+                    TweenService:Create(object, TweenInfo.new(0.14), {
+                        BackgroundColor3 = target
+                    }):Play()
+                end)
+                object.Activated:Connect(function()
+                    if not object.Parent then return end
+                    local oldSize = object.Size
+                    TweenService:Create(object, TweenInfo.new(0.07), {
+                        BackgroundColor3 = UI.accentBright
+                    }):Play()
+                    task.delay(0.09, function()
+                        if object.Parent and not hovering then
+                            TweenService:Create(object, TweenInfo.new(0.14), {
+                                BackgroundColor3 = baseColor
+                            }):Play()
+                        end
+                    end)
+                end)
+            end
+
+        elseif object:IsA("TextBox") then
+            object.Font = Enum.Font.Gotham
+            object.TextColor3 = UI.text
+            object.PlaceholderColor3 = UI.muted
+            object.BackgroundColor3 = UI.background
+            object.BorderSizePixel = 0
+            object.ClearTextOnFocus = false
+            addCorner(object, 9)
+            addStroke(object, UI.border, 0.25, 1)
+
+        elseif object:IsA("ScrollingFrame") then
+            object.ScrollBarThickness = 5
+            object.ScrollBarImageColor3 = UI.accent
+            object.BackgroundColor3 = UI.background
+            object.BorderSizePixel = 0
+            object.ScrollingDirection = Enum.ScrollingDirection.Y
+
+        elseif object:IsA("Frame") then
+            object.BorderSizePixel = 0
+            if object == uiMain then
+                object.BackgroundColor3 = UI.background
+                addCorner(object, 16)
+                addStroke(object, UI.border, 0.15, 1.4)
+            elseif object == uiTopBar then
+                object.BackgroundColor3 = UI.panel
+                addStroke(object, UI.border, 0.65, 1)
+            elseif object == uiSidebar then
+                object.BackgroundColor3 = UI.panel
+            elseif object == uiContent then
+                object.BackgroundColor3 = UI.background
+            elseif object.BackgroundTransparency < 1 then
+                -- Give existing cards/rows a consistent modern surface.
+                object.BackgroundColor3 = UI.panel
+                addCorner(object, 11)
+                addStroke(object, UI.border, 0.68, 1)
+            end
+
+        elseif object:IsA("ImageButton") then
+            object.AutoButtonColor = false
+            addCorner(object, 10)
+            addStroke(object, UI.border, 0.45, 1)
         end
-    end)
-
-    exportButton.Activated:Connect(function()
-        local ok, encoded = pcall(function()
-            return HttpService:JSONEncode(buildConfig())
-        end)
-
-        if ok then
-            jsonBox.Text = encoded
-            p8Log("JSON exported. Copy it into a .json file yourself.", "Success")
-        else
-            p8Log("JSON export failed: " .. tostring(encoded), "Error")
-        end
-    end)
-
-    importButton.Activated:Connect(function()
-        local ok, decoded = pcall(function()
-            return HttpService:JSONDecode(jsonBox.Text)
-        end)
-
-        if not ok then
-            p8Log("Invalid JSON: " .. tostring(decoded), "Error")
-            return
-        end
-
-        local applied, err = pcall(applyConfig, decoded)
-        if applied then
-            p8Log("JSON configuration imported.", "Success")
-        else
-            p8Log("Import failed: " .. tostring(err), "Error")
-        end
-    end)
-end
-
-rebuildWaypointRows()
-p8Log("Waypoints and Console pages created.", "Success")
-print("Part 8 loaded.")
-
--- PART 9: CONSOLE OUTPUT CAPTURE
-
-local LogService = game:GetService("LogService")
-
-LogService.MessageOut:Connect(function(message, messageType)
-    if not consoleLogFunction then
-        return
     end
 
-    if messageType == Enum.MessageType.MessageError then
-        consoleLogFunction(message, "Error")
-    elseif messageType == Enum.MessageType.MessageWarning then
-        consoleLogFunction(message, "Warning")
-    else
-        consoleLogFunction(message, "Info")
+    -- Main window details.
+    uiMain.ClipsDescendants = true
+    if not uiMain:FindFirstChild("UIUpgradeScale") then
+        local scale = Instance.new("UIScale")
+        scale.Name = "UIUpgradeScale"
+        scale.Scale = 1
+        scale.Parent = uiMain
+
+        local function resizeForScreen()
+            local camera = workspace.CurrentCamera
+            if not camera then return end
+            local viewport = camera.ViewportSize
+            local scaleFactor = math.min(viewport.X / 850, viewport.Y / 760, 1)
+            scale.Scale = math.clamp(scaleFactor, 0.62, 1)
+            uiMain.AnchorPoint = Vector2.new(0.5, 0.5)
+            uiMain.Position = UDim2.fromScale(0.5, 0.5)
+        end
+        resizeForScreen()
+        if workspace.CurrentCamera then
+            workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(resizeForScreen)
+        end
     end
-end)
 
-if consoleLogFunction then
-    consoleLogFunction("Part 9 loaded successfully.", "Success")
-    consoleLogFunction(
-        "Client output capture is active. Open the Console tab to view messages.",
-        "Info"
-    )
+    -- Subtle blue accent line under the header.
+    if not uiTopBar:FindFirstChild("UIUpgradeAccent") then
+        local accentLine = Instance.new("Frame")
+        accentLine.Name = "UIUpgradeAccent"
+        accentLine.Size = UDim2.new(1, 0, 0, 2)
+        accentLine.Position = UDim2.new(0, 0, 1, -2)
+        accentLine.BackgroundColor3 = UI.accent
+        accentLine.BorderSizePixel = 0
+        accentLine.ZIndex = uiTopBar.ZIndex + 2
+        accentLine.Parent = uiTopBar
+        local gradient = Instance.new("UIGradient")
+        gradient.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, UI.accent),
+            ColorSequenceKeypoint.new(0.5, UI.accentBright),
+            ColorSequenceKeypoint.new(1, UI.accent),
+        })
+        gradient.Parent = accentLine
+    end
+
+    -- Style everything already created.
+    for _, object in ipairs(uiGui:GetDescendants()) do
+        styleObject(object)
+    end
+
+    -- Also style buttons/cards created later by waypoint, console, and options code.
+    uiGui.DescendantAdded:Connect(function(object)
+        task.defer(function()
+            if object and object.Parent then
+                styleObject(object)
+            end
+        end)
+    end)
+
+    -- Small accessibility polish.
+    for _, object in ipairs(uiGui:GetDescendants()) do
+        if object:IsA("TextButton") or object:IsA("TextBox") then
+            object.Selectable = true
+        end
+    end
+
+    print("UI Upgrade loaded: modern theme, hover effects, and responsive scaling enabled.")
 end
-
-print("Part 9 loaded successfully.")
