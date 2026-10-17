@@ -1800,7 +1800,8 @@ local refreshOptionsLabels = nil
 local floatingToggleEnabled = true
 local floatingToggleButton = nil
 
--- HIDE/SHOW BY MOVING OFF-SCREEN. Keep the same GUI and scripts alive.
+-- HIDE/SHOW BY MOVING OFF-SCREEN ONLY. No transparency changes are made when toggling.
+-- Keep the same GUI and scripts alive; restore the saved on-screen position when shown.
 -- The menu starts centered. Its last on-screen position is remembered when hidden.
 local savedMenuPosition = UDim2.fromScale(0.5, 0.5)
 local offscreenMenuPosition = UDim2.new(2, 0, 2, 0)
