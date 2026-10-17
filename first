@@ -2,6 +2,7 @@
 -- Install as a LocalScript in StarterPlayer > StarterPlayerScripts.
 -- Do not use loadstring/HttpGet in a normal Studio LocalScript.
 -- Error Monitor is optional and OFF by default; F9 diagnostics remain available. G moves the same GUI right, around the bottom outside the screen, and parks it left for reopening.
+-- HIDE / KEEP only animates the existing GUI; DESTROY ALL permanently removes this LocalScript, GUI, effects and listeners until next Play session.
 -- This prevents an add-on runtime error from stopping the core menu, but it cannot
 -- guarantee all features work without running in the target Roblox experience.
 
@@ -88,6 +89,17 @@ local playerGui = player:WaitForChild("PlayerGui")
 -- SINGLE-INSTANCE GUARD: executing a second copy must not rebuild the GUI,
 -- add a second G key handler, or restart effects that are already running.
 -- The existing LocalScript owns the original GUI and its button connections.
+-- Event registry exists before diagnostics register their first listeners.
+local trackedServiceConnections = {}
+local extraCleanup = {}
+local function trackServiceConnection(connection)
+    if connection then table.insert(trackedServiceConnections, connection) end
+    return connection
+end
+local function registerCleanup(callback)
+    table.insert(extraCleanup, callback)
+end
+
 local existingMenu = playerGui:FindFirstChild("ErrorB1478Menu")
 if existingMenu then
     warn("[ErrorB1478Menu] Menu is already running; reused the existing GUI (no duplicate created).")
@@ -173,11 +185,11 @@ local function recordClientError(message)
 end
 
 print("[ErrorB1478Menu][F9] Diagnostics active. Press F9 and select Client to view errors. Optional Error Monitor is OFF by default.")
-LogService.MessageOut:Connect(function(message, messageType)
+trackServiceConnection(LogService.MessageOut:Connect(function(message, messageType)
     if messageType == Enum.MessageType.MessageError then
         recordClientError(message)
     end
-end)
+end))
 
 -- ScriptContext provides the failing script and stack trace when available.
 -- This is diagnostic only: it cannot resume a top-level script after a fatal error.
@@ -186,7 +198,7 @@ local __EB1478_scriptContextOk, __EB1478_scriptContext = pcall(function()
 end)
 if __EB1478_scriptContextOk and __EB1478_scriptContext then
     local __EB1478_connected, __EB1478_connectError = pcall(function()
-        __EB1478_scriptContext.Error:Connect(function(message, stackTrace, sourceScript)
+        trackServiceConnection(__EB1478_scriptContext.Error:Connect(function(message, stackTrace, sourceScript)
             local scriptName = (sourceScript and sourceScript.Name) or "unknown script"
             local key = tostring(message) .. "|" .. tostring(stackTrace)
             if __EB1478_seenErrors[key] then return end
@@ -196,7 +208,7 @@ if __EB1478_scriptContextOk and __EB1478_scriptContext then
                 .. " | Stack: " .. tostring(stackTrace)
             warn(report)
             __EB1478_failedSections[__EB1478_currentSection] = report
-        end)
+        end))
     end)
     if not __EB1478_connected then
         warn("[ErrorB1478Menu][DIAGNOSTIC] ScriptContext error listener unavailable: " .. tostring(__EB1478_connectError))
@@ -933,7 +945,7 @@ local function setNoclip(enabled)
             end
         end)
 
-        noclipEnforceConnection = RunService.Stepped:Connect(function()
+        noclipEnforceConnection = trackServiceConnection(RunService.Stepped:Connect(function()
             if destroyed or not noclip then return end
             local activeCharacter = getCharacter()
             if activeCharacter ~= character then return end
@@ -942,7 +954,7 @@ local function setNoclip(enabled)
                     disablePartCollision(object)
                 end
             end
-        end)
+        end))
     else
         for object, originalValue in pairs(noclipOriginalCanCollide) do
             if object and object.Parent and object:IsA("BasePart") then
@@ -1114,7 +1126,7 @@ resetMovementButton.MouseButton1Click:Connect(
 --==================================================
 
 local flyConnection =
-    RunService.RenderStepped:Connect(
+    trackServiceConnection(RunService.RenderStepped:Connect(
         function()
             if destroyed or not flying then
                 return
@@ -1190,7 +1202,7 @@ local flyConnection =
                     camera.CFrame
             end
         end
-    )
+    ))
 
 table.insert(
     connections,
@@ -1202,7 +1214,7 @@ table.insert(
 --==================================================
 
 local jumpConnection =
-    UserInputService.JumpRequest:Connect(
+    trackServiceConnection(UserInputService.JumpRequest:Connect(
         function()
             if destroyed or not infiniteJump then
                 return
@@ -1216,7 +1228,7 @@ local jumpConnection =
                 )
             end
         end
-    )
+    ))
 
 table.insert(
     connections,
@@ -1956,21 +1968,21 @@ local function setPlayerEspEnabled(enabled)
     end
 end
 
-local playerAddedConnection = Players.PlayerAdded:Connect(function(targetPlayer)
+local playerAddedConnection = trackServiceConnection(Players.PlayerAdded:Connect(function(targetPlayer)
     if playerEspEnabled then
         task.defer(function()
             refreshPlayerEsp(targetPlayer)
         end)
     end
-end)
+end))
 table.insert(connections, playerAddedConnection)
 
-local playerRemovingConnection = Players.PlayerRemoving:Connect(function(targetPlayer)
+local playerRemovingConnection = trackServiceConnection(Players.PlayerRemoving:Connect(function(targetPlayer)
     removePlayerEsp(targetPlayer)
-end)
+end))
 table.insert(connections, playerRemovingConnection)
 
-local espRefreshConnection = RunService.Heartbeat:Connect(function(deltaTime)
+local espRefreshConnection = trackServiceConnection(RunService.Heartbeat:Connect(function(deltaTime)
     if not playerEspEnabled or destroyed then
         return
     end
@@ -1985,7 +1997,7 @@ local espRefreshConnection = RunService.Heartbeat:Connect(function(deltaTime)
             warn("[ErrorB1478Menu] ESP refresh failed for " .. targetPlayer.Name .. ": " .. tostring(err))
         end
     end
-end)
+end))
 table.insert(connections, espRefreshConnection)
 
 --==================================================
@@ -2119,7 +2131,7 @@ setMenuVisible = function(visible)
     -- The Finder's own Refresh button still works.
 end
 
-local inputConnection = UserInputService.InputBegan:Connect(
+local inputConnection = trackServiceConnection(UserInputService.InputBegan:Connect(
     function(input, processed)
         if destroyed then return end
         if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
@@ -2157,7 +2169,7 @@ local inputConnection = UserInputService.InputBegan:Connect(
             setPlayerEspEnabled(not playerEspEnabled)
         end
     end
-)
+))
 
 table.insert(connections, inputConnection)
 
@@ -2166,7 +2178,7 @@ table.insert(connections, inputConnection)
 --==================================================
 
 local characterConnection =
-    player.CharacterAdded:Connect(
+    trackServiceConnection(player.CharacterAdded:Connect(
         function(character)
             if destroyed then
                 return
@@ -2208,7 +2220,7 @@ local characterConnection =
                 setNoclip(true)
             end
         end
-    )
+    ))
 
 table.insert(
     connections,
@@ -2305,6 +2317,66 @@ panicButton.MouseButton1Click:Connect(
         panic()
     end
 )
+
+--==================================================
+-- PERMANENT DESTROY BUTTON (separate from the normal G-key hide/keep)
+--==================================================
+local destroyEverythingButton = Instance.new("TextButton")
+destroyEverythingButton.Name = "DestroyEverything"
+destroyEverythingButton.Size = UDim2.fromOffset(135, 38)
+destroyEverythingButton.Position = UDim2.fromOffset(10, 475)
+destroyEverythingButton.BackgroundColor3 = Color3.fromRGB(190, 35, 45)
+destroyEverythingButton.BorderSizePixel = 0
+destroyEverythingButton.Text = "DESTROY ALL"
+destroyEverythingButton.TextColor3 = Color3.new(1, 1, 1)
+destroyEverythingButton.TextSize = 12
+destroyEverythingButton.Font = Enum.Font.GothamBold
+destroyEverythingButton.Parent = sidebar
+local destroyCorner = Instance.new("UICorner")
+destroyCorner.CornerRadius = UDim.new(0, 8)
+destroyCorner.Parent = destroyEverythingButton
+
+local function destroyEverything()
+    if destroyed then return end
+    destroyed = true -- guard against every delayed callback and all keybinds immediately
+    menuOpen = false
+    stopMenuMotion()
+
+    -- Stop gameplay changes and remove all overlays before destroying the root GUI.
+    pcall(function() stopFly() end)
+    pcall(function() setNoclip(false) end)
+    infiniteJump = false
+    pcall(function() setPlayerEspEnabled(false) end)
+    for _, cleanup in ipairs(extraCleanup) do
+        local ok, err = pcall(cleanup)
+        if not ok then warn("[ErrorB1478Menu] Cleanup issue: " .. tostring(err)) end
+    end
+    pcall(restoreCharacter)
+    pcall(function() setErrorMonitorEnabled(false) end)
+
+    -- Disconnect every event listener created by the menu, even those attached
+    -- to Roblox services rather than GUI objects.
+    for _, connection in ipairs(trackedServiceConnections) do
+        pcall(function() connection:Disconnect() end)
+    end
+    for _, connection in ipairs(connections) do
+        pcall(function() connection:Disconnect() end)
+    end
+    if noclipDescendantConnection then pcall(function() noclipDescendantConnection:Disconnect() end) end
+    if noclipEnforceConnection then pcall(function() noclipEnforceConnection:Disconnect() end) end
+    table.clear(trackedServiceConnections)
+    table.clear(connections)
+    table.clear(extraCleanup)
+
+    if errorMonitorGui then pcall(function() errorMonitorGui:Destroy() end) end
+    if gui then pcall(function() gui:Destroy() end) end
+    -- The original LocalScript itself is removed last, so G can NEVER
+    -- recreate the GUI in this session. Restart Play to get the menu again.
+    print("[ErrorB1478Menu] DESTROY ALL completed; menu and owned effects removed for this Play session.")
+    pcall(function() script:Destroy() end)
+end
+
+destroyEverythingButton.Activated:Connect(destroyEverything)
 
 --==================================================
 -- MINIMIZE BUTTON
@@ -2584,7 +2656,7 @@ __EB1478_safeCall("UI upgrade / responsive theme", function()
         resizeForScreen()
         local camera = workspace.CurrentCamera
         if camera then
-            camera:GetPropertyChangedSignal("ViewportSize"):Connect(resizeForScreen)
+            trackServiceConnection(camera:GetPropertyChangedSignal("ViewportSize"):Connect(resizeForScreen))
         end
     end
 
@@ -2908,6 +2980,7 @@ __EB1478_safeCall("Premium pages and extras", function()
     local originalFunJumpPower = nil
     local originalFunJumpHeight = nil
     local spinBusy = false
+    local spinRoot, spinOldVelocity = nil, nil
 
     local function setFunStatus(message, color)
         funStatus.Text = message
@@ -2954,10 +3027,12 @@ __EB1478_safeCall("Premium pages and extras", function()
         if not root or spinBusy then return end
         spinBusy = true
         local oldAngularVelocity = root.AssemblyAngularVelocity
+        spinRoot, spinOldVelocity = root, oldAngularVelocity
         root.AssemblyAngularVelocity = Vector3.new(0, 18, 0)
         setFunStatus("Spinning for two seconds…", C.green)
         task.delay(2, function()
-            if root and root.Parent then root.AssemblyAngularVelocity = oldAngularVelocity end
+            if not destroyed and root and root.Parent then root.AssemblyAngularVelocity = oldAngularVelocity end
+            spinRoot, spinOldVelocity = nil, nil
             spinBusy = false
             if not destroyed then setFunStatus("Spin finished.") end
         end)
@@ -3110,14 +3185,14 @@ __EB1478_safeCall("Premium pages and extras", function()
         rainbowUiEnabled = not rainbowUiEnabled
         if rainbowUiEnabled then
             if rainbowUiConnection then rainbowUiConnection:Disconnect() end
-            rainbowUiConnection = game:GetService("RunService").Heartbeat:Connect(function(dt)
+            rainbowUiConnection = trackServiceConnection(game:GetService("RunService").Heartbeat:Connect(function(dt)
                 if not rainbowUiEnabled or not main or not main.Parent then return end
                 rainbowUiHue = (rainbowUiHue + dt * 0.22) % 1
                 local color = Color3.fromHSV(rainbowUiHue, 0.78, 1)
                 topBar.BackgroundColor3 = color
                 local marker = sidebarTitle and sidebarTitle:FindFirstChild("ActiveMarker")
                 if marker then marker.BackgroundColor3 = color end
-            end)
+            end))
             setFunStatus("Rainbow UI enabled. Toggle it off to stop the animation.", C.green)
         else
             if rainbowUiConnection then rainbowUiConnection:Disconnect(); rainbowUiConnection = nil end
@@ -3134,12 +3209,12 @@ __EB1478_safeCall("Premium pages and extras", function()
         if fovPulseEnabled then
             fovPulseBase = camera.FieldOfView
             local elapsed = 0
-            fovPulseConnection = game:GetService("RunService").RenderStepped:Connect(function(dt)
+            fovPulseConnection = trackServiceConnection(game:GetService("RunService").RenderStepped:Connect(function(dt)
                 local currentCamera = workspace.CurrentCamera
                 if not currentCamera then return end
                 elapsed += dt
                 currentCamera.FieldOfView = math.clamp((fovPulseBase or 70) + math.sin(elapsed * 2.6) * 9, 40, 110)
-            end)
+            end))
             setFunStatus("Camera FOV pulse enabled.", C.green)
         else
             if fovPulseConnection then fovPulseConnection:Disconnect(); fovPulseConnection = nil end
@@ -3284,11 +3359,11 @@ __EB1478_safeCall("Premium pages and extras", function()
             local _, parts = characterParts()
             for _, part in ipairs(parts) do rainbowBodyOriginals[part] = part.Color end
             local hue = 0
-            rainbowBodyConnection = RunService.Heartbeat:Connect(function(dt)
+            rainbowBodyConnection = trackServiceConnection(RunService.Heartbeat:Connect(function(dt)
                 hue = (hue + dt * 0.35) % 1
                 local _, currentParts = characterParts()
                 for _, part in ipairs(currentParts) do part.Color = Color3.fromHSV((hue + part.Position.Y * 0.015) % 1, 0.85, 1) end
-            end)
+            end))
         else
             if rainbowBodyConnection then rainbowBodyConnection:Disconnect(); rainbowBodyConnection = nil end
             for part, color in pairs(rainbowBodyOriginals) do if part and part.Parent then part.Color = color end end
@@ -3454,10 +3529,10 @@ __EB1478_safeCall("Premium pages and extras", function()
         cameraWobbleOn = not cameraWobbleOn
         if cameraWobbleOn then
             local t = 0
-            cameraWobbleConnection = RunService.RenderStepped:Connect(function(dt)
+            cameraWobbleConnection = trackServiceConnection(RunService.RenderStepped:Connect(function(dt)
                 local camera = workspace.CurrentCamera; if not camera then return end
                 t += dt; camera.CFrame = camera.CFrame * CFrame.Angles(math.sin(t * 3) * 0.003, 0, 0)
-            end)
+            end))
         else if cameraWobbleConnection then cameraWobbleConnection:Disconnect(); cameraWobbleConnection = nil end end
         setExtraState(cameraWobbleButton, "🎥 CAMERA WOBBLE", cameraWobbleOn); setFunStatus(cameraWobbleOn and "Camera wobble enabled." or "Camera wobble disabled.", C.green)
     end)
@@ -3467,10 +3542,10 @@ __EB1478_safeCall("Premium pages and extras", function()
         cameraRollOn = not cameraRollOn
         if cameraRollOn then
             local t = 0
-            cameraRollConnection = RunService.RenderStepped:Connect(function(dt)
+            cameraRollConnection = trackServiceConnection(RunService.RenderStepped:Connect(function(dt)
                 local camera = workspace.CurrentCamera; if not camera then return end
                 t += dt; camera.CFrame = camera.CFrame * CFrame.Angles(0, 0, math.sin(t * 1.5) * 0.002)
-            end)
+            end))
         else if cameraRollConnection then cameraRollConnection:Disconnect(); cameraRollConnection = nil end end
         setExtraState(cameraRollButton, "🌀 CAMERA ROLL", cameraRollOn); setFunStatus(cameraRollOn and "Camera roll enabled." or "Camera roll disabled.", C.green)
     end)
@@ -3483,11 +3558,114 @@ __EB1478_safeCall("Premium pages and extras", function()
         game:GetService("Debris"):AddItem(flash, 0.8); setFunStatus("Screen flash! It fades automatically.", C.green)
     end)
 
+    local randomBodyPending = {}
     randomBodyButton.Activated:Connect(function()
         local _, parts = characterParts(); local originals = {}
-        for _, part in ipairs(parts) do originals[part] = part.Color; part.Color = Color3.fromHSV(math.random(), 0.75, 1) end
-        task.delay(4, function() for part, color in pairs(originals) do if part and part.Parent then part.Color = color end end end)
+        for _, part in ipairs(parts) do
+            if randomBodyPending[part] == nil then randomBodyPending[part] = part.Color end
+            originals[part] = part.Color
+            part.Color = Color3.fromHSV(math.random(), 0.75, 1)
+        end
+        task.delay(4, function()
+            if destroyed then return end
+            for part in pairs(originals) do
+                if part and part.Parent and randomBodyPending[part] ~= nil then
+                    part.Color = randomBodyPending[part]
+                    randomBodyPending[part] = nil
+                end
+            end
+        end)
         setFunStatus("Random body colours applied for four seconds.", C.green)
+    end)
+
+    -- True teardown of every Fun effect, including state not contained inside the GUI.
+    registerCleanup(function()
+        rainbowUiEnabled, fovPulseEnabled, rainbowBodyOn = false, false, false
+        cameraWobbleOn, cameraRollOn = false, false
+        for _, conn in ipairs({rainbowUiConnection, fovPulseConnection, rainbowTrailConnection,
+            rainbowBodyConnection, cameraWobbleConnection, cameraRollConnection}) do
+            if conn then pcall(function() conn:Disconnect() end) end
+        end
+
+        -- Restore directly altered parts and properties, but only if this effect was enabled.
+        for part, color in pairs(rainbowBodyOriginals) do
+            if part and part.Parent then pcall(function() part.Color = color end) end
+        end
+        for part, color in pairs(randomBodyPending) do
+            if part and part.Parent then pcall(function() part.Color = color end) end
+        end
+        if neonOn then
+            for part, material in pairs(neonOriginals) do
+                if part and part.Parent then pcall(function() part.Material = material end) end
+            end
+        end
+        if ghostOn then
+            for part, transparency in pairs(ghostOriginals) do
+                if part and part.Parent then pcall(function() part.LocalTransparencyModifier = transparency end) end
+            end
+        end
+        if bigHeadButton:GetAttribute("ToggleEnabled") and bigHeadOriginal then
+            local char = getCharacter()
+            local head = char and char:FindFirstChild("Head")
+            if head and head:IsA("BasePart") then head.Size = bigHeadOriginal end
+        end
+        if tinyModeButton:GetAttribute("ToggleEnabled") then
+            local h = getHumanoid()
+            if h then
+                for name, original in pairs(tinyOriginals or {}) do
+                    local value = h:FindFirstChild(name)
+                    if value and value:IsA("NumberValue") then value.Value = original end
+                end
+            end
+        end
+        local h = getHumanoid()
+        if h then
+            if jumpBoostEnabled then
+                if originalFunJumpPower ~= nil then h.JumpPower = originalFunJumpPower end
+                if originalFunJumpHeight ~= nil then h.JumpHeight = originalFunJumpHeight end
+            end
+            for _, previous in pairs(jumpOriginals) do
+                if previous then
+                    h.UseJumpPower = previous.UseJumpPower
+                    h.JumpPower = previous.JumpPower
+                    h.JumpHeight = previous.JumpHeight
+                end
+            end
+            if speedBoostButton:GetAttribute("ToggleEnabled") and speedOriginal then
+                h.WalkSpeed = speedOriginal
+            end
+        end
+        if lowGravityButton:GetAttribute("ToggleEnabled") and gravityOriginal then
+            workspace.Gravity = gravityOriginal
+        end
+        local cam = workspace.CurrentCamera
+        if cam then
+            if fovPulseEnabled or fovPulseBase then cam.FieldOfView = fovPulseBase or 70
+            elseif savedFieldOfView then cam.FieldOfView = savedFieldOfView end
+        end
+        if spinRoot and spinRoot.Parent and spinOldVelocity then
+            spinRoot.AssemblyAngularVelocity = spinOldVelocity
+        end
+
+        -- All attachments/lights created on the character by this script.
+        local effectNames = {
+            B1478ConfettiAttachment=true, B1478FireworkAttachment=true,
+            B1478SparkleAttachment=true, B1478RainbowTrailAttachment=true,
+            B1478HeadGlow=true, BubbleAuraAttachment=true, HeartAuraAttachment=true,
+            StarAuraAttachment=true, FootstepSparksAttachment=true,
+            MagicTrailAttachment=true, FireflyAuraAttachment=true,
+            SnowBurstAttachment=true, RainbowBurstAttachment=true,
+        }
+        local char = getCharacter()
+        if char then
+            for _, object in ipairs(char:GetDescendants()) do
+                if effectNames[object.Name] then
+                    pcall(function() object:Destroy() end)
+                end
+            end
+        end
+        if sparkleAttachment then pcall(function() sparkleAttachment:Destroy() end) end
+        if rainbowTrailAttachment then pcall(function() rainbowTrailAttachment:Destroy() end) end
     end)
 
     -- Pagination: six fun controls per page, with bottom navigation arrows.
@@ -3619,12 +3797,12 @@ __EB1478_safeCall("Premium pages and extras", function()
                 end)
             end
         end)
-        UserInputService.InputChanged:Connect(function(input)
+        trackServiceConnection(UserInputService.InputChanged:Connect(function(input)
             if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
                 local delta = input.Position - dragStart
                 floatingToggleButton.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
             end
-        end)
+        end))
     end
 
     end)
@@ -3812,7 +3990,7 @@ __EB1478_safeCall("Premium pages and extras", function()
         logCount = 0
         consoleStatus.Text = "Console cleared."
     end)
-    LogService.MessageOut:Connect(function(message, messageType)
+    trackServiceConnection(LogService.MessageOut:Connect(function(message, messageType)
         if messageType == Enum.MessageType.MessageError then
             addLog(message, "ERROR")
         elseif messageType == Enum.MessageType.MessageWarning then
@@ -3820,7 +3998,7 @@ __EB1478_safeCall("Premium pages and extras", function()
         else
             addLog(message, "INFO")
         end
-    end)
+    end))
     addLog("Menu UI and extra pages loaded.", "SUCCESS")
 
     end)
@@ -3960,7 +4138,7 @@ __EB1478_safeCall("Premium pages and extras", function()
             end
         end)
 
-        UserInputService.InputChanged:Connect(function(input)
+        trackServiceConnection(UserInputService.InputChanged:Connect(function(input)
             if draggingMenu and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
                 local delta = input.Position - dragStart
                 main.Position = UDim2.new(
@@ -3969,7 +4147,7 @@ __EB1478_safeCall("Premium pages and extras", function()
                 )
                 savedMenuPosition = main.Position
             end
-        end)
+        end))
     end
 
     if not main:FindFirstChild("PremiumMenuScale") then
@@ -3994,7 +4172,7 @@ __EB1478_safeCall("Premium pages and extras", function()
         resizeMenu()
         local camera = workspace.CurrentCamera
         if camera then
-            camera:GetPropertyChangedSignal("ViewportSize"):Connect(resizeMenu)
+            trackServiceConnection(camera:GetPropertyChangedSignal("ViewportSize"):Connect(resizeMenu))
         end
     end
 
