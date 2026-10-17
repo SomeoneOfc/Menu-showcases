@@ -1,3 +1,5 @@
+-- SELF-DIAGNOSTIC BUILD NOTES:
+-- Adds section context, ScriptContext error reports, and startup checks. It reports failures but cannot resume execution after a fatal top-level error.
 -- NIL-GUARD AUDIT NOTES:
 -- Optional character parts, humanoids, cameras, user IDs, and tool textures are checked
 -- before use where needed. Some variables intentionally start as nil until a feature is
@@ -5,6 +7,44 @@
 -- Run this as a LocalScript in StarterPlayer > StarterPlayerScripts.
 -- Do not wrap this file in loadstring(game:HttpGet(...))() in ordinary Roblox Studio;
 -- install it directly as a LocalScript instead.
+
+--==================================================
+-- SELF-DIAGNOSTICS / SAFE-LOAD SUPPORT
+--==================================================
+local __EB1478_currentSection = "Startup"
+local __EB1478_loadedSections = {}
+local __EB1478_failedSections = {}
+local __EB1478_seenErrors = {}
+
+local function __EB1478_markSection(name)
+    __EB1478_currentSection = tostring(name or "Unknown section")
+    __EB1478_loadedSections[__EB1478_currentSection] = "running"
+end
+
+local function __EB1478_markSectionLoaded(name)
+    name = tostring(name or __EB1478_currentSection)
+    __EB1478_loadedSections[name] = "loaded"
+end
+
+local function __EB1478_safeCall(sectionName, callback, ...)
+    if type(callback) ~= "function" then
+        local msg = "[ErrorB1478Menu][SAFE-LOAD] " .. tostring(sectionName) .. " skipped: callback is not a function."
+        warn(msg)
+        __EB1478_failedSections[tostring(sectionName)] = msg
+        return false, msg
+    end
+    local args = table.pack(...)
+    local ok, result = xpcall(function()
+        return callback(table.unpack(args, 1, args.n))
+    end, debug.traceback)
+    if not ok then
+        local msg = "[ErrorB1478Menu][SAFE-LOAD] " .. tostring(sectionName) .. " failed: " .. tostring(result)
+        warn(msg)
+        __EB1478_failedSections[tostring(sectionName)] = msg
+        return false, result
+    end
+    return true, result
+end
 
 --==================================================
 -- Combined script
@@ -154,6 +194,29 @@ LogService.MessageOut:Connect(function(message, messageType)
         recordClientError(message)
     end
 end)
+
+-- ScriptContext provides the failing script and stack trace when Roblox reports an error.
+-- This is diagnostic only: it cannot resume a top-level script after a fatal error.
+local __EB1478_scriptContextOk, __EB1478_scriptContext = pcall(function()
+    return game:GetService("ScriptContext")
+end)
+if __EB1478_scriptContextOk and __EB1478_scriptContext then
+    pcall(function()
+        __EB1478_scriptContext.Error:Connect(function(message, stackTrace, sourceScript)
+            local scriptName = (sourceScript and sourceScript.Name) or "unknown script"
+            local key = tostring(message) .. "|" .. tostring(stackTrace)
+            if __EB1478_seenErrors[key] then return end
+            __EB1478_seenErrors[key] = true
+            local report = "[ErrorB1478Menu][DIAGNOSTIC] Last startup section: " .. tostring(__EB1478_currentSection)
+                .. " | Script: " .. scriptName .. " | Error: " .. tostring(message)
+                .. " | Stack: " .. tostring(stackTrace)
+            warn(report)
+            __EB1478_failedSections[__EB1478_currentSection] = report
+        end)
+    end)
+else
+    warn("[ErrorB1478Menu][DIAGNOSTIC] ScriptContext error events are unavailable here; using LogService error logging instead.")
+end
 
 --==================================================
 -- STATE
@@ -3356,4 +3419,27 @@ do
 
     showPage(homePage)
     print("Premium UI loaded. Added Options/keybinds, Waypoints, Console, BSS, and Fun page.")
+
+    -- Final startup report: clearly list the major features that reached initialization.
+    local __EB1478_expected = {
+        {"Main menu", main},
+        {"Home page", homePage},
+        {"Movement page", movementPage},
+        {"Finder page", finderPage},
+        {"Error monitor", errorGui},
+    }
+    local __EB1478_missing = {}
+    for _, item in ipairs(__EB1478_expected) do
+        if item[2] == nil then
+            table.insert(__EB1478_missing, item[1])
+            warn("[ErrorB1478Menu][SAFE-LOAD] Not loaded: " .. item[1])
+        else
+            print("[ErrorB1478Menu][SAFE-LOAD] Loaded: " .. item[1])
+        end
+    end
+    if #__EB1478_missing > 0 then
+        warn("[ErrorB1478Menu][SAFE-LOAD] Startup finished with missing features: " .. table.concat(__EB1478_missing, ", "))
+    else
+        print("[ErrorB1478Menu][SAFE-LOAD] Startup checks passed for all required core UI objects.")
+    end
 end
