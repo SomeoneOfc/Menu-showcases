@@ -1,7 +1,7 @@
 -- ERRORB1478 MENU - REVIEWED SAFE-LOAD BUILD
 -- Install as a LocalScript in StarterPlayer > StarterPlayerScripts.
 -- Do not use loadstring/HttpGet in a normal Studio LocalScript.
--- Error Monitor is optional and OFF by default; F9 diagnostics remain available. Menu hide/reopen reuses the SAME GUI, with quick slide tweens and saved position.
+-- Error Monitor is optional and OFF by default; F9 diagnostics remain available. G moves the same GUI right, around the bottom outside the screen, and parks it left for reopening.
 -- This prevents an add-on runtime error from stopping the core menu, but it cannot
 -- guarantee all features work without running in the target Roblox experience.
 
@@ -2005,84 +2005,118 @@ local floatingToggleEnabled = true
 local floatingToggleButton = nil
 
 local TweenService = game:GetService("TweenService")
-local savedMenuPosition = main.Position -- Preserve the last user-selected/draggable position.
+local savedMenuPosition = main.Position -- The player's chosen on-screen location.
 local menuTween = nil
 local menuTransitionId = 0
-local menuSlideDuration = 0.20 -- quicker animation; no new UI is constructed on toggle
+local menuSlideDuration = 0.20
+local menuAroundDuration = 0.14 -- The remaining travel happens entirely OFF SCREEN.
 
+-- Keep the ORIGINAL instances alive at all times. Closing only changes Position.
 main.AnchorPoint = Vector2.new(0.5, 0.5)
 main.Position = savedMenuPosition
+main.Visible = true
+gui.Enabled = true
+
+local function getMenuViewportSize()
+    local camera = workspace.CurrentCamera
+    return camera and camera.ViewportSize or Vector2.new(1280, 720)
+end
 
 local function getMenuOffscreenRightPosition()
-    local camera = workspace.CurrentCamera
-    local viewport = camera and camera.ViewportSize or Vector2.new(1280, 720)
-    return UDim2.new(0, viewport.X + math.floor(main.AbsoluteSize.X / 2) + 24, savedMenuPosition.Y.Scale, savedMenuPosition.Y.Offset)
+    local viewport = getMenuViewportSize()
+    return UDim2.new(0, viewport.X + math.ceil(main.AbsoluteSize.X / 2) + 48,
+        savedMenuPosition.Y.Scale, savedMenuPosition.Y.Offset)
 end
 
 local function getMenuOffscreenLeftPosition()
-    return UDim2.new(0, -math.floor(main.AbsoluteSize.X / 2) - 24, savedMenuPosition.Y.Scale, savedMenuPosition.Y.Offset)
+    return UDim2.new(0, -math.ceil(main.AbsoluteSize.X / 2) - 48,
+        savedMenuPosition.Y.Scale, savedMenuPosition.Y.Offset)
+end
+
+local function getMenuOffscreenBottomPosition(xPosition)
+    local viewport = getMenuViewportSize()
+    return UDim2.new(0, xPosition.X.Offset, 0,
+        viewport.Y + math.ceil(main.AbsoluteSize.Y / 2) + 48)
+end
+
+local function stopMenuMotion()
+    menuTransitionId += 1
+    if menuTween then
+        local previousTween = menuTween
+        menuTween = nil
+        pcall(function() previousTween:Cancel() end)
+    end
+    return menuTransitionId
+end
+
+local function moveMenuTo(targetPosition, duration, easingDirection, token, whenDone)
+    if token ~= menuTransitionId or destroyed or not main.Parent then return end
+    local tween = TweenService:Create(main,
+        TweenInfo.new(duration, Enum.EasingStyle.Quint, easingDirection),
+        {Position = targetPosition})
+    menuTween = tween
+    tween.Completed:Connect(function(playbackState)
+        if token ~= menuTransitionId then return end
+        menuTween = nil
+        if playbackState ~= Enum.PlaybackState.Completed then return end
+        main.Position = targetPosition
+        if whenDone then whenDone() end
+    end)
+    tween:Play()
 end
 
 setMenuVisible = function(visible)
     if destroyed then return end
-    -- Never rebuild a manually deleted ScreenGui. A new UI would require a
-    -- fresh Play session; show/hide operates on the same original instance.
+    -- Never construct or replace a GUI after the original has been removed.
     if not gui or not gui.Parent or not main or not main.Parent then
-        warn("[ErrorB1478Menu] The original GUI was removed. Restart Play to restore it; G will not create a replacement.")
+        warn("[ErrorB1478Menu] Original GUI was deleted. Restart Play; pressing G never recreates it.")
         return
     end
-    if visible == menuOpen and not (visible and not main.Visible) then return end
+    if visible == menuOpen then return end
 
-    local wasTweening = menuTween ~= nil
-    menuTransitionId += 1
-    local thisTransition = menuTransitionId
-    if menuTween then
-        pcall(function() menuTween:Cancel() end)
-        menuTween = nil
-    end
-
-    gui.Enabled = true
+    local wasMoving = menuTween ~= nil
+    local token = stopMenuMotion() -- Ignore callbacks from cancelled moves.
     menuOpen = visible
 
     if visible then
-        -- Start just beyond the left edge, then glide back to the remembered position.
-        main.Visible = true
+        -- Already parked off-screen on the left. Even when G interrupts the
+        -- hidden journey, begin on the LEFT, never instantiate another GUI.
         main.Position = getMenuOffscreenLeftPosition()
-        local targetPosition = savedMenuPosition
-        menuTween = TweenService:Create(main, TweenInfo.new(menuSlideDuration, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Position = targetPosition})
-        menuTween:Play()
-        menuTween.Completed:Connect(function()
-            if thisTransition ~= menuTransitionId then return end
-            main.Position = targetPosition
-            menuTween = nil
-        end)
+        moveMenuTo(savedMenuPosition, menuSlideDuration,
+            Enum.EasingDirection.Out, token)
     else
-        -- Retain the last on-screen/dragged location even if the opening
-        -- tween was interrupted by a rapid second press of G.
-        if not wasTweening then
+        -- Retain the last dragged position, but never save a mid-tween value.
+        if not wasMoving then
             savedMenuPosition = main.Position
         end
-        local targetPosition = getMenuOffscreenRightPosition()
-        menuTween = TweenService:Create(main, TweenInfo.new(menuSlideDuration, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {Position = targetPosition})
-        menuTween:Play()
-        menuTween.Completed:Connect(function(playbackState)
-            if thisTransition ~= menuTransitionId then return end
-            -- Keep the menu GUI visible while it is off-screen. This avoids
-            -- toggling Visible and lets the next open animation slide in from the left.
-            if playbackState == Enum.PlaybackState.Completed then
-                main.Position = targetPosition
-            end
-            menuTween = nil
-        end)
+        local rightPosition = getMenuOffscreenRightPosition()
+        local leftPosition = getMenuOffscreenLeftPosition()
+        local bottomRight = getMenuOffscreenBottomPosition(rightPosition)
+        local bottomLeft = getMenuOffscreenBottomPosition(leftPosition)
+
+        -- Visible path: original location -> past the RIGHT edge.
+        -- Hidden/off-screen path: go BELOW the viewport -> across to LEFT
+        -- -> back up to off-screen LEFT, ready for the next G press.
+        -- Nothing is hidden, disabled, destroyed or cloned.
+        moveMenuTo(rightPosition, menuSlideDuration,
+            Enum.EasingDirection.In, token, function()
+                moveMenuTo(bottomRight, menuAroundDuration,
+                    Enum.EasingDirection.InOut, token, function()
+                        moveMenuTo(bottomLeft, menuAroundDuration,
+                            Enum.EasingDirection.InOut, token, function()
+                                moveMenuTo(leftPosition, menuAroundDuration,
+                                    Enum.EasingDirection.InOut, token)
+                            end)
+                    end)
+            end)
     end
 
     if floatingToggleButton and floatingToggleButton.Parent then
         floatingToggleButton.Visible = floatingToggleEnabled
     end
 
-    -- IMPORTANT: Do not call refreshFolders here. That function destroys and
-    -- rebuilds potentially hundreds of Finder TextButtons on *every* G press.
-    -- Finder loads once at startup, and its Refresh Folders button still works.
+    -- Do not refresh the Finder on G: it would rebuild hundreds of buttons.
+    -- The Finder's own Refresh button still works.
 end
 
 local inputConnection = UserInputService.InputBegan:Connect(
@@ -3952,7 +3986,8 @@ __EB1478_safeCall("Premium pages and extras", function()
                 if menuOpen then
                     main.Position = savedMenuPosition
                 else
-                    main.Position = getMenuOffscreenRightPosition()
+                    -- A closed menu lives off-screen LEFT, ready to slide in.
+                    main.Position = getMenuOffscreenLeftPosition()
                 end
             end
         end
