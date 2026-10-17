@@ -224,6 +224,7 @@ end
 local destroyed = false
 local menuOpen = true
 local setMenuVisible -- forward declaration used by the close button
+local closeQuickSearch -- optional cached command palette close handler
 
 local flying = false
 local noclip = false
@@ -2085,6 +2086,7 @@ setMenuVisible = function(visible)
         return
     end
     if visible == menuOpen then return end
+    if not visible and closeQuickSearch then closeQuickSearch() end
 
     local wasMoving = menuTween ~= nil
     local token = stopMenuMotion() -- Ignore callbacks from cancelled moves.
@@ -2495,16 +2497,16 @@ __EB1478_safeCall("UI upgrade / responsive theme", function()
     local uiContent = content
 
     local UI = {
-        background = Color3.fromRGB(13, 16, 24),
-        panel = Color3.fromRGB(20, 25, 36),
-        panelSoft = Color3.fromRGB(27, 34, 48),
-        panelHover = Color3.fromRGB(38, 49, 68),
-        accent = Color3.fromRGB(93, 132, 255),
-        accentBright = Color3.fromRGB(121, 154, 255),
-        text = Color3.fromRGB(239, 243, 255),
-        muted = Color3.fromRGB(151, 163, 185),
-        border = Color3.fromRGB(53, 66, 91),
-        success = Color3.fromRGB(83, 210, 151),
+        background = Color3.fromRGB(12, 17, 27),
+        panel = Color3.fromRGB(20, 28, 41),
+        panelSoft = Color3.fromRGB(29, 40, 56),
+        panelHover = Color3.fromRGB(39, 54, 73),
+        accent = Color3.fromRGB(107, 171, 245),
+        accentBright = Color3.fromRGB(134, 190, 248),
+        text = Color3.fromRGB(235, 241, 250),
+        muted = Color3.fromRGB(148, 166, 186),
+        border = Color3.fromRGB(54, 71, 91),
+        success = Color3.fromRGB(109, 213, 169),
     }
 
     local styled = setmetatable({}, { __mode = "k" })
@@ -2651,7 +2653,9 @@ __EB1478_safeCall("UI upgrade / responsive theme", function()
             local scaleFactor = math.min(viewport.X / 850, viewport.Y / 760, 1)
             scale.Scale = math.clamp(scaleFactor, 0.62, 1)
             uiMain.AnchorPoint = Vector2.new(0.5, 0.5)
-            uiMain.Position = UDim2.fromScale(0.5, 0.5)
+            if not menuTween then
+                uiMain.Position = menuOpen and savedMenuPosition or getMenuOffscreenLeftPosition()
+            end
         end
         resizeForScreen()
         local camera = workspace.CurrentCamera
@@ -2682,13 +2686,8 @@ __EB1478_safeCall("UI upgrade / responsive theme", function()
         styleObject(object)
     end
 
-    uiGui.DescendantAdded:Connect(function(object)
-        task.defer(function()
-            if object and object.Parent then
-                styleObject(object)
-            end
-        end)
-    end)
+    -- Dynamically created controls are styled by their own component helpers.
+    -- Do not force a generic dark-button theme onto purposeful accent or danger buttons.
 
     for _, object in ipairs(uiGui:GetDescendants()) do
         if object:IsA("TextButton") or object:IsA("TextBox") then
@@ -2708,15 +2707,15 @@ __EB1478_safeCall("Premium pages and extras", function()
     local LogService = game:GetService("LogService")
 
     local C = {
-        background = Color3.fromRGB(13, 17, 27),
-        panel = Color3.fromRGB(23, 30, 44),
-        panel2 = Color3.fromRGB(31, 41, 60),
-        accent = Color3.fromRGB(100, 139, 255),
-        accentLight = Color3.fromRGB(139, 166, 255),
-        text = Color3.fromRGB(240, 244, 255),
-        muted = Color3.fromRGB(157, 171, 197),
-        border = Color3.fromRGB(57, 74, 106),
-        green = Color3.fromRGB(91, 222, 160),
+        background = Color3.fromRGB(12, 17, 27),
+        panel = Color3.fromRGB(20, 28, 41),
+        panel2 = Color3.fromRGB(29, 40, 56),
+        accent = Color3.fromRGB(107, 171, 245),
+        accentLight = Color3.fromRGB(134, 190, 248),
+        text = Color3.fromRGB(235, 241, 250),
+        muted = Color3.fromRGB(148, 166, 186),
+        border = Color3.fromRGB(54, 71, 91),
+        green = Color3.fromRGB(109, 213, 169),
         yellow = Color3.fromRGB(255, 199, 102),
         red = Color3.fromRGB(255, 111, 126),
     }
@@ -4150,30 +4149,12 @@ __EB1478_safeCall("Premium pages and extras", function()
         end))
     end
 
-    if not main:FindFirstChild("PremiumMenuScale") then
-        local scale = Instance.new("UIScale")
-        scale.Name = "PremiumMenuScale"
-        scale.Parent = main
-        local function resizeMenu()
-            local camera = workspace.CurrentCamera
-            if not camera then return end
-            local viewport = camera.ViewportSize
-            scale.Scale = math.clamp(math.min(viewport.X / 850, viewport.Y / 760, 1), 0.62, 1)
-            main.AnchorPoint = Vector2.new(0.5, 0.5)
-            if not menuTween then
-                if menuOpen then
-                    main.Position = savedMenuPosition
-                else
-                    -- A closed menu lives off-screen LEFT, ready to slide in.
-                    main.Position = getMenuOffscreenLeftPosition()
-                end
-            end
-        end
-        resizeMenu()
-        local camera = workspace.CurrentCamera
-        if camera then
-            trackServiceConnection(camera:GetPropertyChangedSignal("ViewportSize"):Connect(resizeMenu))
-        end
+    -- The base UI pack already installs UIUpgradeScale and a viewport listener.
+    -- Do NOT add a second UIScale here: multiplying both scales made text tiny.
+    local duplicatedScale = main:FindFirstChild("PremiumMenuScale")
+    if duplicatedScale then duplicatedScale:Destroy() end
+    if not menuTween then
+        main.Position = menuOpen and savedMenuPosition or getMenuOffscreenLeftPosition()
     end
 
     end)
@@ -4181,6 +4162,567 @@ __EB1478_safeCall("Premium pages and extras", function()
     showPage(homePage)
     print("Premium UI loaded. Added Options/keybinds, saved-position key, Waypoints, Console, BSS, and expanded Fun page.")
 
+end)
+
+--==================================================
+-- STUDIO EDITION: REFINED INTERFACE + TOOLKIT
+-- Everything in this section is built ONCE at startup and reused.
+--==================================================
+__EB1478_safeCall("Studio edition UI and Toolkit", function()
+    local TweenService = game:GetService("TweenService")
+    local Stats = game:GetService("Stats")
+    local COLORS = {
+        canvas = Color3.fromRGB(12, 17, 27),
+        surface = Color3.fromRGB(20, 28, 41),
+        raised = Color3.fromRGB(29, 40, 56),
+        edge = Color3.fromRGB(54, 71, 91),
+        accent = Color3.fromRGB(107, 171, 245),
+        accentSoft = Color3.fromRGB(37, 67, 91),
+        ink = Color3.fromRGB(235, 241, 250),
+        muted = Color3.fromRGB(148, 166, 186),
+        success = Color3.fromRGB(109, 213, 169),
+        danger = Color3.fromRGB(181, 66, 74),
+    }
+
+    local function corner(obj, pixels)
+        local c = obj:FindFirstChildOfClass("UICorner") or Instance.new("UICorner")
+        c.CornerRadius = UDim.new(0, pixels)
+        c.Parent = obj
+    end
+    local function stroke(obj, transparency)
+        local s = obj:FindFirstChildOfClass("UIStroke") or Instance.new("UIStroke")
+        s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        s.Color = COLORS.edge
+        s.Transparency = transparency or 0.5
+        s.Thickness = 1
+        s.Parent = obj
+    end
+    local function label(parent, name, text, pos, size, fontSize, color, bold)
+        local l = Instance.new("TextLabel")
+        l.Name = name
+        l.BackgroundTransparency = 1
+        l.Position, l.Size = pos, size
+        l.Font = bold and Enum.Font.GothamSemibold or Enum.Font.Gotham
+        l.Text = text
+        l.TextSize = fontSize or 13
+        l.TextColor3 = color or COLORS.ink
+        l.TextXAlignment = Enum.TextXAlignment.Left
+        l.TextYAlignment = Enum.TextYAlignment.Center
+        l.TextTruncate = Enum.TextTruncate.AtEnd
+        l.Parent = parent
+        return l
+    end
+    local function action(parent, name, caption, pos, size, emphasized)
+        local b = Instance.new("TextButton")
+        b.Name = name
+        b.Position, b.Size = pos, size
+        b.AutoButtonColor = false
+        b.BackgroundColor3 = emphasized and COLORS.accentSoft or COLORS.raised
+        b.BorderSizePixel = 0
+        b.Font = Enum.Font.GothamSemibold
+        b.Text = caption
+        b.TextColor3 = COLORS.ink
+        b.TextSize = 12
+        b.Parent = parent
+        corner(b, 9)
+        stroke(b, emphasized and 0.25 or 0.6)
+        local rest = b.BackgroundColor3
+        b.MouseEnter:Connect(function()
+            if b.Parent then TweenService:Create(b, TweenInfo.new(0.12), {
+                BackgroundColor3 = emphasized and Color3.fromRGB(45, 82, 114) or Color3.fromRGB(39, 54, 73)
+            }):Play() end
+        end)
+        b.MouseLeave:Connect(function()
+            if b.Parent then TweenService:Create(b, TweenInfo.new(0.12), {BackgroundColor3 = rest}):Play() end
+        end)
+        return b
+    end
+
+    -- Intentional design hierarchy: compact brand mark, restrained text, and consistent spacing.
+    main.BackgroundColor3 = COLORS.canvas
+    topBar.BackgroundColor3 = COLORS.surface
+    sidebar.BackgroundColor3 = COLORS.surface
+    content.BackgroundColor3 = COLORS.canvas
+    stroke(main, 0.16)
+    local brandMark = Instance.new("Frame")
+    brandMark.Name = "BrandMark"
+    brandMark.Size, brandMark.Position = UDim2.fromOffset(33, 33), UDim2.fromOffset(16, 11)
+    brandMark.BackgroundColor3 = COLORS.accentSoft
+    brandMark.BorderSizePixel = 0
+    brandMark.Parent = topBar
+    corner(brandMark, 9)
+    local initial = label(brandMark, "Initial", "E", UDim2.fromScale(0, 0), UDim2.fromScale(1, 1), 19, COLORS.accent, true)
+    initial.TextXAlignment = Enum.TextXAlignment.Center
+    title.Position = UDim2.fromOffset(61, 9)
+    title.Size = UDim2.fromOffset(340, 23)
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 16
+    title.Text = "ERROR_B1478"
+    title.TextColor3 = COLORS.ink
+    label(topBar, "BrandSubtitle", "PLAYER TOOLS  /  STUDIO EDITION", UDim2.fromOffset(62, 29), UDim2.fromOffset(335, 19), 10, COLORS.muted, false)
+    hint.Position = UDim2.new(1, -165, 0, 0)
+    hint.Size = UDim2.fromOffset(107, 55)
+    hint.Text = "G  ·  HIDE / SHOW"
+    hint.TextSize = 10
+    hint.TextColor3 = COLORS.muted
+    local closeTop = action(topBar, "TopBarHide", "—", UDim2.new(1, -47, 0, 12), UDim2.fromOffset(34, 31), false)
+    closeTop.TextSize = 18
+    closeTop.Activated:Connect(function() setMenuVisible(false) end)
+
+    sidebarTitle.Text = "WORKSPACE"
+    sidebarTitle.Position = UDim2.fromOffset(16, 10)
+    sidebarTitle.TextColor3 = COLORS.muted
+    for _, tab in ipairs({homeButton, movementTabButton, finderTabButton}) do
+        tab.TextColor3 = COLORS.muted
+    end
+    local navFooter = label(sidebar, "SidebarFooter", "LOCAL  •  CLIENT-SIDE", UDim2.fromOffset(14, 601), UDim2.fromOffset(140, 12), 9, COLORS.muted, true)
+    navFooter.TextTruncate = Enum.TextTruncate.AtEnd
+    destroyEverythingButton.BackgroundColor3 = COLORS.danger
+    destroyEverythingButton.Text = "DESTROY ALL"
+    panicButton.Text = "HIDE / KEEP"
+    minimizeButton.Text = "SLIDE OUT"
+    for _, b in ipairs({destroyEverythingButton, panicButton, minimizeButton}) do
+        corner(b, 9)
+        stroke(b, b == destroyEverythingButton and 0.15 or 0.6)
+    end
+    local headerNames = {
+        {homePage, homeTitle, homeSubtitle, "Overview", "Your workspace and shortcuts."},
+        {movementPage, movementTitle, movementSubtitle, "Movement", "Character controls and quick adjustments."},
+    }
+    for _, item in ipairs(headerNames) do
+        local h, sub = item[2], item[3]
+        h.Text, sub.Text = item[4], item[5]
+        h.Font, h.TextSize, h.TextColor3 = Enum.Font.GothamBold, 25, COLORS.ink
+        sub.TextColor3, sub.TextSize = COLORS.muted, 12
+    end
+    homeInfo.Text = "CONTROL CENTER\nJump straight to player tools or search commands with Ctrl + K.\nChanges run locally in your current Play session."
+    homeInfo.TextSize = 12
+    homeInfo.TextColor3 = COLORS.muted
+    homeInfo.Position = UDim2.fromOffset(23, 411)
+    homeInfo.Size = UDim2.new(1, -50, 0, 96)
+    homeInfo.TextYAlignment = Enum.TextYAlignment.Top
+    for _, child in ipairs(homePage:GetChildren()) do
+        if child:IsA("Frame") and child:FindFirstChildWhichIsA("ImageLabel") then
+            child.Size = UDim2.new(1, -40, 0, 125)
+            child.BackgroundColor3 = COLORS.surface
+            corner(child, 12)
+            stroke(child, 0.58)
+        end
+    end
+    movementInfo.Text = "KEYBOARD SHORTCUTS\nF  —  Fly     N  —  Noclip     J  —  Infinite jump\nG  —  Hide/show     P  —  Save menu position\nCtrl + K  —  Find a tool"
+    movementInfo.TextColor3 = COLORS.muted
+    movementInfo.TextSize = 12
+    movementInfo.Position = UDim2.fromOffset(22, 350)
+    movementInfo.Size = UDim2.new(1, -44, 0, 118)
+    movementInfo.TextYAlignment = Enum.TextYAlignment.Top
+
+    -- Dedicated toolkit, rather than cramming extra buttons into Movement or Fun.
+    local toolkitPage = Instance.new("Frame")
+    toolkitPage.Name = "ToolkitPage"
+    toolkitPage.Size = UDim2.fromScale(1, 1)
+    toolkitPage.BackgroundTransparency = 1
+    toolkitPage.Visible = false
+    toolkitPage.Parent = content
+    local toolkitTab = action(sidebar, "ToolkitTab", "    TOOLKIT", UDim2.fromOffset(10, 404), UDim2.new(1, -20, 0, 38), false)
+    toolkitTab.TextXAlignment = Enum.TextXAlignment.Left
+    local oldShowPage = showPage
+    showPage = function(page)
+        oldShowPage(page)
+        toolkitPage.Visible = page == toolkitPage
+        local isCurrent = page == toolkitPage
+        if isCurrent then
+            for _, other in ipairs({homeButton, movementTabButton, finderTabButton}) do
+                other:SetAttribute("ActiveTab", false)
+                other.BackgroundColor3 = COLORS.surface
+                other.TextColor3 = COLORS.muted
+                local marker = other:FindFirstChild("ActiveMarker")
+                if marker then marker:Destroy() end
+            end
+            for _, nav in ipairs(sidebar:GetChildren()) do
+                if nav:IsA("TextButton") and nav ~= toolkitTab and nav:GetAttribute("ActiveTab") then
+                    nav:SetAttribute("ActiveTab", false)
+                    nav.BackgroundColor3 = COLORS.surface
+                    nav.TextColor3 = COLORS.muted
+                    local marker = nav:FindFirstChild("ActiveMarker")
+                    if marker then marker:Destroy() end
+                end
+            end
+        end
+        toolkitTab:SetAttribute("ActiveTab", isCurrent)
+        toolkitTab.BackgroundColor3 = isCurrent and COLORS.accentSoft or COLORS.raised
+        toolkitTab.TextColor3 = isCurrent and COLORS.accent or COLORS.muted
+    end
+    toolkitTab.Activated:Connect(function() showPage(toolkitPage) end)
+
+    local hero = Instance.new("Frame")
+    hero.Name = "ToolkitHero"
+    hero.Position, hero.Size = UDim2.fromOffset(18, 16), UDim2.new(1, -36, 0, 77)
+    hero.BackgroundColor3 = COLORS.surface
+    hero.BorderSizePixel = 0
+    hero.Parent = toolkitPage
+    corner(hero, 12)
+    stroke(hero, 0.5)
+    label(hero, "Heading", "Toolkit", UDim2.fromOffset(19, 11), UDim2.new(1, -36, 0, 30), 21, COLORS.ink, true)
+    label(hero, "Subtitle", "Useful local controls, overlays and quick actions.", UDim2.fromOffset(20, 44), UDim2.new(1, -36, 0, 20), 11, COLORS.muted)
+
+    local metrics = Instance.new("Frame")
+    metrics.Name = "LiveMetrics"
+    metrics.Position, metrics.Size = UDim2.fromOffset(18, 105), UDim2.new(1, -36, 0, 105)
+    metrics.BackgroundColor3 = COLORS.surface
+    metrics.BorderSizePixel = 0
+    metrics.Parent = toolkitPage
+    corner(metrics, 12)
+    stroke(metrics, 0.55)
+    local metricTitle = label(metrics, "Title", "LIVE SESSION", UDim2.fromOffset(14, 8), UDim2.new(1, -28, 0, 20), 10, COLORS.muted, true)
+    local fpsValue = label(metrics, "FPS", "-- FPS", UDim2.fromOffset(14, 31), UDim2.new(0.32, -5, 0, 31), 18, COLORS.ink, true)
+    local pingValue = label(metrics, "Ping", "-- PING", UDim2.new(0.34, 0, 0, 31), UDim2.new(0.32, -5, 0, 31), 18, COLORS.ink, true)
+    local speedValue = label(metrics, "Speed", "-- STUD/S", UDim2.new(0.66, 0, 0, 31), UDim2.new(0.34, -12, 0, 31), 17, COLORS.ink, true)
+    local positionValue = label(metrics, "Position", "Position: --, --, --", UDim2.fromOffset(14, 72), UDim2.new(1, -28, 0, 21), 11, COLORS.muted)
+    label(toolkitPage, "OverlaySection", "OVERLAYS", UDim2.fromOffset(21, 216), UDim2.new(1, -42, 0, 20), 10, COLORS.muted, true)
+
+    local hud = Instance.new("Frame")
+    hud.Name = "PerformanceHUD"
+    hud.AnchorPoint = Vector2.new(1, 1)
+    hud.Position = UDim2.new(1, -18, 1, -18)
+    hud.Size = UDim2.fromOffset(255, 73)
+    hud.BackgroundColor3 = COLORS.surface
+    hud.BackgroundTransparency = 0.08
+    hud.BorderSizePixel = 0
+    hud.ZIndex = 40
+    hud.Visible = false
+    hud.Parent = gui
+    corner(hud, 10)
+    stroke(hud, 0.3)
+    local hudHeading = label(hud, "HudHeading", "B1478   /   SESSION", UDim2.fromOffset(11, 7), UDim2.fromOffset(230, 17), 10, COLORS.accent, true)
+    local hudContent = label(hud, "HudContent", "Waiting for stats...", UDim2.fromOffset(11, 28), UDim2.new(1, -22, 0, 37), 12, COLORS.ink, false)
+    hudHeading.ZIndex, hudContent.ZIndex = 41, 41
+    hudContent.TextWrapped = true
+    hudContent.TextYAlignment = Enum.TextYAlignment.Top
+
+    local reticle = Instance.new("Frame")
+    reticle.Name = "CustomReticle"
+    reticle.AnchorPoint = Vector2.new(0.5, 0.5)
+    reticle.Position = UDim2.fromScale(0.5, 0.5)
+    reticle.Size = UDim2.fromOffset(34, 34)
+    reticle.BackgroundTransparency = 1
+    reticle.ZIndex = 70
+    reticle.Visible = false
+    reticle.Parent = gui
+    local reticleParts = {}
+    local function reticlePart(name, pos, size)
+        local part = Instance.new("Frame")
+        part.Name = name
+        part.Position, part.Size = pos, size
+        part.BorderSizePixel = 0
+        part.BackgroundColor3 = Color3.fromRGB(241, 248, 255)
+        part.ZIndex = 71
+        part.Parent = reticle
+        corner(part, 2)
+        table.insert(reticleParts, part)
+        return part
+    end
+    reticlePart("Up", UDim2.fromOffset(16, 3), UDim2.fromOffset(2, 9))
+    reticlePart("Down", UDim2.fromOffset(16, 22), UDim2.fromOffset(2, 9))
+    reticlePart("Left", UDim2.fromOffset(3, 16), UDim2.fromOffset(9, 2))
+    reticlePart("Right", UDim2.fromOffset(22, 16), UDim2.fromOffset(9, 2))
+    local dot = reticlePart("Dot", UDim2.fromOffset(15, 15), UDim2.fromOffset(4, 4))
+    corner(dot, 4)
+    local reticleStyle = 1
+    local function updateReticle()
+        for i, part in ipairs(reticleParts) do
+            part.Visible = reticleStyle == 1 or (reticleStyle == 2 and i == 5) or (reticleStyle == 3 and i < 5)
+        end
+    end
+    updateReticle()
+
+    local showHud = false
+    local showReticle = false
+    local detailedHud = false
+    local reducedMotion = false
+    local fovOptions = {70, 85, 100}
+    local selectedFov = 1
+    local changedFov = false
+    local previousFov
+    local rowW = UDim2.new(0.5, -27, 0, 42)
+    local leftX = UDim2.fromOffset(18, 241)
+    local rightX = UDim2.new(0.5, 9, 0, 241)
+    local hudButton = action(toolkitPage, "ToggleHUD", "STATS HUD   OFF", leftX, rowW, true)
+    local reticleButton = action(toolkitPage, "ToggleReticle", "CROSSHAIR   OFF", rightX, rowW, false)
+    local reticleStyleButton = action(toolkitPage, "ReticleStyle", "STYLE   CROSS", UDim2.fromOffset(18, 293), rowW, false)
+    local hudDetailButton = action(toolkitPage, "HudDetail", "HUD DETAIL   BASIC", UDim2.new(0.5, 9, 0, 293), rowW, false)
+    local fovButton = action(toolkitPage, "FovPreset", "CAMERA FOV   70", UDim2.fromOffset(18, 345), rowW, false)
+    local centerButton = action(toolkitPage, "CenterMenu", "CENTER MENU", UDim2.new(0.5, 9, 0, 345), rowW, false)
+    local motionButton = action(toolkitPage, "ReducedMotion", "REDUCED MOTION   OFF", UDim2.fromOffset(18, 397), rowW, false)
+    local searchButton = action(toolkitPage, "QuickFind", "FIND A COMMAND   Ctrl+K", UDim2.new(0.5, 9, 0, 397), rowW, true)
+    local utilityStatus = label(toolkitPage, "Status", "These controls only affect your client.", UDim2.fromOffset(21, 451), UDim2.new(1, -42, 0, 24), 11, COLORS.muted)
+    local coordinates = Instance.new("TextBox")
+    coordinates.Name = "CoordinatesExport"
+    coordinates.Position = UDim2.fromOffset(18, 483)
+    coordinates.Size = UDim2.new(1, -36, 0, 41)
+    coordinates.Font = Enum.Font.Code
+    coordinates.TextSize = 12
+    coordinates.TextColor3 = COLORS.ink
+    coordinates.PlaceholderText = "Current position shown here. Select text to copy."
+    coordinates.PlaceholderColor3 = COLORS.muted
+    coordinates.BackgroundColor3 = COLORS.surface
+    coordinates.BorderSizePixel = 0
+    coordinates.ClearTextOnFocus = false
+    coordinates.Text = ""
+    coordinates.Parent = toolkitPage
+    corner(coordinates, 9)
+    stroke(coordinates, 0.55)
+    local exportButton = action(toolkitPage, "ExportPosition", "SHOW MY COORDINATES", UDim2.fromOffset(18, 536), UDim2.new(1, -36, 0, 37), false)
+
+    hudButton.Activated:Connect(function()
+        showHud = not showHud
+        hud.Visible = showHud
+        hudButton.Text = "STATS HUD   " .. (showHud and "ON" or "OFF")
+    end)
+    reticleButton.Activated:Connect(function()
+        showReticle = not showReticle
+        reticle.Visible = showReticle
+        reticleButton.Text = "CROSSHAIR   " .. (showReticle and "ON" or "OFF")
+    end)
+    reticleStyleButton.Activated:Connect(function()
+        reticleStyle = reticleStyle % 3 + 1
+        updateReticle()
+        reticleStyleButton.Text = "STYLE   " .. ({"CROSS + DOT", "DOT", "CROSS"})[reticleStyle]
+    end)
+    hudDetailButton.Activated:Connect(function()
+        detailedHud = not detailedHud
+        hudDetailButton.Text = "HUD DETAIL   " .. (detailedHud and "EXTENDED" or "BASIC")
+    end)
+    fovButton.Activated:Connect(function()
+        local cam = workspace.CurrentCamera
+        if not cam then return end
+        if not changedFov then previousFov = cam.FieldOfView end
+        changedFov = true
+        selectedFov = selectedFov % #fovOptions + 1
+        cam.FieldOfView = fovOptions[selectedFov]
+        fovButton.Text = "CAMERA FOV   " .. fovOptions[selectedFov]
+        utilityStatus.Text = "Camera FOV updated. Other Fun camera effects may override it."
+    end)
+    centerButton.Activated:Connect(function()
+        savedMenuPosition = UDim2.fromScale(0.5, 0.5)
+        if menuOpen then main.Position = savedMenuPosition end
+        utilityStatus.Text = "Menu centered. Your next G toggle will return here."
+    end)
+    motionButton.Activated:Connect(function()
+        reducedMotion = not reducedMotion
+        menuSlideDuration = reducedMotion and 0.02 or 0.20
+        menuAroundDuration = reducedMotion and 0.02 or 0.14
+        motionButton.Text = "REDUCED MOTION   " .. (reducedMotion and "ON" or "OFF")
+    end)
+    exportButton.Activated:Connect(function()
+        local root = getRoot()
+        if not root then
+            utilityStatus.Text = "Your character is not ready yet."
+            return
+        end
+        local p = root.Position
+        coordinates.Text = string.format("%.2f, %.2f, %.2f", p.X, p.Y, p.Z)
+        coordinates:CaptureFocus()
+        utilityStatus.Text = "Coordinates selected. Use Ctrl + A then Ctrl + C to copy."
+    end)
+
+    -- One throttled update loop for BOTH the Toolkit card and optional HUD.
+    local acc = 0
+    local avgFps = 60
+    local statsConnection = trackServiceConnection(RunService.RenderStepped:Connect(function(dt)
+        if destroyed then return end
+        if dt > 0 then avgFps = avgFps * 0.88 + math.min(240, 1 / dt) * 0.12 end
+        acc += dt
+        if acc < 0.45 then return end
+        acc = 0
+        if not toolkitPage.Visible and not showHud then return end
+        local p, speed = nil, 0
+        local root = getRoot()
+        if root then
+            p = root.Position
+            speed = root.AssemblyLinearVelocity.Magnitude
+        end
+        local ping = "--"
+        pcall(function()
+            ping = Stats.Network.ServerStatsItem["Data Ping"]:GetValueString()
+        end)
+        local fpsText = tostring(math.floor(avgFps + 0.5))
+        local speedText = tostring(math.floor(speed + 0.5))
+        fpsValue.Text = fpsText .. " FPS"
+        pingValue.Text = tostring(ping)
+        speedValue.Text = speedText .. " STUD/S"
+        local xyz = p and string.format("%.0f, %.0f, %.0f", p.X, p.Y, p.Z) or "--, --, --"
+        positionValue.Text = "Position   " .. xyz
+        hudContent.Text = fpsText .. " FPS   ·   " .. speedText .. " stud/s\n" .. (detailedHud and ("Ping: " .. tostring(ping) .. "   |   XYZ: " .. xyz) or ("XYZ: " .. xyz))
+    end))
+    registerCleanup(function()
+        statsConnection:Disconnect()
+        if changedFov and previousFov ~= nil then
+            local cam = workspace.CurrentCamera
+            if cam then cam.FieldOfView = previousFov end
+        end
+        showHud, showReticle = false, false
+    end)
+
+    -- Single, cached quick-command palette. Only the tiny search-result rows change.
+    local paletteShade = Instance.new("Frame")
+    paletteShade.Name = "CommandPaletteShade"
+    paletteShade.Size = UDim2.fromScale(1, 1)
+    paletteShade.BackgroundColor3 = Color3.fromRGB(2, 6, 14)
+    paletteShade.BackgroundTransparency = 0.30
+    paletteShade.BorderSizePixel = 0
+    paletteShade.ZIndex = 100
+    paletteShade.Visible = false
+    paletteShade.Parent = gui
+    local paletteCard = Instance.new("Frame")
+    paletteCard.Name = "CommandPalette"
+    paletteCard.AnchorPoint = Vector2.new(0.5, 0)
+    paletteCard.Position = UDim2.fromScale(0.5, 0.14)
+    paletteCard.Size = UDim2.fromOffset(475, 430)
+    paletteCard.BackgroundColor3 = COLORS.surface
+    paletteCard.BorderSizePixel = 0
+    paletteCard.ZIndex = 101
+    paletteCard.Parent = paletteShade
+    corner(paletteCard, 14)
+    stroke(paletteCard, 0.13)
+    local paletteHead = label(paletteCard, "Title", "FIND A COMMAND", UDim2.fromOffset(19, 10), UDim2.fromOffset(325, 28), 12, COLORS.muted, true)
+    paletteHead.ZIndex = 102
+    local paletteClose = action(paletteCard, "CloseSearch", "ESC  /  X", UDim2.new(1, -105, 0, 10), UDim2.fromOffset(88, 28), false)
+    paletteClose.ZIndex = 103
+    local searchBox = Instance.new("TextBox")
+    searchBox.Name = "SearchInput"
+    searchBox.Position = UDim2.fromOffset(18, 50)
+    searchBox.Size = UDim2.new(1, -36, 0, 43)
+    searchBox.BackgroundColor3 = COLORS.raised
+    searchBox.TextColor3 = COLORS.ink
+    searchBox.PlaceholderColor3 = COLORS.muted
+    searchBox.PlaceholderText = "Type a page, tool, or action..."
+    searchBox.Text = ""
+    searchBox.Font = Enum.Font.Gotham
+    searchBox.TextSize = 13
+    searchBox.TextXAlignment = Enum.TextXAlignment.Left
+    searchBox.ClearTextOnFocus = false
+    searchBox.BorderSizePixel = 0
+    searchBox.ZIndex = 102
+    searchBox.Parent = paletteCard
+    corner(searchBox, 9)
+    stroke(searchBox, 0.48)
+    local paletteList = Instance.new("Frame")
+    paletteList.Name = "Results"
+    paletteList.BackgroundTransparency = 1
+    paletteList.Position = UDim2.fromOffset(18, 103)
+    paletteList.Size = UDim2.new(1, -36, 1, -121)
+    paletteList.ZIndex = 102
+    paletteList.Parent = paletteCard
+    local commands = {
+        {"Home", "Open the dashboard", function() showPage(homePage) end, "dashboard start"},
+        {"Movement", "Speed, fly, jump and noclip", function() showPage(movementPage) end, "movement fly noclip speed jump"},
+        {"Finder", "Find workspace folders", function() showPage(finderPage) end, "find search folders"},
+        {"Waypoints", "Saved local positions", function() local page = content:FindFirstChild("WaypointsPage"); if page then showPage(page) end end, "teleport bookmarks"},
+        {"Console", "Client message history", function() local page = content:FindFirstChild("ConsolePage"); if page then showPage(page) end end, "errors logs debug"},
+        {"BSS", "HiddenStickers tools", function() local page = content:FindFirstChild("BSSPage"); if page then showPage(page) end end, "bee swarm stickers"},
+        {"Options", "Change your keybinds", function() local page = content:FindFirstChild("OptionsPage"); if page then showPage(page) end end, "settings keys preferences"},
+        {"Fun", "33 effects across 6 pages", function() local page = content:FindFirstChild("FunPage"); if page then showPage(page) end end, "effects cosmetics"},
+        {"Toolkit", "Overlays and camera utilities", function() showPage(toolkitPage) end, "hud crosshair stats"},
+        {"Toggle stats HUD", "Show or hide the performance HUD", function() end, "fps ping coordinates"},
+        {"Toggle crosshair", "Show or hide the screen reticle", function() end, "reticle aim"},
+        {"Center menu", "Reset the menu position", function() end, "reset reposition"},
+        {"Hide menu", "Send the menu off-screen", function() setMenuVisible(false) end, "close slide"},
+    }
+    -- Custom action callbacks are assigned below so they reuse existing GUI state.
+    commands[10][3] = function()
+        showHud = not showHud
+        hud.Visible = showHud
+        hudButton.Text = "STATS HUD   " .. (showHud and "ON" or "OFF")
+    end
+    commands[11][3] = function()
+        showReticle = not showReticle
+        reticle.Visible = showReticle
+        reticleButton.Text = "CROSSHAIR   " .. (showReticle and "ON" or "OFF")
+    end
+    commands[12][3] = function()
+        savedMenuPosition = UDim2.fromScale(0.5, 0.5)
+        if menuOpen then main.Position = savedMenuPosition end
+    end
+    local function closePalette()
+        paletteShade.Visible = false
+        searchBox:ReleaseFocus()
+    end
+    closeQuickSearch = closePalette
+    paletteClose.Activated:Connect(closePalette)
+    local function renderMatches()
+        for _, child in ipairs(paletteList:GetChildren()) do child:Destroy() end
+        local query = string.lower(searchBox.Text):gsub("^%s+", ""):gsub("%s+$", "")
+        local count = 0
+        for _, cmd in ipairs(commands) do
+            local haystack = string.lower(cmd[1] .. " " .. cmd[2] .. " " .. cmd[4])
+            if query == "" or string.find(haystack, query, 1, true) then
+                count += 1
+                if count > 6 then break end
+                local btn = action(paletteList, "Result" .. count, cmd[1], UDim2.fromOffset(0, (count - 1) * 50), UDim2.new(1, 0, 0, 44), false)
+                btn.TextXAlignment = Enum.TextXAlignment.Left
+                btn.Text = "  " .. cmd[1] .. "     /     " .. cmd[2]
+                btn.TextSize = 11
+                btn.ZIndex = 104
+                btn.Activated:Connect(function()
+                    closePalette()
+                    if destroyed then return end
+                    local ok, err = pcall(cmd[3])
+                    if not ok then warn("[ErrorB1478Menu][COMMAND] " .. tostring(err)) end
+                end)
+            end
+        end
+        if count == 0 then
+            local empty = label(paletteList, "Empty", "No commands found. Try another search.", UDim2.fromOffset(6, 6), UDim2.new(1, -12, 0, 35), 12, COLORS.muted)
+            empty.ZIndex = 104
+        end
+    end
+    searchBox:GetPropertyChangedSignal("Text"):Connect(renderMatches)
+    local function openPalette()
+        if destroyed then return end
+        if not menuOpen then setMenuVisible(true) end
+        paletteShade.Visible = true
+        searchBox.Text = ""
+        renderMatches()
+        searchBox:CaptureFocus()
+    end
+    searchButton.Activated:Connect(openPalette)
+    local homeToolkitButton = action(homePage, "HomeToolkitShortcut", "OPEN TOOLKIT   →", UDim2.fromOffset(20, 530), UDim2.new(0.5, -27, 0, 39), true)
+    homeToolkitButton.Activated:Connect(function() showPage(toolkitPage) end)
+    local homeSearchButton = action(homePage, "HomeSearchShortcut", "FIND COMMAND   ↗", UDim2.new(0.5, 8, 0, 530), UDim2.new(0.5, -28, 0, 39), false)
+    homeSearchButton.Activated:Connect(openPalette)
+
+    trackServiceConnection(UserInputService.InputBegan:Connect(function(input, processed)
+        if destroyed or input.UserInputType ~= Enum.UserInputType.Keyboard then return end
+        if paletteShade.Visible and input.KeyCode == Enum.KeyCode.Escape then
+            closePalette()
+            return
+        end
+        local ctrlDown = UserInputService:IsKeyDown(Enum.KeyCode.LeftControl)
+            or UserInputService:IsKeyDown(Enum.KeyCode.RightControl)
+        if input.KeyCode == Enum.KeyCode.K and ctrlDown then
+            if paletteShade.Visible then closePalette() else openPalette() end
+            return
+        end
+        if processed or paletteShade.Visible then return end
+        local altDown = UserInputService:IsKeyDown(Enum.KeyCode.LeftAlt)
+            or UserInputService:IsKeyDown(Enum.KeyCode.RightAlt)
+        if altDown and menuOpen then
+            local index = ({[Enum.KeyCode.One] = 1, [Enum.KeyCode.Two] = 2,
+                [Enum.KeyCode.Three] = 3, [Enum.KeyCode.Four] = 4,
+                [Enum.KeyCode.Five] = 5, [Enum.KeyCode.Six] = 6,
+                [Enum.KeyCode.Seven] = 7, [Enum.KeyCode.Eight] = 8,
+                [Enum.KeyCode.Nine] = 9})[input.KeyCode]
+            local pages = {homePage, movementPage, finderPage,
+                content:FindFirstChild("OptionsPage"), content:FindFirstChild("WaypointsPage"),
+                content:FindFirstChild("ConsolePage"), content:FindFirstChild("BSSPage"),
+                content:FindFirstChild("FunPage"), toolkitPage}
+            if index and pages[index] then showPage(pages[index]) end
+        end
+    end))
+
+    -- Retain the same GUI; don't create another page or menu when reopened.
+    showPage(homePage)
+    print("[ErrorB1478Menu] Studio edition ready: Toolkit, command search and refined layout created once.")
 end)
 
 --==================================================
