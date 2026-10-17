@@ -104,7 +104,8 @@ gui.Parent = player:WaitForChild("PlayerGui")
 local main = Instance.new("Frame")
 main.Name = "Main"
 main.Size = UDim2.fromOffset(720, 670)
-main.Position = UDim2.new(0.5, -360, 0.5, -335)
+main.AnchorPoint = Vector2.new(0.5, 0.5)
+main.Position = UDim2.fromScale(0.5, 0.5)
 main.BackgroundColor3 = Color3.fromRGB(20, 20, 27)
 main.BorderSizePixel = 0
 main.Parent = gui
@@ -1799,73 +1800,27 @@ local refreshOptionsLabels = nil
 local floatingToggleEnabled = true
 local floatingToggleButton = nil
 
--- HIDE/SHOW BY TRANSPARENCY, WITHOUT DESTROYING OR RECREATING THE GUI.
--- The main frame stays loaded and its scripts keep running. While hidden, all
--- visual transparency properties are set to 1; the separate floating toggle
--- is not inside main, so it remains visible and clickable.
-local transparencyProperties = {
-    "BackgroundTransparency", "TextTransparency", "TextStrokeTransparency",
-    "ImageTransparency", "ScrollBarImageTransparency", "Transparency",
-    "GroupTransparency"
-}
-local hiddenPropertyCache = setmetatable({}, { __mode = "k" })
-local menuHiddenTransparency = false
+-- HIDE/SHOW BY MOVING OFF-SCREEN. Keep the same GUI and scripts alive.
+-- The menu starts centered. Its last on-screen position is remembered when hidden.
+local savedMenuPosition = UDim2.fromScale(0.5, 0.5)
+local offscreenMenuPosition = UDim2.new(2, 0, 2, 0)
 
-local function cacheAndSetProperty(instance, propertyName, value)
-    local ok, original = pcall(function() return instance[propertyName] end)
-    if not ok then return end
-    hiddenPropertyCache[instance] = hiddenPropertyCache[instance] or {}
-    local cache = hiddenPropertyCache[instance]
-    if cache[propertyName] == nil then
-        cache[propertyName] = original
-    end
-    pcall(function() instance[propertyName] = value end)
-end
-
-local function setObjectHiddenAppearance(instance, hidden)
-    if hidden then
-        for _, propertyName in ipairs(transparencyProperties) do
-            cacheAndSetProperty(instance, propertyName, 1)
-        end
-        -- Disable button interaction while invisible, when this property exists.
-        cacheAndSetProperty(instance, "Interactable", false)
-    else
-        local cache = hiddenPropertyCache[instance]
-        if cache then
-            for propertyName, original in pairs(cache) do
-                pcall(function() instance[propertyName] = original end)
-            end
-            hiddenPropertyCache[instance] = nil
-        end
-    end
-end
-
-local function setMenuTransparency(hidden)
-    menuHiddenTransparency = hidden
-    setObjectHiddenAppearance(main, hidden)
-    for _, descendant in ipairs(main:GetDescendants()) do
-        setObjectHiddenAppearance(descendant, hidden)
-    end
-end
-
--- New controls created while the menu is hidden are made transparent too.
-main.DescendantAdded:Connect(function(descendant)
-    if menuHiddenTransparency then
-        setObjectHiddenAppearance(descendant, true)
-        for _, child in ipairs(descendant:GetDescendants()) do
-            setObjectHiddenAppearance(child, true)
-        end
-    end
-end)
+main.AnchorPoint = Vector2.new(0.5, 0.5)
+main.Position = savedMenuPosition
 
 local function setMenuVisible(visible)
     if destroyed or not gui or not gui.Parent then return end
 
     gui.Enabled = true
     menuOpen = visible
-    -- Keep main.Visible true at all times; only change its transparency.
     main.Visible = true
-    setMenuTransparency(not visible)
+    if visible then
+        main.Position = savedMenuPosition
+    else
+        -- Save the current position before moving the window fully off-screen.
+        savedMenuPosition = main.Position
+        main.Position = offscreenMenuPosition
+    end
 
     -- The floating toggle is outside main, so it remains available while hidden.
     if floatingToggleButton and floatingToggleButton.Parent then
@@ -2201,9 +2156,14 @@ end
 
 showPage(homePage)
 
--- Keep the main frame loaded at all times; initial visibility is transparency-based.
+-- Keep the same frame loaded. When closed, move it off-screen rather than hiding/recreating it.
 main.Visible = true
-setMenuTransparency(not menuOpen)
+main.AnchorPoint = Vector2.new(0.5, 0.5)
+if menuOpen then
+    main.Position = savedMenuPosition
+else
+    main.Position = offscreenMenuPosition
+end
 
 --==================================================
 -- FINAL SAFETY CHECK
@@ -3072,6 +3032,41 @@ do
     sidebarTitle.Font = Enum.Font.GothamBold
     sidebarTitle.TextSize = 10
 
+    -- Drag the menu from its top bar. The saved position is restored after hiding.
+    do
+        local draggingMenu = false
+        local dragInput = nil
+        local dragStart = nil
+        local dragStartPosition = nil
+
+        topBar.Active = true
+        topBar.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                draggingMenu = true
+                dragStart = input.Position
+                dragStartPosition = main.Position
+                dragInput = input
+                input.Changed:Connect(function()
+                    if input.UserInputState == Enum.UserInputState.End then
+                        draggingMenu = false
+                        savedMenuPosition = main.Position
+                    end
+                end)
+            end
+        end)
+
+        UserInputService.InputChanged:Connect(function(input)
+            if draggingMenu and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+                local delta = input.Position - dragStart
+                main.Position = UDim2.new(
+                    dragStartPosition.X.Scale, dragStartPosition.X.Offset + delta.X,
+                    dragStartPosition.Y.Scale, dragStartPosition.Y.Offset + delta.Y
+                )
+                savedMenuPosition = main.Position
+            end
+        end)
+    end
+
     -- Responsive scale for the complete menu.
     if not main:FindFirstChild("PremiumMenuScale") then
         local scale = Instance.new("UIScale")
@@ -3083,7 +3078,11 @@ do
             local viewport = camera.ViewportSize
             scale.Scale = math.clamp(math.min(viewport.X / 850, viewport.Y / 760, 1), 0.62, 1)
             main.AnchorPoint = Vector2.new(0.5, 0.5)
-            main.Position = UDim2.fromScale(0.5, 0.5)
+            if menuOpen then
+                main.Position = savedMenuPosition
+            else
+                main.Position = offscreenMenuPosition
+            end
         end
         resizeMenu()
         if workspace.CurrentCamera then
