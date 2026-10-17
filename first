@@ -1,3 +1,11 @@
+-- NIL-GUARD AUDIT NOTES:
+-- Optional character parts, humanoids, cameras, user IDs, and tool textures are checked
+-- before use where needed. Some variables intentionally start as nil until a feature is
+-- activated (for example bodyVelocity, bodyGyro, and connection handles).
+-- Run this as a LocalScript in StarterPlayer > StarterPlayerScripts.
+-- Do not wrap this file in loadstring(game:HttpGet(...))() in ordinary Roblox Studio;
+-- install it directly as a LocalScript instead.
+
 --==================================================
 -- Combined script
 -- SETUP + MAIN GUI + HOME PAGE
@@ -20,6 +28,14 @@ end
 --==================================================
 
 local LogService = game:GetService("LogService")
+local existingErrorGui = player:WaitForChild("PlayerGui"):FindFirstChild("ErrorB1478ErrorMonitor")
+if existingErrorGui then
+    existingErrorGui:Destroy()
+end
+local existingMenuGui = player:WaitForChild("PlayerGui"):FindFirstChild("ErrorB1478Menu")
+if existingMenuGui then
+    existingMenuGui:Destroy()
+end
 local errorMessages = {}
 local maxLoggedErrors = 30
 
@@ -108,7 +124,7 @@ local function refreshErrorOutput()
 end
 
 local function recordClientError(message)
-    local errorText = tostring(message)
+    local errorText = tostring(message or "Unknown client error")
     table.insert(errorMessages, os.date("%H:%M:%S") .. " | " .. errorText)
     while #errorMessages > maxLoggedErrors do
         table.remove(errorMessages, 1)
@@ -1680,8 +1696,14 @@ local playerEspObjects = {}
 local espRefreshElapsed = 0
 
 local function getPlayerEspColor(targetPlayer)
-    if targetPlayer.Team then
-        return targetPlayer.Team.TeamColor.Color
+    local team = targetPlayer and targetPlayer.Team
+    if team then
+        local ok, color = pcall(function()
+            return team.TeamColor.Color
+        end)
+        if ok and color then
+            return color
+        end
     end
     return Color3.fromRGB(155, 155, 165)
 end
@@ -1849,7 +1871,7 @@ local function refreshPlayerEsp(targetPlayer)
                 icon.BackgroundTransparency = 0.15
                 icon.BorderSizePixel = 0
                 icon.ScaleType = Enum.ScaleType.Fit
-                icon.Image = entry.texture
+                icon.Image = tostring(entry.texture or "")
                 icon.Parent = row
 
                 local toolLabel = Instance.new("TextLabel")
@@ -2468,8 +2490,9 @@ do
             uiMain.Position = UDim2.fromScale(0.5, 0.5)
         end
         resizeForScreen()
-        if workspace.CurrentCamera then
-            workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(resizeForScreen)
+        local camera = workspace.CurrentCamera
+        if camera then
+            camera:GetPropertyChangedSignal("ViewportSize"):Connect(resizeForScreen)
         end
     end
 
@@ -3325,8 +3348,9 @@ do
             end
         end
         resizeMenu()
-        if workspace.CurrentCamera then
-            workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(resizeMenu)
+        local camera = workspace.CurrentCamera
+        if camera then
+            camera:GetPropertyChangedSignal("ViewportSize"):Connect(resizeMenu)
         end
     end
 
