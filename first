@@ -16,6 +16,123 @@ if not RunService:IsClient() or not player then
 end
 
 --==================================================
+-- ERROR MONITOR
+--==================================================
+
+local LogService = game:GetService("LogService")
+local errorMessages = {}
+local maxLoggedErrors = 30
+
+local errorGui = Instance.new("ScreenGui")
+errorGui.Name = "ErrorB1478ErrorMonitor"
+errorGui.ResetOnSpawn = false
+errorGui.IgnoreGuiInset = true
+errorGui.DisplayOrder = 10000
+errorGui.Parent = player:WaitForChild("PlayerGui")
+
+local errorFrame = Instance.new("Frame")
+errorFrame.Name = "ErrorPanel"
+errorFrame.AnchorPoint = Vector2.new(1, 1)
+errorFrame.Position = UDim2.new(1, -12, 1, -12)
+errorFrame.Size = UDim2.fromOffset(420, 235)
+errorFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
+errorFrame.BorderSizePixel = 0
+errorFrame.Parent = errorGui
+
+local errorFrameCorner = Instance.new("UICorner")
+errorFrameCorner.CornerRadius = UDim.new(0, 8)
+errorFrameCorner.Parent = errorFrame
+
+local errorTitle = Instance.new("TextLabel")
+errorTitle.Name = "Title"
+errorTitle.Position = UDim2.fromOffset(10, 5)
+errorTitle.Size = UDim2.new(1, -160, 0, 28)
+errorTitle.BackgroundTransparency = 1
+errorTitle.Font = Enum.Font.GothamBold
+errorTitle.TextSize = 14
+errorTitle.TextXAlignment = Enum.TextXAlignment.Left
+errorTitle.TextColor3 = Color3.fromRGB(255, 105, 105)
+errorTitle.Text = "ERROR MONITOR (0)"
+errorTitle.Parent = errorFrame
+
+local function makeErrorButton(name, text, width, xOffset)
+    local button = Instance.new("TextButton")
+    button.Name = name
+    button.Size = UDim2.fromOffset(width, 25)
+    button.Position = UDim2.new(1, xOffset, 0, 6)
+    button.BackgroundColor3 = Color3.fromRGB(65, 65, 78)
+    button.BorderSizePixel = 0
+    button.Font = Enum.Font.Gotham
+    button.TextSize = 12
+    button.TextColor3 = Color3.new(1, 1, 1)
+    button.Text = text
+    button.Parent = errorFrame
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 5)
+    corner.Parent = button
+    return button
+end
+
+local copyErrorsButton = makeErrorButton("CopyErrors", "Select all", 65, -145)
+local clearErrorsButton = makeErrorButton("ClearErrors", "Clear", 60, -75)
+
+local errorOutput = Instance.new("TextBox")
+errorOutput.Name = "ErrorText"
+errorOutput.Position = UDim2.fromOffset(10, 38)
+errorOutput.Size = UDim2.new(1, -20, 1, -48)
+errorOutput.BackgroundColor3 = Color3.fromRGB(14, 14, 19)
+errorOutput.BorderSizePixel = 0
+errorOutput.ClearTextOnFocus = false
+errorOutput.MultiLine = true
+errorOutput.TextEditable = true
+errorOutput.TextWrapped = true
+errorOutput.TextXAlignment = Enum.TextXAlignment.Left
+errorOutput.TextYAlignment = Enum.TextYAlignment.Top
+errorOutput.Font = Enum.Font.Code
+errorOutput.TextSize = 12
+errorOutput.TextColor3 = Color3.fromRGB(255, 220, 220)
+errorOutput.Text = "No errors recorded. Errors from this client will appear here."
+errorOutput.Parent = errorFrame
+
+local errorOutputCorner = Instance.new("UICorner")
+errorOutputCorner.CornerRadius = UDim.new(0, 5)
+errorOutputCorner.Parent = errorOutput
+
+local function refreshErrorOutput()
+    errorTitle.Text = "ERROR MONITOR (" .. tostring(#errorMessages) .. ")"
+    if #errorMessages == 0 then
+        errorOutput.Text = "No errors recorded. Errors from this client will appear here."
+    else
+        errorOutput.Text = table.concat(errorMessages, "\n\n")
+    end
+end
+
+local function recordClientError(message)
+    table.insert(errorMessages, os.date("%H:%M:%S") .. " | " .. tostring(message))
+    while #errorMessages > maxLoggedErrors do
+        table.remove(errorMessages, 1)
+    end
+    refreshErrorOutput()
+end
+
+copyErrorsButton.Activated:Connect(function()
+    errorOutput:CaptureFocus()
+    errorOutput.SelectionStart = 1
+    errorOutput.CursorPosition = #errorOutput.Text + 1
+end)
+
+clearErrorsButton.Activated:Connect(function()
+    table.clear(errorMessages)
+    refreshErrorOutput()
+end)
+
+LogService.MessageOut:Connect(function(message, messageType)
+    if messageType == Enum.MessageType.MessageError then
+        recordClientError(message)
+    end
+end)
+
+--==================================================
 -- STATE
 --==================================================
 
