@@ -202,6 +202,7 @@ end
 
 local destroyed = false
 local menuOpen = true
+local setMenuVisible -- forward declaration used by the close button
 
 local flying = false
 local noclip = false
@@ -2011,7 +2012,7 @@ local function getMenuOffscreenLeftPosition()
     return UDim2.new(0, -math.floor(main.AbsoluteSize.X / 2) - 24, savedMenuPosition.Y.Scale, savedMenuPosition.Y.Offset)
 end
 
-local function setMenuVisible(visible)
+setMenuVisible = function(visible)
     if destroyed or not gui or not gui.Parent then return end
     if visible == menuOpen and not (visible and not main.Visible) then return end
 
@@ -2228,64 +2229,13 @@ local function restoreCharacter()
 end
 
 local function panic()
-    if destroyed then
-        return
-    end
-
-    destroyed = true
-    menuOpen = false
-
-    if noclipDescendantConnection then
-        noclipDescendantConnection:Disconnect()
-        noclipDescendantConnection = nil
-    end
-    if noclipEnforceConnection then
-        noclipEnforceConnection:Disconnect()
-        noclipEnforceConnection = nil
-    end
-
-    flying = false
-    if noclip then
-        setNoclip(false)
+    -- This button must never destroy, disable, or hide the menu GUI.
+    -- Treat it as another animated close control instead.
+    if setMenuVisible then
+        setMenuVisible(false)
     else
-        noclip = false
+        menuOpen = false
     end
-    infiniteJump = false
-
-    if bodyVelocity then
-        bodyVelocity:Destroy()
-        bodyVelocity = nil
-    end
-
-    if bodyGyro then
-        bodyGyro:Destroy()
-        bodyGyro = nil
-    end
-
-    restoreCharacter()
-
-    setPlayerEspEnabled(false)
-
-    for _, connection in ipairs(
-        connections
-    ) do
-        if connection then
-            pcall(function()
-                connection:Disconnect()
-            end)
-        end
-    end
-
-    table.clear(connections)
-
-    if gui then
-        gui:Destroy()
-        gui = nil
-    end
-
-    pcall(function()
-        script:Destroy()
-    end)
 end
 
 panicButton.MouseButton1Click:Connect(
@@ -2382,7 +2332,7 @@ showPage(homePage)
 
 main.AnchorPoint = Vector2.new(0.5, 0.5)
 main.Position = savedMenuPosition
-main.Visible = menuOpen
+main.Visible = true -- keep the menu GUI alive; closed state is off-screen only
 
 --==================================================
 -- FINAL SAFETY CHECK
