@@ -108,11 +108,16 @@ local function refreshErrorOutput()
 end
 
 local function recordClientError(message)
-    table.insert(errorMessages, os.date("%H:%M:%S") .. " | " .. tostring(message))
+    local errorText = tostring(message)
+    table.insert(errorMessages, os.date("%H:%M:%S") .. " | " .. errorText)
     while #errorMessages > maxLoggedErrors do
         table.remove(errorMessages, 1)
     end
     refreshErrorOutput()
+
+    -- Mirror captured errors into the Roblox F9 Developer Console as warnings.
+    -- The listener below only reacts to MessageError, so this warning will not loop.
+    warn("[ErrorB1478Menu][F9] Captured client error: " .. errorText)
 end
 
 copyErrorsButton.Activated:Connect(function()
@@ -125,6 +130,8 @@ clearErrorsButton.Activated:Connect(function()
     table.clear(errorMessages)
     refreshErrorOutput()
 end)
+
+warn("[ErrorB1478Menu][F9] Error logging active. Press F9 and select Client to view logs.")
 
 LogService.MessageOut:Connect(function(message, messageType)
     if messageType == Enum.MessageType.MessageError then
