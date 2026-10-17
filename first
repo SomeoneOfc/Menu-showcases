@@ -1,7 +1,7 @@
 -- ERRORB1478 MENU - REVIEWED SAFE-LOAD BUILD
 -- Install as a LocalScript in StarterPlayer > StarterPlayerScripts.
 -- Do not use loadstring/HttpGet in a normal Studio LocalScript.
--- Error Monitor is optional and OFF by default; F9 diagnostics remain available. Menu hide/reopen uses slide tweens and remembers its last position.
+-- Error Monitor is optional and OFF by default; F9 diagnostics remain available. Menu hide/reopen reuses the SAME GUI, with quick slide tweens and saved position.
 -- This prevents an add-on runtime error from stopping the core menu, but it cannot
 -- guarantee all features work without running in the target Roblox experience.
 
@@ -84,6 +84,15 @@ end
 -- Errors remain available in Roblox Studio's F9 Developer Console.
 local LogService = game:GetService("LogService")
 local playerGui = player:WaitForChild("PlayerGui")
+
+-- SINGLE-INSTANCE GUARD: executing a second copy must not rebuild the GUI,
+-- add a second G key handler, or restart effects that are already running.
+-- The existing LocalScript owns the original GUI and its button connections.
+local existingMenu = playerGui:FindFirstChild("ErrorB1478Menu")
+if existingMenu then
+    warn("[ErrorB1478Menu] Menu is already running; reused the existing GUI (no duplicate created).")
+    return
+end
 
 local __EB1478_seenErrors = __EB1478_seenErrors or {}
 local __EB1478_errorCount = 0
@@ -1999,7 +2008,7 @@ local TweenService = game:GetService("TweenService")
 local savedMenuPosition = main.Position -- Preserve the last user-selected/draggable position.
 local menuTween = nil
 local menuTransitionId = 0
-local menuSlideDuration = 0.32
+local menuSlideDuration = 0.20 -- quicker animation; no new UI is constructed on toggle
 
 main.AnchorPoint = Vector2.new(0.5, 0.5)
 main.Position = savedMenuPosition
@@ -2015,9 +2024,16 @@ local function getMenuOffscreenLeftPosition()
 end
 
 setMenuVisible = function(visible)
-    if destroyed or not gui or not gui.Parent then return end
+    if destroyed then return end
+    -- Never rebuild a manually deleted ScreenGui. A new UI would require a
+    -- fresh Play session; show/hide operates on the same original instance.
+    if not gui or not gui.Parent or not main or not main.Parent then
+        warn("[ErrorB1478Menu] The original GUI was removed. Restart Play to restore it; G will not create a replacement.")
+        return
+    end
     if visible == menuOpen and not (visible and not main.Visible) then return end
 
+    local wasTweening = menuTween ~= nil
     menuTransitionId += 1
     local thisTransition = menuTransitionId
     if menuTween then
@@ -2041,8 +2057,11 @@ setMenuVisible = function(visible)
             menuTween = nil
         end)
     else
-        -- Save the current position before sliding out to the right; never teleport/hide instantly.
-        savedMenuPosition = main.Position
+        -- Retain the last on-screen/dragged location even if the opening
+        -- tween was interrupted by a rapid second press of G.
+        if not wasTweening then
+            savedMenuPosition = main.Position
+        end
         local targetPosition = getMenuOffscreenRightPosition()
         menuTween = TweenService:Create(main, TweenInfo.new(menuSlideDuration, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {Position = targetPosition})
         menuTween:Play()
@@ -2061,9 +2080,9 @@ setMenuVisible = function(visible)
         floatingToggleButton.Visible = floatingToggleEnabled
     end
 
-    if visible and refreshFolders then
-        pcall(refreshFolders)
-    end
+    -- IMPORTANT: Do not call refreshFolders here. That function destroys and
+    -- rebuilds potentially hundreds of Finder TextButtons on *every* G press.
+    -- Finder loads once at startup, and its Refresh Folders button still works.
 end
 
 local inputConnection = UserInputService.InputBegan:Connect(
@@ -2181,7 +2200,7 @@ panicButton.BackgroundColor3 =
 panicButton.BorderSizePixel = 0
 
 panicButton.Text =
-    "PANIC / DELETE"
+    "HIDE / KEEP"
 
 panicButton.TextColor3 =
     Color3.new(1, 1, 1)
