@@ -1,8 +1,10 @@
 -- Combined Roblox Studio LocalScript
 -- Place in StarterPlayer > StarterPlayerScripts.
--- This creates a client-side movement/finder menu for your own experience.
--- Note: client-only movement changes are not secure server-authoritative game mechanics.
--- Performance: UI toggling moves the menu off-screen without rebuilding it. Noclip is enforced only while active; ESP refresh is throttled. Zero lag cannot be guaranteed on every device/game.
+-- Local-player-only LocalScript for your own Roblox Studio experience.
+-- All character movement, noclip, jump, fly, spin, and teleport actions target Players.LocalPlayer.Character only.
+-- ESP may DISPLAY other players for information, but does not modify their characters.
+-- Client-side changes are not secure server-authoritative mechanics and may be overridden by the server.
+-- Performance: UI toggling moves the menu off-screen without rebuilding it; ESP refresh is throttled.
 
 --==================================================
 -- Combined script
@@ -16,9 +18,9 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local player = Players.LocalPlayer
 
--- Early setup check: this menu must run on the client as a LocalScript.
--- A normal server Script has no Players.LocalPlayer and cannot create this UI.
-if not player then
+-- Strict client/local-player guard. This script must be a LocalScript.
+-- All character-changing helpers below resolve the local player's character.
+if not RunService:IsClient() or not player then
     warn("[ErrorB1478Menu] This must be a LocalScript in StarterPlayer > StarterPlayerScripts (not a Script or ModuleScript).")
     return
 end
@@ -1774,6 +1776,8 @@ local function refreshPlayerEsp(targetPlayer)
     end
 end
 
+-- ESP is observational only: it creates local GUI/highlight objects for display.
+-- It never writes movement, physics, health, or CFrame properties on targetPlayer.Character.
 local function setPlayerEspEnabled(enabled)
     playerEspEnabled = enabled
     if not enabled then
@@ -2014,13 +2018,9 @@ local function restoreCharacter()
         return
     end
 
-    for _, object in ipairs(
-        character:GetDescendants()
-    ) do
-        if object:IsA("BasePart") then
-            object.CanCollide = true
-        end
-    end
+    -- Do not force every part to CanCollide=true: accessories and custom
+    -- characters may intentionally have non-collidable parts. setNoclip(false)
+    -- restores the local character's recorded collision values before this runs.
 
     local humanoid =
         character:FindFirstChildOfClass(
