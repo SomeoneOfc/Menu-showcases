@@ -2380,3 +2380,601 @@ table.insert(connections, UserInputService.InputBegan:Connect(
 ))
 
 print("Part 7 keybind fix loaded.")
+
+--==================================================
+-- PART 8: WAYPOINTS + CONFIG SAVE/LOAD + JSON IMPORT/EXPORT
+-- Requires Part 7 and the WaypointConfigServer script below.
+--==================================================
+
+local HttpService = game:GetService("HttpService")
+
+local waypoints = {}
+local waypointRows = {}
+
+--==================================================
+-- WAYPOINTS PAGE
+--==================================================
+
+local waypointsPage = Instance.new("Frame")
+waypointsPage.Name = "WaypointsPage"
+waypointsPage.Size = UDim2.fromScale(1, 1)
+waypointsPage.BackgroundTransparency = 1
+waypointsPage.Visible = false
+waypointsPage.Parent = content
+
+local function makePart8Button(parent, name, text, position, size)
+    local button = Instance.new("TextButton")
+    button.Name = name
+    button.Text = text
+    button.Position = position
+    button.Size = size
+    button.BackgroundColor3 = Color3.fromRGB(38, 42, 58)
+    button.BorderSizePixel = 0
+    button.TextColor3 = Color3.fromRGB(235, 240, 255)
+    button.TextSize = 12
+    button.Font = Enum.Font.GothamSemibold
+    button.AutoButtonColor = true
+    button.Parent = parent
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 7)
+    corner.Parent = button
+
+    return button
+end
+
+local function makePart8Label(parent, name, text, position, size)
+    local label = Instance.new("TextLabel")
+    label.Name = name
+    label.Text = text
+    label.Position = position
+    label.Size = size
+    label.BackgroundTransparency = 1
+    label.TextColor3 = Color3.fromRGB(235, 240, 255)
+    label.TextSize = 12
+    label.Font = Enum.Font.Gotham
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.TextWrapped = true
+    label.Parent = parent
+
+    return label
+end
+
+local waypointTitle = makePart8Label(
+    waypointsPage,
+    "WaypointsTitle",
+    "Waypoints",
+    UDim2.fromOffset(15, 12),
+    UDim2.new(1, -30, 0, 35)
+)
+waypointTitle.TextSize = 22
+waypointTitle.Font = Enum.Font.GothamBold
+
+makePart8Label(
+    waypointsPage,
+    "WaypointsDescription",
+    "Create a waypoint at your current position, teleport to it, or delete it.",
+    UDim2.fromOffset(15, 48),
+    UDim2.new(1, -30, 0, 35)
+)
+
+local waypointNameBox = Instance.new("TextBox")
+waypointNameBox.Name = "WaypointNameBox"
+waypointNameBox.Position = UDim2.fromOffset(15, 88)
+waypointNameBox.Size = UDim2.new(0.55, -15, 0, 36)
+waypointNameBox.BackgroundColor3 = Color3.fromRGB(32, 32, 42)
+waypointNameBox.BorderSizePixel = 0
+waypointNameBox.Text = ""
+waypointNameBox.PlaceholderText = "Waypoint name..."
+waypointNameBox.TextColor3 = Color3.fromRGB(240, 240, 255)
+waypointNameBox.PlaceholderColor3 = Color3.fromRGB(140, 145, 160)
+waypointNameBox.TextSize = 12
+waypointNameBox.Font = Enum.Font.Gotham
+waypointNameBox.ClearTextOnFocus = false
+waypointNameBox.Parent = waypointsPage
+
+local waypointNameCorner = Instance.new("UICorner")
+waypointNameCorner.CornerRadius = UDim.new(0, 7)
+waypointNameCorner.Parent = waypointNameBox
+
+local createWaypointButton = makePart8Button(
+    waypointsPage,
+    "CreateWaypointButton",
+    "Create",
+    UDim2.new(0.55, 5, 0, 88),
+    UDim2.new(0.45, -20, 0, 36)
+)
+
+local waypointList = Instance.new("ScrollingFrame")
+waypointList.Name = "WaypointList"
+waypointList.Position = UDim2.fromOffset(15, 135)
+waypointList.Size = UDim2.new(1, -30, 1, -150)
+waypointList.BackgroundColor3 = Color3.fromRGB(25, 27, 37)
+waypointList.BorderSizePixel = 0
+waypointList.ScrollBarThickness = 5
+waypointList.CanvasSize = UDim2.new(0, 0, 0, 0)
+waypointList.AutomaticCanvasSize = Enum.AutomaticSize.Y
+waypointList.Parent = waypointsPage
+
+local waypointListCorner = Instance.new("UICorner")
+waypointListCorner.CornerRadius = UDim.new(0, 8)
+waypointListCorner.Parent = waypointList
+
+local waypointListLayout = Instance.new("UIListLayout")
+waypointListLayout.Padding = UDim.new(0, 6)
+waypointListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+waypointListLayout.Parent = waypointList
+
+local waypointListPadding = Instance.new("UIPadding")
+waypointListPadding.PaddingTop = UDim.new(0, 7)
+waypointListPadding.PaddingLeft = UDim.new(0, 7)
+waypointListPadding.PaddingRight = UDim.new(0, 7)
+waypointListPadding.PaddingBottom = UDim.new(0, 7)
+waypointListPadding.Parent = waypointList
+
+local waypointStatus = makePart8Label(
+    waypointsPage,
+    "WaypointStatus",
+    "",
+    UDim2.new(0, 15, 1, -14),
+    UDim2.new(1, -30, 0, 14)
+)
+
+--==================================================
+-- WAYPOINT LIST
+--==================================================
+
+local function rebuildWaypointRows()
+    for _, child in ipairs(waypointList:GetChildren()) do
+        if child:IsA("Frame") then
+            child:Destroy()
+        end
+    end
+
+    waypointRows = {}
+
+    for index, waypoint in ipairs(waypoints) do
+        local row = Instance.new("Frame")
+        row.Name = "WaypointRow_" .. index
+        row.Size = UDim2.new(1, -2, 0, 42)
+        row.BackgroundColor3 = Color3.fromRGB(38, 42, 58)
+        row.BorderSizePixel = 0
+        row.LayoutOrder = index
+        row.Parent = waypointList
+
+        local rowCorner = Instance.new("UICorner")
+        rowCorner.CornerRadius = UDim.new(0, 6)
+        rowCorner.Parent = row
+
+        local nameLabel = Instance.new("TextLabel")
+        nameLabel.Size = UDim2.new(1, -150, 1, 0)
+        nameLabel.Position = UDim2.fromOffset(8, 0)
+        nameLabel.BackgroundTransparency = 1
+        nameLabel.Text = waypoint.name
+        nameLabel.TextColor3 = Color3.fromRGB(235, 240, 255)
+        nameLabel.TextSize = 11
+        nameLabel.Font = Enum.Font.GothamSemibold
+        nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+        nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+        nameLabel.Parent = row
+
+        local teleportButton = makePart8Button(
+            row,
+            "TeleportButton",
+            "Teleport",
+            UDim2.new(1, -138, 0, 5),
+            UDim2.fromOffset(65, 32)
+        )
+
+        local deleteButton = makePart8Button(
+            row,
+            "DeleteButton",
+            "Delete",
+            UDim2.new(1, -68, 0, 5),
+            UDim2.fromOffset(60, 32)
+        )
+
+        local waypointIndex = index
+
+        teleportButton.Activated:Connect(function()
+            local selected = waypoints[waypointIndex]
+            if not selected then
+                return
+            end
+
+            local character = player.Character
+            local root = character and character:FindFirstChild("HumanoidRootPart")
+
+            if not root then
+                waypointStatus.Text = "Your character is not ready."
+                return
+            end
+
+            root.CFrame = CFrame.new(
+                selected.x,
+                selected.y + 3,
+                selected.z
+            )
+
+            waypointStatus.Text = "Teleported to " .. selected.name
+        end)
+
+        deleteButton.Activated:Connect(function()
+            if not waypoints[waypointIndex] then
+                return
+            end
+
+            table.remove(waypoints, waypointIndex)
+            rebuildWaypointRows()
+            waypointStatus.Text = "Waypoint deleted."
+        end)
+
+        table.insert(waypointRows, row)
+    end
+end
+
+createWaypointButton.Activated:Connect(function()
+    local character = player.Character
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+
+    if not root then
+        waypointStatus.Text = "Your character is not ready."
+        return
+    end
+
+    if #waypoints >= 100 then
+        waypointStatus.Text = "Maximum of 100 waypoints reached."
+        return
+    end
+
+    local name = waypointNameBox.Text:gsub("^%s+", ""):gsub("%s+$", "")
+
+    if name == "" then
+        name = "Waypoint " .. tostring(#waypoints + 1)
+    end
+
+    table.insert(waypoints, {
+        name = string.sub(name, 1, 40),
+        x = root.Position.X,
+        y = root.Position.Y,
+        z = root.Position.Z
+    })
+
+    waypointNameBox.Text = ""
+    waypointStatus.Text = "Created waypoint: " .. name
+    rebuildWaypointRows()
+end)
+
+--==================================================
+-- ADD WAYPOINTS TO SIDEBAR
+--==================================================
+
+local waypointsTabButton = makePart8Button(
+    sidebar,
+    "WaypointsTabButton",
+    "Waypoints",
+    UDim2.new(0, 10, 0, 270),
+    UDim2.new(1, -20, 0, 35)
+)
+
+waypointsTabButton.ZIndex = 10
+
+-- Preserve the Part 7 page handler.
+local previousPageHandler = setActivePage
+
+setActivePage = function(pageName)
+    if pageName == "waypoints" then
+        homePage.Visible = false
+        movementPage.Visible = false
+        finderPage.Visible = false
+        optionsPage.Visible = false
+        waypointsPage.Visible = true
+
+        currentPage = "waypoints"
+
+        homeButton.BackgroundColor3 = Color3.fromRGB(38, 42, 58)
+        movementTabButton.BackgroundColor3 = Color3.fromRGB(38, 42, 58)
+        finderTabButton.BackgroundColor3 = Color3.fromRGB(38, 42, 58)
+        optionsTabButton.BackgroundColor3 = Color3.fromRGB(38, 42, 58)
+        waypointsTabButton.BackgroundColor3 = Color3.fromRGB(65, 95, 155)
+    else
+        waypointsPage.Visible = false
+        waypointsTabButton.BackgroundColor3 = Color3.fromRGB(38, 42, 58)
+        previousPageHandler(pageName)
+    end
+end
+
+waypointsTabButton.Activated:Connect(function()
+    setActivePage("waypoints")
+end)
+
+--==================================================
+-- BUILD CONFIGURATION DATA
+--==================================================
+
+local function buildConfig()
+    local config = {
+        version = 1,
+        menuKey = menuToggleKey.Name,
+        espKey = espToggleKey.Name,
+        floatingEnabled = floatingEnabled,
+        waypoints = {}
+    }
+
+    -- Save the floating button's position.
+    config.floatingPosition = {
+        xScale = floatingButton.Position.X.Scale,
+        xOffset = floatingButton.Position.X.Offset,
+        yScale = floatingButton.Position.Y.Scale,
+        yOffset = floatingButton.Position.Y.Offset
+    }
+
+    -- Save custom feature keybinds if Part 6's keybind table exists.
+    if typeof(keybinds) == "table" then
+        config.featureKeys = {}
+
+        for featureName, assignedKey in pairs(keybinds) do
+            if typeof(assignedKey) == "EnumItem" then
+                config.featureKeys[featureName] = assignedKey.Name
+            end
+        end
+    end
+
+    for _, waypoint in ipairs(waypoints) do
+        table.insert(config.waypoints, {
+            name = waypoint.name,
+            x = waypoint.x,
+            y = waypoint.y,
+            z = waypoint.z
+        })
+    end
+
+    return config
+end
+
+--==================================================
+-- APPLY LOADED CONFIGURATION
+--==================================================
+
+local function applyConfig(config)
+    if typeof(config) ~= "table" then
+        return false, "Invalid configuration."
+    end
+
+    if typeof(config.menuKey) == "string"
+        and Enum.KeyCode[config.menuKey] then
+        menuToggleKey = Enum.KeyCode[config.menuKey]
+    end
+
+    if typeof(config.espKey) == "string"
+        and Enum.KeyCode[config.espKey] then
+        espToggleKey = Enum.KeyCode[config.espKey]
+    end
+
+    if typeof(config.floatingEnabled) == "boolean" then
+        floatingEnabled = config.floatingEnabled
+        floatingButton.Visible = floatingEnabled
+
+        if floatingToggleButton then
+            floatingToggleButton.Text = floatingEnabled
+                and "Floating button: ON"
+                or "Floating button: OFF"
+        end
+    end
+
+    if typeof(config.floatingPosition) == "table" then
+        local p = config.floatingPosition
+
+        if typeof(p.xScale) == "number"
+            and typeof(p.xOffset) == "number"
+            and typeof(p.yScale) == "number"
+            and typeof(p.yOffset) == "number" then
+
+            floatingButton.Position = UDim2.new(
+                p.xScale, p.xOffset,
+                p.yScale, p.yOffset
+            )
+        end
+    end
+
+    -- Restore feature keybinds, if the existing keybind table is available.
+    if typeof(config.featureKeys) == "table"
+        and typeof(keybinds) == "table" then
+
+        for featureName, keyName in pairs(config.featureKeys) do
+            if typeof(keyName) == "string"
+                and Enum.KeyCode[keyName]
+                and keybinds[featureName] ~= nil then
+
+                keybinds[featureName] = Enum.KeyCode[keyName]
+            end
+        end
+
+        if typeof(keybindBoxes) == "table" then
+            for box, featureName in pairs(keybindBoxes) do
+                local assignedKey = keybinds[featureName]
+
+                if assignedKey then
+                    box.Text = assignedKey.Name
+                else
+                    box.Text = "None"
+                end
+            end
+        end
+    end
+
+    waypoints = {}
+
+    if typeof(config.waypoints) == "table" then
+        for _, waypoint in ipairs(config.waypoints) do
+            if #waypoints >= 100 then
+                break
+            end
+
+            if typeof(waypoint) == "table"
+                and typeof(waypoint.name) == "string"
+                and typeof(waypoint.x) == "number"
+                and typeof(waypoint.y) == "number"
+                and typeof(waypoint.z) == "number" then
+
+                table.insert(waypoints, {
+                    name = string.sub(waypoint.name, 1, 40),
+                    x = waypoint.x,
+                    y = waypoint.y,
+                    z = waypoint.z
+                })
+            end
+        end
+    end
+
+    updateKeyLabels()
+    rebuildWaypointRows()
+
+    return true, "Configuration loaded."
+end
+
+--==================================================
+-- SAVE / LOAD BETWEEN GAME SESSIONS
+--==================================================
+
+local configRemote = ReplicatedStorage:WaitForChild("WaypointConfigFunction")
+
+local configStatus = makePart8Label(
+    optionsPage,
+    "ConfigStatus",
+    "Configuration not saved yet.",
+    UDim2.fromOffset(15, 370),
+    UDim2.new(1, -30, 0, 30)
+)
+
+local saveConfigButton = makePart8Button(
+    optionsPage,
+    "SaveConfigButton",
+    "Save",
+    UDim2.fromOffset(15, 405),
+    UDim2.fromOffset(100, 35)
+)
+
+local loadConfigButton = makePart8Button(
+    optionsPage,
+    "LoadConfigButton",
+    "Load",
+    UDim2.fromOffset(125, 405),
+    UDim2.fromOffset(100, 35)
+)
+
+saveConfigButton.Activated:Connect(function()
+    configStatus.Text = "Saving..."
+
+    local success, result, message = pcall(function()
+        return configRemote:InvokeServer("Save", buildConfig())
+    end)
+
+    if not success then
+        configStatus.Text = "Save failed. Check server setup."
+    elseif result then
+        configStatus.Text = "Configuration saved!"
+    else
+        configStatus.Text = message or "Save failed."
+    end
+end)
+
+loadConfigButton.Activated:Connect(function()
+    configStatus.Text = "Loading..."
+
+    local success, result, configOrMessage = pcall(function()
+        return configRemote:InvokeServer("Load")
+    end)
+
+    if not success then
+        configStatus.Text = "Load failed. Check server setup."
+        return
+    end
+
+    if not result then
+        configStatus.Text = configOrMessage or "No saved configuration."
+        return
+    end
+
+    local applied, message = applyConfig(configOrMessage)
+    configStatus.Text = message
+end)
+
+--==================================================
+-- SAVE AS FILE / LOAD FILE USING JSON TEXT
+--==================================================
+
+local jsonBox = Instance.new("TextBox")
+jsonBox.Name = "ConfigJSONBox"
+jsonBox.Position = UDim2.fromOffset(15, 450)
+jsonBox.Size = UDim2.new(1, -30, 0, 95)
+jsonBox.BackgroundColor3 = Color3.fromRGB(25, 27, 37)
+jsonBox.BorderSizePixel = 0
+jsonBox.Text = ""
+jsonBox.PlaceholderText = "Exported JSON appears here. Paste JSON here to import."
+jsonBox.TextColor3 = Color3.fromRGB(225, 230, 245)
+jsonBox.PlaceholderColor3 = Color3.fromRGB(145, 150, 165)
+jsonBox.TextSize = 10
+jsonBox.Font = Enum.Font.Code
+jsonBox.TextWrapped = true
+jsonBox.TextXAlignment = Enum.TextXAlignment.Left
+jsonBox.TextYAlignment = Enum.TextYAlignment.Top
+jsonBox.MultiLine = true
+jsonBox.ClearTextOnFocus = false
+jsonBox.Parent = optionsPage
+
+local jsonCorner = Instance.new("UICorner")
+jsonCorner.CornerRadius = UDim.new(0, 7)
+jsonCorner.Parent = jsonBox
+
+local exportConfigButton = makePart8Button(
+    optionsPage,
+    "ExportConfigButton",
+    "Save as file",
+    UDim2.fromOffset(15, 552),
+    UDim2.fromOffset(120, 35)
+)
+
+local importConfigButton = makePart8Button(
+    optionsPage,
+    "ImportConfigButton",
+    "Load file",
+    UDim2.fromOffset(145, 552),
+    UDim2.fromOffset(120, 35)
+)
+
+exportConfigButton.Activated:Connect(function()
+    local success, json = pcall(function()
+        return HttpService:JSONEncode(buildConfig())
+    end)
+
+    if success then
+        jsonBox.Text = json
+        configStatus.Text = "JSON ready. Copy it into a .json file."
+    else
+        configStatus.Text = "Could not export configuration."
+    end
+end)
+
+importConfigButton.Activated:Connect(function()
+    if jsonBox.Text == "" then
+        configStatus.Text = "Paste your JSON configuration first."
+        return
+    end
+
+    local success, config = pcall(function()
+        return HttpService:JSONDecode(jsonBox.Text)
+    end)
+
+    if not success then
+        configStatus.Text = "Invalid JSON. Check the pasted file contents."
+        return
+    end
+
+    local applied, message = applyConfig(config)
+    configStatus.Text = message
+end)
+
+rebuildWaypointRows()
+
+print("Part 8 loaded: Waypoints and configuration controls.")
