@@ -1,3 +1,4 @@
+
 -- Combined Roblox Studio LocalScript
 -- Place in StarterPlayer > StarterPlayerScripts.
 -- This creates a client-side movement/finder menu for your own experience.
@@ -15,6 +16,13 @@ local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local player = Players.LocalPlayer
+
+-- Early setup check: this menu must run on the client as a LocalScript.
+-- A normal server Script has no Players.LocalPlayer and cannot create this UI.
+if not player then
+    warn("[ErrorB1478Menu] This must be a LocalScript in StarterPlayer > StarterPlayerScripts (not a Script or ModuleScript).")
+    return
+end
 
 --==================================================
 -- STATE
@@ -104,7 +112,8 @@ local gui = Instance.new("ScreenGui")
 gui.Name = "ErrorB1478Menu"
 gui.ResetOnSpawn = false
 gui.IgnoreGuiInset = true
-gui.Parent = player:WaitForChild("PlayerGui")
+local playerGui = player:WaitForChild("PlayerGui")
+gui.Parent = playerGui
 
 local main = Instance.new("Frame")
 main.Name = "Main"
@@ -1803,7 +1812,12 @@ local espRefreshConnection = RunService.Heartbeat:Connect(function(deltaTime)
     end
     espRefreshElapsed = 0
     for _, targetPlayer in ipairs(Players:GetPlayers()) do
-        refreshPlayerEsp(targetPlayer)
+        -- Character changes can happen during a refresh; isolate one player's refresh
+        -- so it cannot stop updates for every other player.
+        local ok, err = pcall(refreshPlayerEsp, targetPlayer)
+        if not ok then
+            warn("[ErrorB1478Menu] ESP refresh failed for " .. targetPlayer.Name .. ": " .. tostring(err))
+        end
     end
 end)
 table.insert(connections, espRefreshConnection)
