@@ -1,4 +1,4 @@
--- ERRORB1478 MENU - REVIEWED SAFE-LOAD BUILD
+-- ERRORB1478 MENU - REVIEWED SAFE-LOAD BUILD (NO FUN PAGE)
 -- Install as a LocalScript in StarterPlayer > StarterPlayerScripts.
 -- Do not use loadstring/HttpGet in a normal Studio LocalScript.
 -- Optional UI add-on blocks are protected with xpcall via __EB1478_safeCall.
@@ -2802,15 +2802,13 @@ __EB1478_safeCall("Premium pages and extras", function()
     local consolePage = makePage("ConsolePage")
     local bssPage = makePage("BSSPage")
     local optionsPage = makePage("OptionsPage")
-    local funPage = makePage("FunPage")
 
     local optionsTab = makeTab("OptionsTab", "⚙  OPTIONS", 184)
     local waypointsTab = makeTab("WaypointsTab", "WAYPOINTS", 228)
     local consoleTab = makeTab("ConsoleTab", "CONSOLE", 272)
     local bssTab = makeTab("BSSTab", "BSS", 316)
-    local funTab = makeTab("FunTab", "✨  FUN", 360)
 
-    local allTabs = {homeButton, movementTabButton, finderTabButton, waypointsTab, consoleTab, bssTab, optionsTab, funTab}
+    local allTabs = {homeButton, movementTabButton, finderTabButton, waypointsTab, consoleTab, bssTab, optionsTab}
     local function highlightTab(active)
         for _, tab in ipairs(allTabs) do
             if tab then
@@ -2841,7 +2839,6 @@ __EB1478_safeCall("Premium pages and extras", function()
         consolePage.Visible = false
         bssPage.Visible = false
         optionsPage.Visible = false
-        funPage.Visible = false
         previousShowPage(page)
         if page == waypointsPage then
             waypointsPage.Visible = true
@@ -2855,9 +2852,6 @@ __EB1478_safeCall("Premium pages and extras", function()
         elseif page == optionsPage then
             optionsPage.Visible = true
             highlightTab(optionsTab)
-        elseif page == funPage then
-            funPage.Visible = true
-            highlightTab(funTab)
         elseif page == homePage then
             highlightTab(homeButton)
         elseif page == movementPage then
@@ -2874,149 +2868,8 @@ __EB1478_safeCall("Premium pages and extras", function()
     consoleTab.Activated:Connect(function() showPage(consolePage) end)
     bssTab.Activated:Connect(function() showPage(bssPage) end)
     optionsTab.Activated:Connect(function() showPage(optionsPage) end)
-    funTab.Activated:Connect(function() showPage(funPage) end)
 
-    __EB1478_safeCall("Fun page", function()
-    makeHeader(funPage, "Fun Zone", "Small, temporary effects. Effects clean themselves up and do not run forever.")
-    local funStatus = makeLabel(funPage, "FunStatus", "Choose a fun effect below.", UDim2.fromOffset(22, 101), UDim2.new(1, -44, 0, 28), 11, C.muted, false)
-    local confettiButton = makeButton(funPage, "ConfettiBurst", "🎉 CONFETTI BURST", UDim2.fromOffset(22, 139), UDim2.new(0.48, -8, 0, 42), true)
-    local danceButton = makeButton(funPage, "DanceEmote", "💃 DANCE", UDim2.new(0.52, 0, 0, 139), UDim2.new(0.48, -22, 0, 42), false)
-    local spinButton = makeButton(funPage, "SpinCharacter", "🌀 SPIN FOR 2 SECONDS", UDim2.fromOffset(22, 190), UDim2.new(0.48, -8, 0, 42), false)
-    local jumpBoostButton = makeButton(funPage, "JumpBoost", "🚀 JUMP BOOST: OFF", UDim2.new(0.52, 0, 0, 190), UDim2.new(0.48, -22, 0, 42), false)
-    local sparkleButton = makeButton(funPage, "SparkleTrail", "✨ SPARKLE TRAIL: OFF", UDim2.fromOffset(22, 241), UDim2.new(1, -44, 0, 42), false)
-    local fovButton = makeButton(funPage, "WideFOV", "👁 WIDE FOV: OFF", UDim2.fromOffset(22, 292), UDim2.new(1, -44, 0, 42), false)
-    local jumpBoostEnabled = false
-    local wideFovEnabled = false
-    local savedFieldOfView = nil
-    local sparkleAttachment = nil
-    local sparkleEmitter = nil
-    local originalFunJumpPower = nil
-    local originalFunJumpHeight = nil
-    local spinBusy = false
-
-    local function setFunStatus(message, color)
-        funStatus.Text = message
-        funStatus.TextColor3 = color or C.muted
-    end
-
-    confettiButton.Activated:Connect(function()
-        local root = getRoot()
-        if not root then setFunStatus("Your character is not ready.", C.red); return end
-        local attachment = Instance.new("Attachment")
-        attachment.Name = "B1478ConfettiAttachment"
-        attachment.Parent = root
-        local emitter = Instance.new("ParticleEmitter")
-        emitter.Name = "B1478ConfettiBurst"
-        emitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
-        emitter.Rate = 0
-        emitter.Lifetime = NumberRange.new(0.6, 1.4)
-        emitter.Speed = NumberRange.new(8, 16)
-        emitter.SpreadAngle = Vector2.new(180, 180)
-        emitter.Rotation = NumberRange.new(0, 360)
-        emitter.RotSpeed = NumberRange.new(-160, 160)
-        emitter.LightEmission = 0.65
-        emitter.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 90, 120)),
-            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(100, 150, 255)),
-            ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 220, 90)),
-        })
-        emitter.Parent = attachment
-        emitter:Emit(36)
-        game:GetService("Debris"):AddItem(attachment, 2)
-        setFunStatus("Confetti! The effect cleans itself up automatically.", C.green)
-    end)
-
-    danceButton.Activated:Connect(function()
-        local h = getHumanoid()
-        if not h then setFunStatus("Your character is not ready.", C.red); return end
-        local ok, played = pcall(function() return h:PlayEmote("dance") end)
-        if ok and played then setFunStatus("Dance emote started.", C.green)
-        else setFunStatus("Dance emote is unavailable in this experience.", C.yellow) end
-    end)
-
-    spinButton.Activated:Connect(function()
-        local root = getRoot()
-        if not root or spinBusy then return end
-        spinBusy = true
-        local oldAngularVelocity = root.AssemblyAngularVelocity
-        root.AssemblyAngularVelocity = Vector3.new(0, 18, 0)
-        setFunStatus("Spinning for two seconds…", C.green)
-        task.delay(2, function()
-            if root and root.Parent then root.AssemblyAngularVelocity = oldAngularVelocity end
-            spinBusy = false
-            if not destroyed then setFunStatus("Spin finished.") end
-        end)
-    end)
-
-    jumpBoostButton.Activated:Connect(function()
-        local h = getHumanoid()
-        if not h then setFunStatus("Your character is not ready.", C.red); return end
-        jumpBoostEnabled = not jumpBoostEnabled
-        if jumpBoostEnabled then
-            originalFunJumpPower = h.JumpPower
-            originalFunJumpHeight = h.JumpHeight
-            if h.UseJumpPower then h.JumpPower = 100 else h.JumpHeight = 18 end
-            jumpBoostButton.Text = "🚀 JUMP BOOST: ON"
-            jumpBoostButton.BackgroundColor3 = C.green
-            setFunStatus("Jump boost enabled for this character.", C.green)
-        else
-            if h.UseJumpPower and originalFunJumpPower then h.JumpPower = originalFunJumpPower end
-            if not h.UseJumpPower and originalFunJumpHeight then h.JumpHeight = originalFunJumpHeight end
-            jumpBoostButton.Text = "🚀 JUMP BOOST: OFF"
-            jumpBoostButton.BackgroundColor3 = C.panel2
-            setFunStatus("Jump boost disabled.")
-        end
-    end)
-
-    sparkleButton.Activated:Connect(function()
-        if sparkleEmitter then
-            sparkleEmitter.Enabled = false
-            if sparkleAttachment then sparkleAttachment:Destroy() end
-            sparkleAttachment, sparkleEmitter = nil, nil
-            sparkleButton.Text = "✨ SPARKLE TRAIL: OFF"
-            sparkleButton.BackgroundColor3 = C.panel2
-            setFunStatus("Sparkle trail disabled.")
-            return
-        end
-        local root = getRoot()
-        if not root then setFunStatus("Your character is not ready.", C.red); return end
-        sparkleAttachment = Instance.new("Attachment")
-        sparkleAttachment.Name = "B1478SparkleAttachment"
-        sparkleAttachment.Parent = root
-        sparkleEmitter = Instance.new("ParticleEmitter")
-        sparkleEmitter.Name = "B1478SparkleTrail"
-        sparkleEmitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
-        sparkleEmitter.Rate = 8
-        sparkleEmitter.Lifetime = NumberRange.new(0.35, 0.7)
-        sparkleEmitter.Speed = NumberRange.new(0.5, 2)
-        sparkleEmitter.SpreadAngle = Vector2.new(180, 180)
-        sparkleEmitter.LightEmission = 0.8
-        sparkleEmitter.Parent = sparkleAttachment
-        sparkleButton.Text = "✨ SPARKLE TRAIL: ON"
-        sparkleButton.BackgroundColor3 = C.green
-        setFunStatus("Sparkle trail enabled. Toggle it off to clean it up.", C.green)
-    end)
-
-    fovButton.Activated:Connect(function()
-        local camera = workspace.CurrentCamera
-        if not camera then setFunStatus("Camera is not ready.", C.red); return end
-        wideFovEnabled = not wideFovEnabled
-        if wideFovEnabled then
-            savedFieldOfView = camera.FieldOfView
-            camera.FieldOfView = 100
-            fovButton.Text = "👁 WIDE FOV: ON"
-            fovButton.BackgroundColor3 = C.green
-            setFunStatus("Wide field of view enabled.", C.green)
-        else
-            camera.FieldOfView = savedFieldOfView or 70
-            savedFieldOfView = nil
-            fovButton.Text = "👁 WIDE FOV: OFF"
-            fovButton.BackgroundColor3 = C.panel2
-            setFunStatus("Field of view restored.")
-        end
-    end)
-
-    end)
+    -- Fun page intentionally omitted in this build.
 
     __EB1478_safeCall("Options page and keybinds", function()
     makeHeader(optionsPage, "Options & Keybinds", "Click a key button, then press the key you want to use.")
@@ -3450,7 +3303,7 @@ __EB1478_safeCall("Premium pages and extras", function()
     end)
 
     showPage(homePage)
-    print("Premium UI loaded. Added Options/keybinds, Waypoints, Console, BSS, and Fun page.")
+    print("Premium UI loaded. Added Options/keybinds, Waypoints, Console, and BSS. Fun page is disabled in this build.")
 
 end)
 
