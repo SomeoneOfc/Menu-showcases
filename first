@@ -1,12 +1,12 @@
 -- ERRORB1478 MENU - REVIEWED SAFE-LOAD BUILD (NO FUN PAGE)
 -- Install as a LocalScript in StarterPlayer > StarterPlayerScripts.
 -- Do not use loadstring/HttpGet in a normal Studio LocalScript.
--- Diagnostics are F9-only; optional UI add-on blocks are not all individually isolated by __EB1478_safeCall.
+-- Error Monitor is optional and OFF by default; F9 diagnostics remain available. Menu hide/reopen uses slide tweens and remembers its last position.
 -- This prevents an add-on runtime error from stopping the core menu, but it cannot
 -- guarantee all features work without running in the target Roblox experience.
 
 -- SELF-DIAGNOSTIC BUILD NOTES:
--- Adds section context, ScriptContext error reports, and startup checks. Error reporting is F9-only; the on-screen Error Monitor is removed. Fatal top-level errors still stop execution.
+-- Adds section context, ScriptContext error reports, startup checks, an optional Error Monitor (OFF by default), and animated menu slide transitions.
 -- NIL-GUARD AUDIT NOTES:
 -- Optional character parts, humanoids, cameras, user IDs, and tool textures are checked
 -- before use where needed. Some variables intentionally start as nil until a feature is
@@ -95,12 +95,83 @@ end
 
 local __EB1478_seenErrors = __EB1478_seenErrors or {}
 local __EB1478_errorCount = 0
-local function recordClientError(message)
-    __EB1478_errorCount += 1
-    warn("[ErrorB1478Menu][F9] Client error #" .. tostring(__EB1478_errorCount) .. ": " .. tostring(message or "Unknown client error"))
+local __EB1478_errorLines = {}
+local errorMonitorEnabled = false -- OFF by default; can be enabled in Options.
+local errorMonitorGui, errorMonitorFrame, errorMonitorText
+
+local function buildErrorMonitor()
+    if errorMonitorGui and errorMonitorGui.Parent then return end
+    errorMonitorGui = Instance.new("ScreenGui")
+    errorMonitorGui.Name = "ErrorB1478ErrorMonitor"
+    errorMonitorGui.ResetOnSpawn = false
+    errorMonitorGui.IgnoreGuiInset = true
+    errorMonitorGui.Enabled = false
+    errorMonitorGui.Parent = playerGui
+
+    errorMonitorFrame = Instance.new("Frame")
+    errorMonitorFrame.Name = "MonitorPanel"
+    errorMonitorFrame.AnchorPoint = Vector2.new(1, 0)
+    errorMonitorFrame.Position = UDim2.new(1, -16, 0, 80)
+    errorMonitorFrame.Size = UDim2.fromOffset(360, 210)
+    errorMonitorFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
+    errorMonitorFrame.BorderSizePixel = 0
+    errorMonitorFrame.Parent = errorMonitorGui
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 10)
+    corner.Parent = errorMonitorFrame
+
+    local heading = Instance.new("TextLabel")
+    heading.Name = "Heading"
+    heading.BackgroundTransparency = 1
+    heading.Position = UDim2.fromOffset(12, 8)
+    heading.Size = UDim2.new(1, -24, 0, 24)
+    heading.Font = Enum.Font.GothamBold
+    heading.Text = "Error Monitor"
+    heading.TextColor3 = Color3.fromRGB(245, 110, 110)
+    heading.TextSize = 14
+    heading.TextXAlignment = Enum.TextXAlignment.Left
+    heading.Parent = errorMonitorFrame
+
+    errorMonitorText = Instance.new("TextLabel")
+    errorMonitorText.Name = "RecentErrors"
+    errorMonitorText.BackgroundTransparency = 1
+    errorMonitorText.Position = UDim2.fromOffset(12, 36)
+    errorMonitorText.Size = UDim2.new(1, -24, 1, -46)
+    errorMonitorText.Font = Enum.Font.Code
+    errorMonitorText.Text = "No errors captured yet."
+    errorMonitorText.TextColor3 = Color3.fromRGB(225, 225, 232)
+    errorMonitorText.TextSize = 11
+    errorMonitorText.TextWrapped = true
+    errorMonitorText.TextXAlignment = Enum.TextXAlignment.Left
+    errorMonitorText.TextYAlignment = Enum.TextYAlignment.Top
+    errorMonitorText.Parent = errorMonitorFrame
 end
 
-print("[ErrorB1478Menu][F9] Diagnostics active. Press F9 and select Client to view errors. No on-screen error tab will be shown.")
+local function setErrorMonitorEnabled(enabled)
+    errorMonitorEnabled = enabled == true
+    if errorMonitorEnabled then
+        buildErrorMonitor()
+        errorMonitorGui.Enabled = true
+    elseif errorMonitorGui and errorMonitorGui.Parent then
+        errorMonitorGui.Enabled = false
+    end
+end
+
+local function recordClientError(message)
+    __EB1478_errorCount += 1
+    local line = "#" .. tostring(__EB1478_errorCount) .. ": " .. tostring(message or "Unknown client error")
+    table.insert(__EB1478_errorLines, line)
+    while #__EB1478_errorLines > 7 do table.remove(__EB1478_errorLines, 1) end
+    warn("[ErrorB1478Menu][F9] Client error " .. line)
+    if errorMonitorEnabled then
+        buildErrorMonitor()
+        if errorMonitorText then
+            errorMonitorText.Text = table.concat(__EB1478_errorLines, "\n")
+        end
+    end
+end
+
+print("[ErrorB1478Menu][F9] Diagnostics active. Press F9 and select Client to view errors. Optional Error Monitor is OFF by default.")
 LogService.MessageOut:Connect(function(message, messageType)
     if messageType == Enum.MessageType.MessageError then
         recordClientError(message)
@@ -1929,23 +2000,64 @@ local refreshOptionsLabels = nil
 local floatingToggleEnabled = true
 local floatingToggleButton = nil
 
-local savedMenuPosition = UDim2.fromScale(0.5, 0.5)
-local offscreenMenuPosition = UDim2.new(2, 0, 2, 0)
+local TweenService = game:GetService("TweenService")
+local savedMenuPosition = main.Position -- Preserve the last user-selected/draggable position.
+local menuTween = nil
+local menuTransitionId = 0
+local menuSlideDuration = 0.32
 
 main.AnchorPoint = Vector2.new(0.5, 0.5)
 main.Position = savedMenuPosition
 
+local function getMenuOffscreenRightPosition()
+    local camera = workspace.CurrentCamera
+    local viewport = camera and camera.ViewportSize or Vector2.new(1280, 720)
+    return UDim2.new(0, viewport.X + math.floor(main.AbsoluteSize.X / 2) + 24, savedMenuPosition.Y.Scale, savedMenuPosition.Y.Offset)
+end
+
+local function getMenuOffscreenLeftPosition()
+    return UDim2.new(0, -math.floor(main.AbsoluteSize.X / 2) - 24, savedMenuPosition.Y.Scale, savedMenuPosition.Y.Offset)
+end
+
 local function setMenuVisible(visible)
     if destroyed or not gui or not gui.Parent then return end
+    if visible == menuOpen and not (visible and not main.Visible) then return end
+
+    menuTransitionId += 1
+    local thisTransition = menuTransitionId
+    if menuTween then
+        pcall(function() menuTween:Cancel() end)
+        menuTween = nil
+    end
 
     gui.Enabled = true
     menuOpen = visible
-    main.Visible = true
+
     if visible then
-        main.Position = savedMenuPosition
+        -- Start just beyond the left edge, then glide back to the remembered position.
+        main.Visible = true
+        main.Position = getMenuOffscreenLeftPosition()
+        local targetPosition = savedMenuPosition
+        menuTween = TweenService:Create(main, TweenInfo.new(menuSlideDuration, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Position = targetPosition})
+        menuTween:Play()
+        menuTween.Completed:Connect(function()
+            if thisTransition ~= menuTransitionId then return end
+            main.Position = targetPosition
+            menuTween = nil
+        end)
     else
+        -- Save the current position before sliding out to the right; never teleport/hide instantly.
         savedMenuPosition = main.Position
-        main.Position = offscreenMenuPosition
+        local targetPosition = getMenuOffscreenRightPosition()
+        menuTween = TweenService:Create(main, TweenInfo.new(menuSlideDuration, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {Position = targetPosition})
+        menuTween:Play()
+        menuTween.Completed:Connect(function(playbackState)
+            if thisTransition ~= menuTransitionId then return end
+            if playbackState == Enum.PlaybackState.Completed then
+                main.Visible = false
+            end
+            menuTween = nil
+        end)
     end
 
     if floatingToggleButton and floatingToggleButton.Parent then
@@ -1953,7 +2065,7 @@ local function setMenuVisible(visible)
     end
 
     if visible and refreshFolders then
-        refreshFolders()
+        pcall(refreshFolders)
     end
 end
 
@@ -2274,13 +2386,9 @@ end
 
 showPage(homePage)
 
-main.Visible = true
 main.AnchorPoint = Vector2.new(0.5, 0.5)
-if menuOpen then
-    main.Position = savedMenuPosition
-else
-    main.Position = offscreenMenuPosition
-end
+main.Position = savedMenuPosition
+main.Visible = menuOpen
 
 --==================================================
 -- FINAL SAFETY CHECK
@@ -2797,6 +2905,12 @@ __EB1478_safeCall("Premium pages and extras", function()
         floatingButtonSetting.Text = "Floating toggle: " .. (floatingToggleEnabled and "ON" or "OFF")
         optionsStatus.Text = floatingToggleEnabled and "Floating UI toggle is visible." or "Floating UI toggle is hidden. Use the Menu keybind to reopen the menu."
     end)
+    local errorMonitorSetting = makeButton(optionsPage, "ErrorMonitorSetting", "Error Monitor: OFF", UDim2.fromOffset(22, 401), UDim2.new(1, -44, 0, 36), true)
+    errorMonitorSetting.Activated:Connect(function()
+        setErrorMonitorEnabled(not errorMonitorEnabled)
+        errorMonitorSetting.Text = "Error Monitor: " .. (errorMonitorEnabled and "ON" or "OFF")
+        optionsStatus.Text = errorMonitorEnabled and "Error Monitor enabled. Turn it off here to remove the panel." or "Error Monitor disabled; F9 diagnostics remain available."
+    end)
     refreshOptionsLabels = function()
         menuKeyButton.Text = "KEY: " .. menuToggleKey.Name
         flyKeyButton.Text = "KEY: " .. flyToggleKey.Name
@@ -2804,6 +2918,7 @@ __EB1478_safeCall("Premium pages and extras", function()
         jumpKeyButton.Text = "KEY: " .. jumpToggleKey.Name
         espKeyButton.Text = "KEY: " .. espToggleKey.Name
         floatingButtonSetting.Text = "Floating toggle: " .. (floatingToggleEnabled and "ON" or "OFF")
+        errorMonitorSetting.Text = "Error Monitor: " .. (errorMonitorEnabled and "ON" or "OFF")
     end
     refreshOptionsLabels()
 
@@ -3188,10 +3303,12 @@ __EB1478_safeCall("Premium pages and extras", function()
             local viewport = camera.ViewportSize
             scale.Scale = math.clamp(math.min(viewport.X / 850, viewport.Y / 760, 1), 0.62, 1)
             main.AnchorPoint = Vector2.new(0.5, 0.5)
-            if menuOpen then
-                main.Position = savedMenuPosition
-            else
-                main.Position = offscreenMenuPosition
+            if not menuTween then
+                if menuOpen then
+                    main.Position = savedMenuPosition
+                else
+                    main.Position = getMenuOffscreenRightPosition()
+                end
             end
         end
         resizeMenu()
