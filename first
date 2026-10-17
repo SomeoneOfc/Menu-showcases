@@ -93,6 +93,8 @@ end
 -- GUI
 --==================================================
 
+-- KEEP-LOADED RULE: this ScreenGui is created once and is not destroyed when hidden.
+-- ResetOnSpawn=false keeps it alive across character respawns.
 local gui = Instance.new("ScreenGui")
 gui.Name = "ErrorB1478Menu"
 gui.ResetOnSpawn = false
@@ -1797,6 +1799,19 @@ local refreshOptionsLabels = nil
 local floatingToggleEnabled = true
 local floatingToggleButton = nil
 
+-- HIDE/SHOW WITHOUT DESTROYING THE GUI.
+-- This preserves the current page, controls, settings, and UI state and avoids
+-- rebuilding the interface each time it is toggled. Only the explicit Panic
+-- action below performs a full cleanup/deletion.
+local function setMenuVisible(visible)
+    if destroyed or not gui or not gui.Parent then return end
+    menuOpen = visible
+    main.Visible = visible
+    if visible then
+        refreshFolders()
+    end
+end
+
 local inputConnection = UserInputService.InputBegan:Connect(
     function(input, processed)
         if destroyed then return end
@@ -1817,9 +1832,7 @@ local inputConnection = UserInputService.InputBegan:Connect(
         if processed then return end
 
         if input.KeyCode == menuToggleKey then
-            menuOpen = not menuOpen
-            main.Visible = menuOpen
-            if menuOpen then refreshFolders() end
+            setMenuVisible(not menuOpen)
         elseif input.KeyCode == flyToggleKey then
             if flying then stopFly() else startFly() end
         elseif input.KeyCode == noclipToggleKey then
@@ -2084,8 +2097,7 @@ minimizeButton.MouseButton1Click:Connect(
             return
         end
 
-        menuOpen = false
-        main.Visible = false
+        setMenuVisible(false)
     end
 )
 
@@ -2124,8 +2136,8 @@ end
 
 showPage(homePage)
 
-main.Visible =
-    menuOpen
+-- Initial state only; subsequent hiding uses setMenuVisible and never destroys the GUI.
+main.Visible = menuOpen
 
 --==================================================
 -- FINAL SAFETY CHECK
@@ -2669,9 +2681,7 @@ do
     floatingToggleButton.ZIndex = 100
     floatingToggleButton.Visible = floatingToggleEnabled
     floatingToggleButton.Activated:Connect(function()
-        menuOpen = not menuOpen
-        main.Visible = menuOpen
-        if menuOpen then refreshFolders() end
+        setMenuVisible(not menuOpen)
     end)
     do
         local dragging, dragStart, startPos = false, nil, nil
