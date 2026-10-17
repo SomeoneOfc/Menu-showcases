@@ -2,8 +2,7 @@
 -- Place in StarterPlayer > StarterPlayerScripts.
 -- This creates a client-side movement/finder menu for your own experience.
 -- Note: client-only movement changes are not secure server-authoritative game mechanics.
--- Performance: noclip is event-driven (not scanned every frame), and ESP inventory
--- refreshes are throttled to once per second. Actual performance still depends on the game/device.
+-- Performance: UI toggling moves the menu off-screen without rebuilding it. Noclip is enforced only while active; ESP refresh is throttled. Zero lag cannot be guaranteed on every device/game.
 
 --==================================================
 -- Combined script
@@ -27,6 +26,9 @@ local menuOpen = true
 local flying = false
 local noclip = false
 local noclipDescendantConnection = nil
+local noclipEnforceConnection = nil
+local noclipOriginalCanCollide = {}
+local noclipCharacter = nil
 local infiniteJump = false
 
 local currentFlySpeed = 70
@@ -707,11 +709,13 @@ end
 local function setNoclip(enabled)
     noclip = enabled
 
-    -- Keep only one DescendantAdded listener. Noclip no longer scans the
-    -- entire character every frame, which was a significant avoidable cost.
     if noclipDescendantConnection then
         noclipDescendantConnection:Disconnect()
         noclipDescendantConnection = nil
+    end
+    if noclipEnforceConnection then
+        noclipEnforceConnection:Disconnect()
+        noclipEnforceConnection = nil
     end
 
     local character = getCharacter()
@@ -720,25 +724,54 @@ local function setNoclip(enabled)
         return
     end
 
-    if enabled then
-        -- One scan when enabling, then only handle newly added parts.
-        for _, object in ipairs(character:GetDescendants()) do
-            if object:IsA("BasePart") then
-                object.CanCollide = false
+    -- Keep collision values from the current character only, so disabling
+    -- noclip restores the game's original CanCollide settings instead of
+    -- incorrectly forcing every part to collide.
+    if noclipCharacter ~= character then
+        noclipOriginalCanCollide = {}
+        noclipCharacter = character
+    end
+
+    local function disablePartCollision(object)
+        if object:IsA("BasePart") then
+            if noclipOriginalCanCollide[object] == nil then
+                noclipOriginalCanCollide[object] = object.CanCollide
             end
+            object.CanCollide = false
         end
+    end
+
+    if enabled then
+        for _, object in ipairs(character:GetDescendants()) do
+            disablePartCollision(object)
+        end
+
         noclipDescendantConnection = character.DescendantAdded:Connect(function(object)
-            if noclip and not destroyed and object:IsA("BasePart") then
-                object.CanCollide = false
+            if noclip and not destroyed then
+                disablePartCollision(object)
+            end
+        end)
+
+        -- Enforce only while noclip is active. This handles other local scripts
+        -- that repeatedly set CanCollide back to true. It is a small character-only
+        -- scan, not a scan of the whole Workspace.
+        noclipEnforceConnection = RunService.Stepped:Connect(function()
+            if destroyed or not noclip then return end
+            local activeCharacter = getCharacter()
+            if activeCharacter ~= character then return end
+            for _, object in ipairs(character:GetDescendants()) do
+                if object:IsA("BasePart") and object.CanCollide then
+                    disablePartCollision(object)
+                end
             end
         end)
     else
-        -- Restore collisions once when disabling; no per-frame work remains.
-        for _, object in ipairs(character:GetDescendants()) do
-            if object:IsA("BasePart") then
-                object.CanCollide = true
+        for object, originalValue in pairs(noclipOriginalCanCollide) do
+            if object and object.Parent and object:IsA("BasePart") then
+                object.CanCollide = originalValue
             end
         end
+        noclipOriginalCanCollide = {}
     end
 
     setNoclipButtonState()
@@ -2010,10 +2043,18 @@ local function panic()
         noclipDescendantConnection:Disconnect()
         noclipDescendantConnection = nil
     end
+    if noclipEnforceConnection then
+        noclipEnforceConnection:Disconnect()
+        noclipEnforceConnection = nil
+    end
 
-    -- Disable custom movement.
+    -- Disable custom movement and restore collision values before cleanup.
     flying = false
-    noclip = false
+    if noclip then
+        setNoclip(false)
+    else
+        noclip = false
+    end
     infiniteJump = false
 
     -- Remove fly objects.
@@ -2594,14 +2635,16 @@ do
     local consolePage = makePage("ConsolePage")
     local bssPage = makePage("BSSPage")
     local optionsPage = makePage("OptionsPage")
+    local funPage = makePage("FunPage")
 
-    -- Keep OPTIONS directly in the main PAGES list, immediately after Finder.
+    -- Keep all pages in the sidebar and add the new FUN page.
     local optionsTab = makeTab("OptionsTab", "⚙  OPTIONS", 184)
     local waypointsTab = makeTab("WaypointsTab", "WAYPOINTS", 228)
     local consoleTab = makeTab("ConsoleTab", "CONSOLE", 272)
     local bssTab = makeTab("BSSTab", "BSS", 316)
+    local funTab = makeTab("FunTab", "✨  FUN", 360)
 
-    local allTabs = {homeButton, movementTabButton, finderTabButton, waypointsTab, consoleTab, bssTab, optionsTab}
+    local allTabs = {homeButton, movementTabButton, finderTabButton, waypointsTab, consoleTab, bssTab, optionsTab, funTab}
     local function highlightTab(active)
         for _, tab in ipairs(allTabs) do
             if tab then
@@ -2632,6 +2675,7 @@ do
         consolePage.Visible = false
         bssPage.Visible = false
         optionsPage.Visible = false
+        funPage.Visible = false
         previousShowPage(page)
         if page == waypointsPage then
             waypointsPage.Visible = true
@@ -2645,6 +2689,9 @@ do
         elseif page == optionsPage then
             optionsPage.Visible = true
             highlightTab(optionsTab)
+        elseif page == funPage then
+            funPage.Visible = true
+            highlightTab(funTab)
         elseif page == homePage then
             highlightTab(homeButton)
         elseif page == movementPage then
@@ -2661,6 +2708,147 @@ do
     consoleTab.Activated:Connect(function() showPage(consolePage) end)
     bssTab.Activated:Connect(function() showPage(bssPage) end)
     optionsTab.Activated:Connect(function() showPage(optionsPage) end)
+    funTab.Activated:Connect(function() showPage(funPage) end)
+
+    -- FUN PAGE: lightweight, temporary local visual effects and character actions.
+    makeHeader(funPage, "Fun Zone", "Small, temporary effects. Effects clean themselves up and do not run forever.")
+    local funStatus = makeLabel(funPage, "FunStatus", "Choose a fun effect below.", UDim2.fromOffset(22, 101), UDim2.new(1, -44, 0, 28), 11, C.muted, false)
+    local confettiButton = makeButton(funPage, "ConfettiBurst", "🎉 CONFETTI BURST", UDim2.fromOffset(22, 139), UDim2.new(0.48, -8, 0, 42), true)
+    local danceButton = makeButton(funPage, "DanceEmote", "💃 DANCE", UDim2.new(0.52, 0, 0, 139), UDim2.new(0.48, -22, 0, 42), false)
+    local spinButton = makeButton(funPage, "SpinCharacter", "🌀 SPIN FOR 2 SECONDS", UDim2.fromOffset(22, 190), UDim2.new(0.48, -8, 0, 42), false)
+    local jumpBoostButton = makeButton(funPage, "JumpBoost", "🚀 JUMP BOOST: OFF", UDim2.new(0.52, 0, 0, 190), UDim2.new(0.48, -22, 0, 42), false)
+    local sparkleButton = makeButton(funPage, "SparkleTrail", "✨ SPARKLE TRAIL: OFF", UDim2.fromOffset(22, 241), UDim2.new(1, -44, 0, 42), false)
+    local fovButton = makeButton(funPage, "WideFOV", "👁 WIDE FOV: OFF", UDim2.fromOffset(22, 292), UDim2.new(1, -44, 0, 42), false)
+    local jumpBoostEnabled = false
+    local wideFovEnabled = false
+    local savedFieldOfView = nil
+    local sparkleAttachment = nil
+    local sparkleEmitter = nil
+    local originalFunJumpPower = nil
+    local originalFunJumpHeight = nil
+    local spinBusy = false
+
+    local function setFunStatus(message, color)
+        funStatus.Text = message
+        funStatus.TextColor3 = color or C.muted
+    end
+
+    confettiButton.Activated:Connect(function()
+        local root = getRoot()
+        if not root then setFunStatus("Your character is not ready.", C.red); return end
+        local attachment = Instance.new("Attachment")
+        attachment.Name = "B1478ConfettiAttachment"
+        attachment.Parent = root
+        local emitter = Instance.new("ParticleEmitter")
+        emitter.Name = "B1478ConfettiBurst"
+        emitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+        emitter.Rate = 0
+        emitter.Lifetime = NumberRange.new(0.6, 1.4)
+        emitter.Speed = NumberRange.new(8, 16)
+        emitter.SpreadAngle = Vector2.new(180, 180)
+        emitter.Rotation = NumberRange.new(0, 360)
+        emitter.RotSpeed = NumberRange.new(-160, 160)
+        emitter.LightEmission = 0.65
+        emitter.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 90, 120)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(100, 150, 255)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 220, 90)),
+        })
+        emitter.Parent = attachment
+        emitter:Emit(36)
+        game:GetService("Debris"):AddItem(attachment, 2)
+        setFunStatus("Confetti! The effect cleans itself up automatically.", C.green)
+    end)
+
+    danceButton.Activated:Connect(function()
+        local h = getHumanoid()
+        if not h then setFunStatus("Your character is not ready.", C.red); return end
+        local ok, played = pcall(function() return h:PlayEmote("dance") end)
+        if ok and played then setFunStatus("Dance emote started.", C.green)
+        else setFunStatus("Dance emote is unavailable in this experience.", C.yellow) end
+    end)
+
+    spinButton.Activated:Connect(function()
+        local root = getRoot()
+        if not root or spinBusy then return end
+        spinBusy = true
+        local oldAngularVelocity = root.AssemblyAngularVelocity
+        root.AssemblyAngularVelocity = Vector3.new(0, 18, 0)
+        setFunStatus("Spinning for two seconds…", C.green)
+        task.delay(2, function()
+            if root and root.Parent then root.AssemblyAngularVelocity = oldAngularVelocity end
+            spinBusy = false
+            if not destroyed then setFunStatus("Spin finished.") end
+        end)
+    end)
+
+    jumpBoostButton.Activated:Connect(function()
+        local h = getHumanoid()
+        if not h then setFunStatus("Your character is not ready.", C.red); return end
+        jumpBoostEnabled = not jumpBoostEnabled
+        if jumpBoostEnabled then
+            originalFunJumpPower = h.JumpPower
+            originalFunJumpHeight = h.JumpHeight
+            if h.UseJumpPower then h.JumpPower = 100 else h.JumpHeight = 18 end
+            jumpBoostButton.Text = "🚀 JUMP BOOST: ON"
+            jumpBoostButton.BackgroundColor3 = C.green
+            setFunStatus("Jump boost enabled for this character.", C.green)
+        else
+            if h.UseJumpPower and originalFunJumpPower then h.JumpPower = originalFunJumpPower end
+            if not h.UseJumpPower and originalFunJumpHeight then h.JumpHeight = originalFunJumpHeight end
+            jumpBoostButton.Text = "🚀 JUMP BOOST: OFF"
+            jumpBoostButton.BackgroundColor3 = C.panel2
+            setFunStatus("Jump boost disabled.")
+        end
+    end)
+
+    sparkleButton.Activated:Connect(function()
+        if sparkleEmitter then
+            sparkleEmitter.Enabled = false
+            if sparkleAttachment then sparkleAttachment:Destroy() end
+            sparkleAttachment, sparkleEmitter = nil, nil
+            sparkleButton.Text = "✨ SPARKLE TRAIL: OFF"
+            sparkleButton.BackgroundColor3 = C.panel2
+            setFunStatus("Sparkle trail disabled.")
+            return
+        end
+        local root = getRoot()
+        if not root then setFunStatus("Your character is not ready.", C.red); return end
+        sparkleAttachment = Instance.new("Attachment")
+        sparkleAttachment.Name = "B1478SparkleAttachment"
+        sparkleAttachment.Parent = root
+        sparkleEmitter = Instance.new("ParticleEmitter")
+        sparkleEmitter.Name = "B1478SparkleTrail"
+        sparkleEmitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+        sparkleEmitter.Rate = 8
+        sparkleEmitter.Lifetime = NumberRange.new(0.35, 0.7)
+        sparkleEmitter.Speed = NumberRange.new(0.5, 2)
+        sparkleEmitter.SpreadAngle = Vector2.new(180, 180)
+        sparkleEmitter.LightEmission = 0.8
+        sparkleEmitter.Parent = sparkleAttachment
+        sparkleButton.Text = "✨ SPARKLE TRAIL: ON"
+        sparkleButton.BackgroundColor3 = C.green
+        setFunStatus("Sparkle trail enabled. Toggle it off to clean it up.", C.green)
+    end)
+
+    fovButton.Activated:Connect(function()
+        local camera = workspace.CurrentCamera
+        if not camera then setFunStatus("Camera is not ready.", C.red); return end
+        wideFovEnabled = not wideFovEnabled
+        if wideFovEnabled then
+            savedFieldOfView = camera.FieldOfView
+            camera.FieldOfView = 100
+            fovButton.Text = "👁 WIDE FOV: ON"
+            fovButton.BackgroundColor3 = C.green
+            setFunStatus("Wide field of view enabled.", C.green)
+        else
+            camera.FieldOfView = savedFieldOfView or 70
+            savedFieldOfView = nil
+            fovButton.Text = "👁 WIDE FOV: OFF"
+            fovButton.BackgroundColor3 = C.panel2
+            setFunStatus("Field of view restored.")
+        end
+    end)
 
     -- OPTIONS PAGE: configurable keys and floating UI toggle.
     makeHeader(optionsPage, "Options & Keybinds", "Click a key button, then press the key you want to use.")
@@ -3086,5 +3274,5 @@ do
     end
 
     showPage(homePage)
-    print("Premium UI loaded. Added Options/keybinds directly to the Pages list, floating UI toggle, Waypoints, Console, and BSS HiddenStickers teleports.")
+    print("Premium UI loaded. Added Options/keybinds, Waypoints, Console, BSS, and Fun page.")
 end
