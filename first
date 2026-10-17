@@ -2366,3 +2366,582 @@ do
 
     print("UI Upgrade loaded: modern theme, hover effects, and responsive scaling enabled.")
 end
+
+--==================================================
+-- PREMIUM UI ADD-ON: WAYPOINTS, CONSOLE, AND BSS
+-- This section must remain in the SAME LocalScript as the menu above.
+-- BSS page searches workspace.HiddenSticker and provides one-click teleports.
+--==================================================
+
+do
+    local TweenService = game:GetService("TweenService")
+    local LogService = game:GetService("LogService")
+
+    local C = {
+        background = Color3.fromRGB(13, 17, 27),
+        panel = Color3.fromRGB(23, 30, 44),
+        panel2 = Color3.fromRGB(31, 41, 60),
+        accent = Color3.fromRGB(100, 139, 255),
+        accentLight = Color3.fromRGB(139, 166, 255),
+        text = Color3.fromRGB(240, 244, 255),
+        muted = Color3.fromRGB(157, 171, 197),
+        border = Color3.fromRGB(57, 74, 106),
+        green = Color3.fromRGB(91, 222, 160),
+        yellow = Color3.fromRGB(255, 199, 102),
+        red = Color3.fromRGB(255, 111, 126),
+    }
+
+    local function addCorner(parent, radius)
+        local existing = parent:FindFirstChildOfClass("UICorner")
+        if not existing then
+            existing = Instance.new("UICorner")
+            existing.CornerRadius = UDim.new(0, radius or 10)
+            existing.Parent = parent
+        end
+        return existing
+    end
+
+    local function addOutline(parent, color, transparency)
+        local outline = parent:FindFirstChildOfClass("UIStroke")
+        if not outline then
+            outline = Instance.new("UIStroke")
+            outline.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+            outline.Parent = parent
+        end
+        outline.Color = color or C.border
+        outline.Transparency = transparency == nil and 0.35 or transparency
+        outline.Thickness = 1
+        return outline
+    end
+
+    local function makeLabel(parent, name, text, position, size, textSize, color, bold)
+        local label = Instance.new("TextLabel")
+        label.Name = name
+        label.BackgroundTransparency = 1
+        label.Position = position
+        label.Size = size
+        label.Text = text
+        label.TextColor3 = color or C.text
+        label.TextSize = textSize or 12
+        label.Font = bold and Enum.Font.GothamBold or Enum.Font.Gotham
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.TextYAlignment = Enum.TextYAlignment.Center
+        label.TextWrapped = true
+        label.Parent = parent
+        return label
+    end
+
+    -- Shared button factory: all new buttons have the same shape, font, outline and hover.
+    local function makeButton(parent, name, text, position, size, primary)
+        local button = Instance.new("TextButton")
+        button.Name = name
+        button.Position = position
+        button.Size = size
+        button.BackgroundColor3 = primary and C.accent or C.panel2
+        button.BorderSizePixel = 0
+        button.AutoButtonColor = false
+        button.Text = text
+        button.TextColor3 = C.text
+        button.TextSize = 12
+        button.Font = Enum.Font.GothamSemibold
+        button.TextWrapped = true
+        button.Parent = parent
+        addCorner(button, 9)
+        addOutline(button, primary and C.accentLight or C.border, 0.3)
+        local baseColor = button.BackgroundColor3
+        button.MouseEnter:Connect(function()
+            if button.Parent then
+                TweenService:Create(button, TweenInfo.new(0.12), {
+                    BackgroundColor3 = primary and C.accentLight or Color3.fromRGB(46, 59, 83)
+                }):Play()
+            end
+        end)
+        button.MouseLeave:Connect(function()
+            if button.Parent then
+                TweenService:Create(button, TweenInfo.new(0.12), {BackgroundColor3 = baseColor}):Play()
+            end
+        end)
+        return button
+    end
+
+    local function makePage(name)
+        local page = Instance.new("Frame")
+        page.Name = name
+        page.Size = UDim2.fromScale(1, 1)
+        page.BackgroundTransparency = 1
+        page.Visible = false
+        page.Parent = content
+        return page
+    end
+
+    local function makeHeader(page, titleText, subtitle)
+        local card = Instance.new("Frame")
+        card.Name = "PageHero"
+        card.Position = UDim2.fromOffset(18, 16)
+        card.Size = UDim2.new(1, -36, 0, 78)
+        card.BackgroundColor3 = C.panel
+        card.BorderSizePixel = 0
+        card.Parent = page
+        addCorner(card, 12)
+        addOutline(card, C.border, 0.25)
+
+        local accentBar = Instance.new("Frame")
+        accentBar.Name = "AccentBar"
+        accentBar.Position = UDim2.fromOffset(0, 13)
+        accentBar.Size = UDim2.new(0, 4, 1, -26)
+        accentBar.BackgroundColor3 = C.accent
+        accentBar.BorderSizePixel = 0
+        accentBar.Parent = card
+        addCorner(accentBar, 2)
+
+        makeLabel(card, "HeroTitle", titleText, UDim2.fromOffset(17, 10), UDim2.new(1, -30, 0, 29), 20, C.text, true)
+        makeLabel(card, "HeroSubtitle", subtitle, UDim2.fromOffset(18, 42), UDim2.new(1, -32, 0, 25), 11, C.muted, false)
+    end
+
+    local function makeTab(name, text, y)
+        local button = Instance.new("TextButton")
+        button.Name = name
+        button.Position = UDim2.fromOffset(10, y)
+        button.Size = UDim2.new(1, -20, 0, 38)
+        button.BackgroundColor3 = C.panel
+        button.BorderSizePixel = 0
+        button.AutoButtonColor = false
+        button.Text = "    " .. text
+        button.TextColor3 = C.muted
+        button.TextSize = 12
+        button.Font = Enum.Font.GothamSemibold
+        button.TextXAlignment = Enum.TextXAlignment.Left
+        button.Parent = sidebar
+        addCorner(button, 9)
+        addOutline(button, C.border, 0.72)
+        button.MouseEnter:Connect(function()
+            if button.Parent and not button:GetAttribute("ActiveTab") then
+                TweenService:Create(button, TweenInfo.new(0.12), {BackgroundColor3 = C.panel2, TextColor3 = C.text}):Play()
+            end
+        end)
+        button.MouseLeave:Connect(function()
+            if button.Parent and not button:GetAttribute("ActiveTab") then
+                TweenService:Create(button, TweenInfo.new(0.12), {BackgroundColor3 = C.panel, TextColor3 = C.muted}):Play()
+            end
+        end)
+        return button
+    end
+
+    -- Keep the original three tabs but normalize their appearance and spacing.
+    local function restyleTab(button, text, y)
+        if not button then return end
+        button.Position = UDim2.fromOffset(10, y)
+        button.Size = UDim2.new(1, -20, 0, 38)
+        button.Text = "    " .. text
+        button.TextXAlignment = Enum.TextXAlignment.Left
+        button.TextSize = 12
+        button.Font = Enum.Font.GothamSemibold
+        button.AutoButtonColor = false
+        button.BackgroundColor3 = C.panel
+        button.TextColor3 = C.muted
+        addCorner(button, 9)
+        addOutline(button, C.border, 0.72)
+        button.MouseEnter:Connect(function()
+            if button.Parent and not button:GetAttribute("ActiveTab") then
+                TweenService:Create(button, TweenInfo.new(0.12), {BackgroundColor3 = C.panel2, TextColor3 = C.text}):Play()
+            end
+        end)
+        button.MouseLeave:Connect(function()
+            if button.Parent and not button:GetAttribute("ActiveTab") then
+                TweenService:Create(button, TweenInfo.new(0.12), {BackgroundColor3 = C.panel, TextColor3 = C.muted}):Play()
+            end
+        end)
+    end
+
+    restyleTab(homeButton, "HOME", 52)
+    restyleTab(movementTabButton, "MOVEMENT", 96)
+    restyleTab(finderTabButton, "FINDER", 140)
+
+    local waypointsPage = makePage("WaypointsPage")
+    local consolePage = makePage("ConsolePage")
+    local bssPage = makePage("BSSPage")
+
+    local waypointsTab = makeTab("WaypointsTab", "WAYPOINTS", 184)
+    local consoleTab = makeTab("ConsoleTab", "CONSOLE", 228)
+    local bssTab = makeTab("BSSTab", "BSS", 272)
+
+    local allTabs = {homeButton, movementTabButton, finderTabButton, waypointsTab, consoleTab, bssTab}
+    local function highlightTab(active)
+        for _, tab in ipairs(allTabs) do
+            if tab then
+                local isActive = tab == active
+                tab:SetAttribute("ActiveTab", isActive)
+                tab.BackgroundColor3 = isActive and Color3.fromRGB(42, 59, 92) or C.panel
+                tab.TextColor3 = isActive and C.accentLight or C.muted
+                local marker = tab:FindFirstChild("ActiveMarker")
+                if isActive and not marker then
+                    marker = Instance.new("Frame")
+                    marker.Name = "ActiveMarker"
+                    marker.Size = UDim2.new(0, 3, 1, -12)
+                    marker.Position = UDim2.fromOffset(0, 6)
+                    marker.BackgroundColor3 = C.accent
+                    marker.BorderSizePixel = 0
+                    marker.Parent = tab
+                    addCorner(marker, 2)
+                elseif not isActive and marker then
+                    marker:Destroy()
+                end
+            end
+        end
+    end
+
+    local previousShowPage = showPage
+    showPage = function(page)
+        waypointsPage.Visible = false
+        consolePage.Visible = false
+        bssPage.Visible = false
+        previousShowPage(page)
+        if page == waypointsPage then
+            waypointsPage.Visible = true
+            highlightTab(waypointsTab)
+        elseif page == consolePage then
+            consolePage.Visible = true
+            highlightTab(consoleTab)
+        elseif page == bssPage then
+            bssPage.Visible = true
+            highlightTab(bssTab)
+        elseif page == homePage then
+            highlightTab(homeButton)
+        elseif page == movementPage then
+            highlightTab(movementTabButton)
+        elseif page == finderPage then
+            highlightTab(finderTabButton)
+        end
+    end
+
+    homeButton.Activated:Connect(function() showPage(homePage) end)
+    movementTabButton.Activated:Connect(function() showPage(movementPage) end)
+    finderTabButton.Activated:Connect(function() showPage(finderPage) end)
+    waypointsTab.Activated:Connect(function() showPage(waypointsPage) end)
+    consoleTab.Activated:Connect(function() showPage(consolePage) end)
+    bssTab.Activated:Connect(function() showPage(bssPage) end)
+
+    -- WAYPOINTS PAGE
+    makeHeader(waypointsPage, "Waypoints", "Save a position, name it, and return to it with one click.")
+    local waypointName = Instance.new("TextBox")
+    waypointName.Name = "WaypointNameInput"
+    waypointName.Position = UDim2.fromOffset(20, 108)
+    waypointName.Size = UDim2.new(1, -145, 0, 38)
+    waypointName.BackgroundColor3 = C.background
+    waypointName.BorderSizePixel = 0
+    waypointName.Text = ""
+    waypointName.PlaceholderText = "Waypoint name (optional)"
+    waypointName.PlaceholderColor3 = C.muted
+    waypointName.TextColor3 = C.text
+    waypointName.TextSize = 12
+    waypointName.Font = Enum.Font.Gotham
+    waypointName.ClearTextOnFocus = false
+    waypointName.Parent = waypointsPage
+    addCorner(waypointName, 9)
+    addOutline(waypointName, C.border, 0.3)
+
+    local createWaypoint = makeButton(waypointsPage, "CreateWaypoint", "+ CREATE", UDim2.new(1, -116, 0, 108), UDim2.fromOffset(96, 38), true)
+    local waypointStatus = makeLabel(waypointsPage, "WaypointStatus", "No waypoints saved yet.", UDim2.fromOffset(22, 150), UDim2.new(1, -44, 0, 23), 11, C.muted, false)
+    local waypointList = Instance.new("ScrollingFrame")
+    waypointList.Name = "WaypointList"
+    waypointList.Position = UDim2.fromOffset(20, 180)
+    waypointList.Size = UDim2.new(1, -40, 1, -198)
+    waypointList.BackgroundColor3 = C.background
+    waypointList.BorderSizePixel = 0
+    waypointList.ScrollBarThickness = 5
+    waypointList.ScrollBarImageColor3 = C.accent
+    waypointList.CanvasSize = UDim2.fromOffset(0, 0)
+    waypointList.Parent = waypointsPage
+    addCorner(waypointList, 10)
+    addOutline(waypointList, C.border, 0.45)
+    local waypointLayout = Instance.new("UIListLayout")
+    waypointLayout.Padding = UDim.new(0, 7)
+    waypointLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    waypointLayout.Parent = waypointList
+    local waypointPadding = Instance.new("UIPadding")
+    waypointPadding.PaddingTop = UDim.new(0, 8)
+    waypointPadding.PaddingLeft = UDim.new(0, 8)
+    waypointPadding.PaddingRight = UDim.new(0, 8)
+    waypointPadding.Parent = waypointList
+    waypointLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        waypointList.CanvasSize = UDim2.fromOffset(0, waypointLayout.AbsoluteContentSize.Y + 16)
+    end)
+
+    local waypoints = {}
+    local function refreshWaypoints()
+        for _, child in ipairs(waypointList:GetChildren()) do
+            if child:IsA("Frame") then child:Destroy() end
+        end
+        for index, data in ipairs(waypoints) do
+            local row = Instance.new("Frame")
+            row.Name = "WaypointRow"
+            row.Size = UDim2.new(1, -2, 0, 54)
+            row.BackgroundColor3 = C.panel
+            row.BorderSizePixel = 0
+            row.LayoutOrder = index
+            row.Parent = waypointList
+            addCorner(row, 9)
+            addOutline(row, C.border, 0.6)
+            makeLabel(row, "Name", data.name, UDim2.fromOffset(11, 4), UDim2.new(1, -200, 0, 23), 12, C.text, true)
+            makeLabel(row, "Coordinates", string.format("X %.1f   Y %.1f   Z %.1f", data.position.X, data.position.Y, data.position.Z), UDim2.fromOffset(11, 28), UDim2.new(1, -200, 0, 17), 9, C.muted, false)
+            local tp = makeButton(row, "Teleport", "TELEPORT", UDim2.new(1, -178, 0, 9), UDim2.fromOffset(90, 36), true)
+            tp.Activated:Connect(function()
+                local character = player.Character
+                local root = character and character:FindFirstChild("HumanoidRootPart")
+                if root then
+                    root.CFrame = CFrame.new(data.position + Vector3.new(0, 3, 0))
+                    waypointStatus.Text = "Teleported to " .. data.name
+                    waypointStatus.TextColor3 = C.green
+                else
+                    waypointStatus.Text = "Your character is not ready."
+                    waypointStatus.TextColor3 = C.red
+                end
+            end)
+            local del = makeButton(row, "Delete", "DELETE", UDim2.new(1, -82, 0, 9), UDim2.fromOffset(70, 36), false)
+            del.Activated:Connect(function()
+                table.remove(waypoints, index)
+                refreshWaypoints()
+            end)
+        end
+        if #waypoints == 0 then
+            waypointStatus.Text = "No waypoints saved yet."
+            waypointStatus.TextColor3 = C.muted
+        else
+            waypointStatus.Text = #waypoints .. " waypoint(s) saved this session."
+            waypointStatus.TextColor3 = C.muted
+        end
+    end
+    createWaypoint.Activated:Connect(function()
+        if #waypoints >= 100 then
+            waypointStatus.Text = "Maximum of 100 waypoints reached."
+            waypointStatus.TextColor3 = C.red
+            return
+        end
+        local character = player.Character
+        local root = character and character:FindFirstChild("HumanoidRootPart")
+        if not root then
+            waypointStatus.Text = "Your character is not ready."
+            waypointStatus.TextColor3 = C.red
+            return
+        end
+        local name = waypointName.Text:gsub("^%s+", ""):gsub("%s+$", "")
+        if name == "" then name = "Waypoint " .. (#waypoints + 1) end
+        for _, data in ipairs(waypoints) do
+            if string.lower(data.name) == string.lower(name) then
+                waypointStatus.Text = "That waypoint name is already in use."
+                waypointStatus.TextColor3 = C.red
+                return
+            end
+        end
+        table.insert(waypoints, {name = name, position = root.Position})
+        waypointName.Text = ""
+        refreshWaypoints()
+    end)
+
+    -- CONSOLE PAGE. Client-side only: server Output/errors are not available here.
+    makeHeader(consolePage, "Console", "Live client output captured from when this page loads onward.")
+    local consoleStatus = makeLabel(consolePage, "ConsoleStatus", "Listening for client messages…", UDim2.fromOffset(22, 103), UDim2.new(1, -44, 0, 23), 11, C.muted, false)
+    local consoleList = Instance.new("ScrollingFrame")
+    consoleList.Name = "ConsoleLogList"
+    consoleList.Position = UDim2.fromOffset(20, 132)
+    consoleList.Size = UDim2.new(1, -40, 1, -188)
+    consoleList.BackgroundColor3 = C.background
+    consoleList.BorderSizePixel = 0
+    consoleList.ScrollBarThickness = 5
+    consoleList.ScrollBarImageColor3 = C.accent
+    consoleList.CanvasSize = UDim2.fromOffset(0, 0)
+    consoleList.Parent = consolePage
+    addCorner(consoleList, 10)
+    addOutline(consoleList, C.border, 0.45)
+    local consoleLayout = Instance.new("UIListLayout")
+    consoleLayout.Padding = UDim.new(0, 4)
+    consoleLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    consoleLayout.Parent = consoleList
+    local consolePadding = Instance.new("UIPadding")
+    consolePadding.PaddingTop = UDim.new(0, 7)
+    consolePadding.PaddingLeft = UDim.new(0, 7)
+    consolePadding.PaddingRight = UDim.new(0, 7)
+    consolePadding.Parent = consoleList
+    local logCount = 0
+    local function addLog(message, kind)
+        if destroyed or not consoleList.Parent then return end
+        logCount += 1
+        local row = Instance.new("Frame")
+        row.Name = "LogRow"
+        row.Size = UDim2.new(1, -2, 0, 35)
+        row.BackgroundColor3 = C.panel
+        row.BorderSizePixel = 0
+        row.LayoutOrder = logCount
+        row.Parent = consoleList
+        addCorner(row, 7)
+        local logColor = kind == "ERROR" and C.red or (kind == "WARNING" and C.yellow or (kind == "SUCCESS" and C.green or C.muted))
+        makeLabel(row, "Level", "[" .. (kind or "INFO") .. "]", UDim2.fromOffset(8, 0), UDim2.fromOffset(78, 35), 9, logColor, true)
+        local messageLabel = makeLabel(row, "Message", tostring(message), UDim2.fromOffset(87, 0), UDim2.new(1, -94, 1, 0), 10, C.text, false)
+        messageLabel.TextTruncate = Enum.TextTruncate.AtEnd
+        if logCount > 200 then
+            local oldest
+            for _, child in ipairs(consoleList:GetChildren()) do
+                if child.Name == "LogRow" and (not oldest or child.LayoutOrder < oldest.LayoutOrder) then oldest = child end
+            end
+            if oldest then oldest:Destroy() end
+        end
+        consoleStatus.Text = logCount .. " client message(s) captured"
+        task.defer(function()
+            if consoleList.Parent then
+                consoleList.CanvasSize = UDim2.fromOffset(0, consoleLayout.AbsoluteContentSize.Y + 16)
+                consoleList.CanvasPosition = Vector2.new(0, math.max(0, consoleLayout.AbsoluteContentSize.Y - consoleList.AbsoluteWindowSize.Y + 16))
+            end
+        end)
+    end
+    local clearConsole = makeButton(consolePage, "ClearConsole", "CLEAR LOG", UDim2.new(1, -140, 1, -46), UDim2.fromOffset(120, 34), false)
+    clearConsole.Activated:Connect(function()
+        for _, child in ipairs(consoleList:GetChildren()) do
+            if child.Name == "LogRow" then child:Destroy() end
+        end
+        logCount = 0
+        consoleStatus.Text = "Console cleared."
+    end)
+    LogService.MessageOut:Connect(function(message, messageType)
+        if messageType == Enum.MessageType.MessageError then
+            addLog(message, "ERROR")
+        elseif messageType == Enum.MessageType.MessageWarning then
+            addLog(message, "WARNING")
+        else
+            addLog(message, "INFO")
+        end
+    end)
+    addLog("Menu UI and extra pages loaded.", "SUCCESS")
+
+    -- BSS PAGE: list BaseParts and Models under workspace.HiddenSticker.
+    makeHeader(bssPage, "BSS • HiddenSticker", "Browse objects in workspace.HiddenSticker and teleport to them.")
+    local bssStatus = makeLabel(bssPage, "BSSStatus", "Checking workspace.HiddenSticker…", UDim2.fromOffset(22, 104), UDim2.new(1, -235, 0, 34), 11, C.muted, false)
+    local refreshBSS = makeButton(bssPage, "RefreshBSS", "↻  REFRESH", UDim2.new(1, -145, 0, 103), UDim2.fromOffset(123, 36), true)
+    local bssList = Instance.new("ScrollingFrame")
+    bssList.Name = "HiddenStickerList"
+    bssList.Position = UDim2.fromOffset(20, 148)
+    bssList.Size = UDim2.new(1, -40, 1, -168)
+    bssList.BackgroundColor3 = C.background
+    bssList.BorderSizePixel = 0
+    bssList.ScrollBarThickness = 5
+    bssList.ScrollBarImageColor3 = C.accent
+    bssList.CanvasSize = UDim2.fromOffset(0, 0)
+    bssList.Parent = bssPage
+    addCorner(bssList, 10)
+    addOutline(bssList, C.border, 0.45)
+    local bssLayout = Instance.new("UIListLayout")
+    bssLayout.Padding = UDim.new(0, 7)
+    bssLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    bssLayout.Parent = bssList
+    local bssPadding = Instance.new("UIPadding")
+    bssPadding.PaddingTop = UDim.new(0, 8)
+    bssPadding.PaddingLeft = UDim.new(0, 8)
+    bssPadding.PaddingRight = UDim.new(0, 8)
+    bssPadding.Parent = bssList
+    bssLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        bssList.CanvasSize = UDim2.fromOffset(0, bssLayout.AbsoluteContentSize.Y + 16)
+    end)
+
+    local function getTargetPart(object)
+        if object:IsA("BasePart") then return object end
+        if object:IsA("Model") then
+            if object.PrimaryPart then return object.PrimaryPart end
+            return object:FindFirstChildWhichIsA("BasePart", true)
+        end
+        return object:FindFirstChildWhichIsA("BasePart", true)
+    end
+
+    local function refreshBSSObjects()
+        for _, child in ipairs(bssList:GetChildren()) do
+            if child:IsA("Frame") then child:Destroy() end
+        end
+        local folder = workspace:FindFirstChild("HiddenSticker")
+        if not folder then
+            bssStatus.Text = "Folder not found. Expected workspace.HiddenSticker."
+            bssStatus.TextColor3 = C.red
+            return
+        end
+        local objects = {}
+        for _, object in ipairs(folder:GetDescendants()) do
+            if object:IsA("BasePart") or object:IsA("Model") then
+                local part = getTargetPart(object)
+                if part then table.insert(objects, {object = object, part = part}) end
+            end
+        end
+        table.sort(objects, function(a, b) return a.object:GetFullName() < b.object:GetFullName() end)
+        for index, entry in ipairs(objects) do
+            local object = entry.object
+            local row = Instance.new("Frame")
+            row.Name = "BSSObjectRow"
+            row.Size = UDim2.new(1, -2, 0, 50)
+            row.BackgroundColor3 = C.panel
+            row.BorderSizePixel = 0
+            row.LayoutOrder = index
+            row.Parent = bssList
+            addCorner(row, 9)
+            addOutline(row, C.border, 0.6)
+            local displayName = object.Name
+            if #displayName > 28 then displayName = string.sub(displayName, 1, 25) .. "..." end
+            makeLabel(row, "ObjectName", displayName, UDim2.fromOffset(11, 4), UDim2.new(1, -135, 0, 22), 12, C.text, true)
+            makeLabel(row, "ObjectType", object.ClassName .. "  •  " .. object:GetFullName(), UDim2.fromOffset(11, 27), UDim2.new(1, -135, 0, 16), 9, C.muted, false)
+            local teleport = makeButton(row, "TeleportToObject", "TELEPORT", UDim2.new(1, -108, 0, 7), UDim2.fromOffset(96, 36), true)
+            teleport.Activated:Connect(function()
+                local livePart = object.Parent and getTargetPart(object)
+                local character = player.Character
+                local root = character and character:FindFirstChild("HumanoidRootPart")
+                if not livePart then
+                    bssStatus.Text = "Object no longer exists or has no BasePart."
+                    bssStatus.TextColor3 = C.red
+                    return
+                end
+                if not root then
+                    bssStatus.Text = "Your character is not ready."
+                    bssStatus.TextColor3 = C.red
+                    return
+                end
+                root.CFrame = livePart.CFrame + Vector3.new(0, 4, 0)
+                bssStatus.Text = "Teleported to " .. object.Name
+                bssStatus.TextColor3 = C.green
+            end)
+        end
+        bssStatus.Text = #objects .. " teleportable object(s) found in HiddenSticker."
+        bssStatus.TextColor3 = #objects > 0 and C.green or C.yellow
+    end
+    refreshBSS.Activated:Connect(refreshBSSObjects)
+    refreshBSSObjects()
+
+    -- Finish the shared window styling and keep all tabs/pages in the same theme.
+    main.BackgroundColor3 = C.background
+    main.BorderSizePixel = 0
+    main.ClipsDescendants = true
+    addCorner(main, 15)
+    addOutline(main, C.border, 0.18)
+    topBar.BackgroundColor3 = C.panel
+    sidebar.BackgroundColor3 = Color3.fromRGB(17, 22, 33)
+    content.BackgroundColor3 = C.background
+    sidebarTitle.TextColor3 = C.muted
+    sidebarTitle.Text = "MENU PAGES"
+    sidebarTitle.Font = Enum.Font.GothamBold
+    sidebarTitle.TextSize = 10
+
+    -- Responsive scale for the complete menu.
+    if not main:FindFirstChild("PremiumMenuScale") then
+        local scale = Instance.new("UIScale")
+        scale.Name = "PremiumMenuScale"
+        scale.Parent = main
+        local function resizeMenu()
+            local camera = workspace.CurrentCamera
+            if not camera then return end
+            local viewport = camera.ViewportSize
+            scale.Scale = math.clamp(math.min(viewport.X / 850, viewport.Y / 760, 1), 0.62, 1)
+            main.AnchorPoint = Vector2.new(0.5, 0.5)
+            main.Position = UDim2.fromScale(0.5, 0.5)
+        end
+        resizeMenu()
+        if workspace.CurrentCamera then
+            workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(resizeMenu)
+        end
+    end
+
+    showPage(homePage)
+    print("Premium UI loaded. Added Waypoints, Console, and BSS HiddenSticker teleports.")
+end
