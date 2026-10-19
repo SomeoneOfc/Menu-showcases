@@ -1,7 +1,8 @@
 -- STUDIO EDITION (CENTRE + FPS + OPTIONAL KEYBINDS + HOLD-CLICK TELEPORT)
 -- All shortcut bindings can be cleared to NONE without removing their on-screen controls.
 -- Hold the chosen teleport key (T by default) and LEFT-CLICK a world surface to move to its clicked point.
--- Only the existing menu is moved off-screen on close; no GUI is rebuilt on G.
+-- G only moves the existing menu. Launching a NEW copy requests full cleanup of the OLD copy before building a new UI.
+-- The previous copy must use the Reload protocol for complete cleanup; older menu versions may need one Play restart.
 -- G reuses the same GUI. Every reopen lands at UDim2.fromScale(0.5, 0.5).
 -- FPS chooser shows preferred target only; real cap must be selected in Roblox Settings.
 -- ERRORB1478 MENU - REVIEWED SAFE-LOAD BUILD
@@ -87,15 +88,15 @@ end
 --==================================================
 -- F9 ERROR DIAGNOSTICS (NO ON-SCREEN ERROR TAB)
 --==================================================
--- Existing ScreenGuis are not deleted during startup.
 -- Errors remain available in Roblox Studio's F9 Developer Console.
 local LogService = game:GetService("LogService")
 local playerGui = player:WaitForChild("PlayerGui")
 
--- SINGLE-INSTANCE GUARD: executing a second copy must not rebuild the GUI,
--- add a second G key handler, or restart effects that are already running.
--- The existing LocalScript owns the original GUI and its button connections.
--- Event registry exists before diagnostics register their first listeners.
+-- When a new copy starts, the previous copy must be DESTROYED first.
+-- Each new-version copy exposes a BindableEvent on its GUI. The next copy
+-- fires it, allowing the old copy to run the very same full cleanup used by
+-- DESTROY ALL (connections, character changes, overlays, GUI and script).
+-- Pressing G is different: G STILL only moves the current GUI off-screen.
 local trackedServiceConnections = {}
 local extraCleanup = {}
 local function trackServiceConnection(connection)
@@ -108,8 +109,28 @@ end
 
 local existingMenu = playerGui:FindFirstChild("ErrorB1478Menu")
 if existingMenu then
-    warn("[ErrorB1478Menu] Menu is already running; reused the existing GUI (no duplicate created).")
-    return
+    local destroyRequest = existingMenu:FindFirstChild("ErrorB1478DestroyRequest")
+    if destroyRequest and destroyRequest:IsA("BindableEvent") then
+        print("[ErrorB1478Menu] New load detected: asking old menu to run DESTROY ALL.")
+        destroyRequest:Fire()
+        -- BindableEvent callbacks run asynchronously. Do not start a new
+        -- menu until the old instance confirms destruction by disappearing.
+        local deadline = os.clock() + 3
+        while existingMenu.Parent and os.clock() < deadline do
+            task.wait(0.03)
+        end
+    end
+    if existingMenu.Parent then
+        -- Backwards compatibility for menu builds created before this
+        -- replacement protocol existed. Old event listeners cannot always
+        -- be force-disconnected from a different LocalScript in normal Studio.
+        warn("[ErrorB1478Menu] Legacy/stuck old copy: removing its GUI. Restart Play ONCE when upgrading from an older menu to ensure its old listeners/effects also stop.")
+        existingMenu:Destroy()
+        local legacyMonitor = playerGui:FindFirstChild("ErrorB1478ErrorMonitor")
+        if legacyMonitor then legacyMonitor:Destroy() end
+        local legacyOutlines = workspace:FindFirstChild("EB1478ClientVisuals")
+        if legacyOutlines then legacyOutlines:Destroy() end
+    end
 end
 
 local __EB1478_seenErrors = __EB1478_seenErrors or {}
@@ -314,6 +335,12 @@ gui.ResetOnSpawn = false
 gui.IgnoreGuiInset = true
 local playerGui = player:WaitForChild("PlayerGui")
 gui.Parent = playerGui
+
+-- An in-session reload asks this copy to destroy itself before the new one
+-- creates any GUI. The event is owned by the old GUI, so it vanishes with it.
+local reloadDestroyRequest = Instance.new("BindableEvent")
+reloadDestroyRequest.Name = "ErrorB1478DestroyRequest"
+reloadDestroyRequest.Parent = gui
 
 local main = Instance.new("Frame")
 main.Name = "Main"
@@ -2019,8 +2046,8 @@ local jumpToggleKey = Enum.KeyCode.J
 local espToggleKey = Enum.KeyCode.Y
 local positionSaveKey = Enum.KeyCode.P -- Optional; reopening always returns to centre anyway.
 local teleportHoldKey = Enum.KeyCode.T -- Hold T and left-click the game world (not UI).
-local destroyAllKey = Enum.KeyCode.End -- Optional shortcut for the same DESTROY ALL button.
-local mouseLockKey = Enum.KeyCode.L -- Optional mouse-lock shortcut.
+local destroyAllKey = Enum.KeyCode.BackSlash -- Press \ to use the same DESTROY ALL action as the button.
+local mouseLockKey = Enum.KeyCode.Quote -- Press apostrophe (') to toggle mouse lock.
 local monochromeKey = nil -- Set a key in Options or use the on-screen toggle.
 local destroyEverything = nil -- Declared early: button and keyboard call the same function.
 local toggleMouseLock = nil
@@ -2549,13 +2576,22 @@ destroyEverything = function()
 
     if errorMonitorGui then pcall(function() errorMonitorGui:Destroy() end) end
     if gui then pcall(function() gui:Destroy() end) end
-    -- The original LocalScript itself is removed last, so G can NEVER
-    -- recreate the GUI in this session. Restart Play to get the menu again.
-    print("[ErrorB1478Menu] DESTROY ALL completed; menu and owned effects removed for this Play session.")
+    -- The old LocalScript is removed last. Its G key can no longer reopen
+    -- the GUI. A separately launched NEW copy may deliberately build a fresh one.
+    print("[ErrorB1478Menu] DESTROY ALL completed; old menu and owned effects removed.")
     pcall(function() script:Destroy() end)
 end
 
 destroyEverythingButton.Activated:Connect(destroyEverything)
+
+-- Use exactly the DESTROY ALL callback for automatic replacement. This is
+-- registered only after all core cleanup functions are available.
+trackServiceConnection(reloadDestroyRequest.Event:Connect(function()
+    if not destroyed then
+        print("[ErrorB1478Menu] Reload request received: destroying old instance.")
+        destroyEverything()
+    end
+end))
 
 --==================================================
 -- MINIMIZE BUTTON
@@ -3945,7 +3981,8 @@ __EB1478_safeCall("Premium pages and extras", function()
             return pageNavigationEnabled and "ALT + 1-9" or "NONE"
         end
         if not value then return "NONE" end
-        return (target == "search" and "CTRL + " or "") .. value.Name
+        local displayKey = value == Enum.KeyCode.Quote and "'" or (value == Enum.KeyCode.BackSlash and "\\" or value.Name)
+        return (target == "search" and "CTRL + " or "") .. displayKey
     end
     local function setTargetKey(target, value)
         if target == "menu" then menuToggleKey = value
