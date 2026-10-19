@@ -1,6 +1,6 @@
 -- STUDIO EDITION (CENTRE + FPS + OPTIONAL KEYBINDS + HOLD-CLICK TELEPORT)
 -- All shortcut bindings can be cleared to NONE without removing their on-screen controls.
--- Hold the chosen teleport key (T by default) and LEFT-CLICK any world surface to teleport exactly to the clicked 3D point.
+-- Hold T (or your teleport key) and LEFT-CLICK any object; on walls, your avatar stays beside the exact mouse point until you move.
 -- Only the existing menu is moved off-screen on close; no GUI is rebuilt on G.
 -- G reuses the same GUI. Every reopen lands at UDim2.fromScale(0.5, 0.5).
 -- FPS chooser shows preferred target only; real cap must be selected in Roblox Settings.
@@ -2228,11 +2228,28 @@ table.insert(connections, inputConnection)
 
 --==================================================
 -- HOLD-KEY + LEFT-CLICK TELEPORT (CLIENT, GAME WORLD ONLY)
---==================================================
--- Does not create a tool, RenderStepped loop, GUI, or extra menu instance.
--- Server-controlled anti-teleport or movement systems may override a
--- LocalScript's character movement in games that enforce server authority.
+-- Teleport to the surface under the mouse, at the cursor's actual hit height.
+-- Offset the avatar OUTSIDE solid parts to stop Roblox collision correction
+-- from pushing the avatar away from walls. Hold to a wall until a movement
+-- key is pressed; otherwise gravity would immediately make the avatar fall.
+-- Server-authoritative movement systems may still undo client teleports.
 local lastClickTeleportAt = -math.huge
+local wallClingRoot = nil
+local wallClingWasAnchored = false
+
+local function releaseWallCling()
+    if wallClingRoot then
+        local oldRoot = wallClingRoot
+        wallClingRoot = nil
+        if oldRoot.Parent then
+            pcall(function() oldRoot.Anchored = wallClingWasAnchored end)
+        end
+        wallClingWasAnchored = false
+    end
+end
+registerCleanup(releaseWallCling)
+
+-- Never accidentally teleport while using the menu.
 local function pointWithinGui(guiObject, point)
     if not guiObject or not guiObject.Parent or not guiObject.Visible then return false end
     local topLeft = guiObject.AbsolutePosition
@@ -2241,54 +2258,137 @@ local function pointWithinGui(guiObject, point)
         and point.Y >= topLeft.Y and point.Y <= topLeft.Y + size.Y
 end
 
-trackServiceConnection(UserInputService.InputBegan:Connect(function(input, processed)
-    if destroyed or not teleportHoldKey or keyCaptureTarget or processed then return end
-    if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
-    if UserInputService:GetFocusedTextBox() then return end
-    if not UserInputService:IsKeyDown(teleportHoldKey) then return end
-    if os.clock() - lastClickTeleportAt < 0.2 then return end
+-- Release wall hold with normal movement, including jump and arrow keys.
+-- The player is not permanently anchored after using this feature.
+local wallReleaseKeys = {
+    [Enum.KeyCode.W] = true, [Enum.KeyCode.A] = true,
+    [Enum.KeyCode.S] = true, [Enum.KeyCode.D] = true,
+    [Enum.KeyCode.Up] = true, [Enum.KeyCode.Down] = true,
+    [Enum.KeyCode.Left] = true, [Enum.KeyCode.Right] = true,
+    [Enum.KeyCode.Space] = true,
+}
+trackServiceConnection(UserInputService.InputBegan:Connect(function(input)
+    if wallClingRoot and not UserInputService:GetFocusedTextBox()
+        and wallReleaseKeys[input.KeyCode] then
+        releaseWallCling()
+    end
+end))
+trackServiceConnection(UserInputService.InputChanged:Connect(function(input)
+    if wallClingRoot and input.KeyCode == Enum.KeyCode.Thumbstick1
+        and input.Position.Magnitude > 0.20 then
+        releaseWallCling()
+    end
+end))
 
+local function teleportStatus(message)
+    if teleportStatusCallback then
+        pcall(teleportStatusCallback, message)
+    end
+end
+
+local function getCursorSurface(camera, pointer, character)
+    -- UIS:GetMouseLocation() uses full viewport pixels; ViewportPointToRay()
+    -- uses the same coordinate system. We skip completely invisible parts
+    -- that would otherwise intercept clicks meant for the wall behind them.
+    local ray = camera:ViewportPointToRay(pointer.X, pointer.Y)
+    local excluded = {character}
+    for _ = 1, 16 do
+        local params = RaycastParams.new()
+        params.FilterType = Enum.RaycastFilterType.Exclude
+        params.FilterDescendantsInstances = excluded
+        params.IgnoreWater = false
+        local hit = workspace:Raycast(ray.Origin, ray.Direction * 4096, params)
+        if not hit then return nil end
+        local object = hit.Instance
+        if object and object:IsA("BasePart") and object.Transparency >= 0.98 then
+            table.insert(excluded, object)
+        else
+            return hit
+        end
+    end
+    return nil
+end
+
+trackServiceConnection(UserInputService.InputBegan:Connect(function(input)
+    if destroyed or not teleportHoldKey or keyCaptureTarget then return end
+    if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+    if not UserInputService:IsKeyDown(teleportHoldKey) then return end
+    if UserInputService:GetFocusedTextBox() then return end
+    if os.clock() - lastClickTeleportAt < 0.20 then return end
+
+    -- Do not depend only on gameProcessedEvent: some Roblox camera/input
+    -- controllers consume clicks that are still valid world interactions.
     local pointer = UserInputService:GetMouseLocation()
-    -- GUI uses IgnoreGuiInset=true, so its AbsolutePosition is screen-aligned.
-    -- Never teleport when clicking any part of the menu/floating toggle.
     if (menuOpen and pointWithinGui(main, pointer))
         or pointWithinGui(floatingToggleButton, pointer) then
         return
     end
+
     local character = getCharacter()
     local root = getRoot()
     local humanoid = character and character:FindFirstChildOfClass("Humanoid")
     local camera = workspace.CurrentCamera
-    if not camera or not character or not root or not humanoid or humanoid.Health <= 0 then return end
-
-    -- GetMouseLocation is viewport-based; ViewportPointToRay avoids the
-    -- top-bar inset mismatch when ScreenGui.IgnoreGuiInset is true.
-    local ray = camera:ViewportPointToRay(pointer.X, pointer.Y)
-    local params = RaycastParams.new()
-    params.FilterType = Enum.RaycastFilterType.Exclude
-    params.FilterDescendantsInstances = {character}
-    params.IgnoreWater = true
-    local hit = workspace:Raycast(ray.Origin, ray.Direction * 2048, params)
-    if not hit then
-        if teleportStatusCallback then teleportStatusCallback("No world surface under your cursor.") end
+    if not camera or not character or not root or not humanoid or humanoid.Health <= 0 then
+        teleportStatus("Teleport unavailable: no active character/camera.")
         return
     end
-    -- Exact surface hit: clicking the SIDE of a wall moves the HumanoidRootPart
-    -- to that precise 3D point, with no artificial horizontal or vertical offset.
-    -- Roblox collisions or server-authoritative movement can move it afterwards.
+
+    local hit = getCursorSurface(camera, pointer, character)
+    if not hit then
+        teleportStatus("No raycastable surface at the mouse pointer.")
+        warn("[ErrorB1478Menu][TELEPORT] No raycast hit at pointer " .. tostring(pointer))
+        return
+    end
+
     lastClickTeleportAt = os.clock()
-    local landingPosition = hit.Position
+    local exactPoint = hit.Position
+    local surfaceNormal = hit.Normal
+    local wallOrCeiling = surfaceNormal.Y < 0.55
     local ok, err = pcall(function()
-        local originalRotation = root.CFrame.Rotation
-        root.CFrame = CFrame.new(landingPosition) * originalRotation
+        releaseWallCling()
+
+        -- The point on the object is exact. The ROOT must be offset from it:
+        -- its centre cannot occupy the same coordinates as a solid wall.
+        -- On walls the avatar's centre keeps the clicked Y coordinate.
+        local rootOffset
+        if wallOrCeiling then
+            rootOffset = math.max(1.8,
+                math.abs(surfaceNormal:Dot(root.CFrame.RightVector)) * root.Size.X / 2
+                + math.abs(surfaceNormal:Dot(root.CFrame.UpVector)) * root.Size.Y / 2
+                + math.abs(surfaceNormal:Dot(root.CFrame.LookVector)) * root.Size.Z / 2
+                + 0.5)
+        else
+            -- A floor requires root-to-foot clearance to avoid falling in.
+            rootOffset = math.max(1.2, humanoid.HipHeight + root.Size.Y / 2 + 0.1)
+        end
+        local landingRootPosition = exactPoint + surfaceNormal * rootOffset
+        local targetRootCF = CFrame.new(landingRootPosition) * root.CFrame.Rotation
+        local rootToModelPivot = root.CFrame:ToObjectSpace(character:GetPivot())
+
+        -- Anchor before the move for walls and ceilings to avoid falling the
+        -- instant physics simulates. Press WASD/arrows/jump to release.
+        if wallOrCeiling then
+            wallClingWasAnchored = root.Anchored
+            wallClingRoot = root
+            root.Anchored = true
+        end
+        character:PivotTo(targetRootCF * rootToModelPivot)
         root.AssemblyLinearVelocity = Vector3.zero
         root.AssemblyAngularVelocity = Vector3.zero
     end)
     if not ok then
+        releaseWallCling()
         warn("[ErrorB1478Menu][TELEPORT] " .. tostring(err))
-        if teleportStatusCallback then teleportStatusCallback("Teleport failed; check the F9 console.") end
-    elseif teleportStatusCallback then
-        teleportStatusCallback("Teleported to exact clicked point. Hold " .. teleportHoldKey.Name .. " + click again.")
+        teleportStatus("Teleport failed; inspect F9 for the error.")
+        return
+    end
+    local hitName = hit.Instance and hit.Instance.Name or "Terrain"
+    print("[ErrorB1478Menu][TELEPORT] Hit " .. hitName
+        .. " at " .. tostring(exactPoint) .. " | normal " .. tostring(surfaceNormal))
+    if wallOrCeiling then
+        teleportStatus("Wall/ceiling: " .. hitName .. " (exact clicked height). WASD/Space to release.")
+    else
+        teleportStatus("Teleported to " .. hitName .. " at the clicked point.")
     end
 end))
 
@@ -3856,7 +3956,7 @@ __EB1478_safeCall("Premium pages and extras", function()
 
     __EB1478_safeCall("Options page and keybinds", function()
     makeHeader(optionsPage, "Options & Keybinds", "Click CHANGE to assign a key. Click NONE to remove the shortcut.")
-    local optionsStatus = makeLabel(optionsPage, "OptionsStatus", "Hold T + left-click any world surface to teleport. ESC cancels a key change.", UDim2.fromOffset(22, 100), UDim2.new(1, -44, 0, 28), 11, C.muted, false)
+    local optionsStatus = makeLabel(optionsPage, "OptionsStatus", "Hold T + click objects/walls. Move to release wall cling. ESC cancels key changes.", UDim2.fromOffset(22, 100), UDim2.new(1, -44, 0, 28), 11, C.muted, false)
     optionsStatus.TextWrapped = true
     keyCaptureStatusCallback = function(message)
         if optionsStatus and optionsStatus.Parent then optionsStatus.Text = message end
@@ -3962,7 +4062,7 @@ __EB1478_safeCall("Premium pages and extras", function()
         errorMonitorSetting.Text = "Error Monitor: " .. (errorMonitorEnabled and "ON" or "OFF")
         optionsStatus.Text = errorMonitorEnabled and "Error Monitor enabled." or "Error Monitor disabled; check F9 for errors."
     end)
-    makeLabel(scroller, "HelpText", "Teleport is client-controlled and may be blocked by your game's server scripts. Click any world surface or object, not the UI.",
+    makeLabel(scroller, "HelpText", "Teleport places you beside the exact clicked surface. Wall/ceiling clicks hold you there until you move. Server scripts can still block client teleports.",
         UDim2.fromOffset(6, 542), UDim2.new(1, -18, 0, 65), 11, C.muted, false)
 
     refreshOptionsLabels = function()
