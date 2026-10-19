@@ -1,6 +1,6 @@
 -- STUDIO EDITION (CENTRE + FPS + OPTIONAL KEYBINDS + HOLD-CLICK TELEPORT)
 -- All shortcut bindings can be cleared to NONE without removing their on-screen controls.
--- Hold T (or your teleport key) and LEFT-CLICK any object; on walls, your avatar stays beside the exact mouse point until you move.
+-- Hold the chosen teleport key (T by default) and LEFT-CLICK a world surface to move to its clicked point.
 -- Only the existing menu is moved off-screen on close; no GUI is rebuilt on G.
 -- G reuses the same GUI. Every reopen lands at UDim2.fromScale(0.5, 0.5).
 -- FPS chooser shows preferred target only; real cap must be selected in Roblox Settings.
@@ -2019,6 +2019,12 @@ local jumpToggleKey = Enum.KeyCode.J
 local espToggleKey = Enum.KeyCode.Y
 local positionSaveKey = Enum.KeyCode.P -- Optional; reopening always returns to centre anyway.
 local teleportHoldKey = Enum.KeyCode.T -- Hold T and left-click the game world (not UI).
+local destroyAllKey = Enum.KeyCode.End -- Optional shortcut for the same DESTROY ALL button.
+local mouseLockKey = Enum.KeyCode.L -- Optional mouse-lock shortcut.
+local monochromeKey = nil -- Set a key in Options or use the on-screen toggle.
+local destroyEverything = nil -- Declared early: button and keyboard call the same function.
+local toggleMouseLock = nil
+local toggleMonochromeHighlights = nil
 local commandSearchKey = Enum.KeyCode.K -- Ctrl + chosen key; optional.
 local pageNavigationEnabled = true -- Alt + number; can be disabled entirely.
 local lastKeyCaptureAt = -math.huge
@@ -2180,7 +2186,10 @@ local inputConnection = trackServiceConnection(UserInputService.InputBegan:Conne
                 elseif target == "esp" then espToggleKey = nil
                 elseif target == "position" then positionSaveKey = nil
                 elseif target == "teleport" then teleportHoldKey = nil
-                elseif target == "search" then commandSearchKey = nil end
+                elseif target == "search" then commandSearchKey = nil
+                elseif target == "destroy" then destroyAllKey = nil
+                elseif target == "mouselock" then mouseLockKey = nil
+                elseif target == "monochrome" then monochromeKey = nil end
                 if keyCaptureStatusCallback then keyCaptureStatusCallback("Shortcut removed. You can still use the menu button.") end
             elseif input.KeyCode ~= Enum.KeyCode.Unknown then
                 if target == "menu" then menuToggleKey = input.KeyCode
@@ -2190,7 +2199,10 @@ local inputConnection = trackServiceConnection(UserInputService.InputBegan:Conne
                 elseif target == "esp" then espToggleKey = input.KeyCode
                 elseif target == "position" then positionSaveKey = input.KeyCode
                 elseif target == "teleport" then teleportHoldKey = input.KeyCode
-                elseif target == "search" then commandSearchKey = input.KeyCode end
+                elseif target == "search" then commandSearchKey = input.KeyCode
+                elseif target == "destroy" then destroyAllKey = input.KeyCode
+                elseif target == "mouselock" then mouseLockKey = input.KeyCode
+                elseif target == "monochrome" then monochromeKey = input.KeyCode end
                 if keyCaptureStatusCallback then keyCaptureStatusCallback("Shortcut updated: " .. input.KeyCode.Name .. ".") end
             end
             if not menuToggleKey and not floatingToggleEnabled then
@@ -2204,7 +2216,17 @@ local inputConnection = trackServiceConnection(UserInputService.InputBegan:Conne
 
         -- Nil bindings are genuinely disabled. A shortcut that matches None
         -- cannot fire, and assigning None does not affect the GUI buttons.
-        if positionSaveKey and input.KeyCode == positionSaveKey then
+        -- Explicitly assigned keys only. Destroy uses exactly the button's cleanup.
+        if destroyAllKey and input.KeyCode == destroyAllKey then
+            if destroyEverything then destroyEverything() end
+            return
+        elseif mouseLockKey and input.KeyCode == mouseLockKey then
+            if toggleMouseLock then toggleMouseLock() end
+            return
+        elseif monochromeKey and input.KeyCode == monochromeKey then
+            if toggleMonochromeHighlights then toggleMonochromeHighlights() end
+            return
+        elseif positionSaveKey and input.KeyCode == positionSaveKey then
             -- Keep the on-screen destination centred when reopening.
             savedMenuPosition = UDim2.fromScale(0.5, 0.5)
             print("[ErrorB1478Menu] Saved menu slide position: " .. tostring(savedMenuPosition) .. " (" .. positionSaveKey.Name .. ")")
@@ -2228,28 +2250,15 @@ table.insert(connections, inputConnection)
 
 --==================================================
 -- HOLD-KEY + LEFT-CLICK TELEPORT (CLIENT, GAME WORLD ONLY)
--- Teleport to the surface under the mouse, at the cursor's actual hit height.
--- Offset the avatar OUTSIDE solid parts to stop Roblox collision correction
--- from pushing the avatar away from walls. Hold to a wall until a movement
--- key is pressed; otherwise gravity would immediately make the avatar fall.
--- Server-authoritative movement systems may still undo client teleports.
+--==================================================
+-- Does not create a tool, RenderStepped loop, GUI, or extra menu instance.
+-- Server-controlled anti-teleport or movement systems may override a
+-- LocalScript's character movement in games that enforce server authority.
 local lastClickTeleportAt = -math.huge
-local wallClingRoot = nil
-local wallClingWasAnchored = false
-
-local function releaseWallCling()
-    if wallClingRoot then
-        local oldRoot = wallClingRoot
-        wallClingRoot = nil
-        if oldRoot.Parent then
-            pcall(function() oldRoot.Anchored = wallClingWasAnchored end)
-        end
-        wallClingWasAnchored = false
-    end
-end
-registerCleanup(releaseWallCling)
-
--- Never accidentally teleport while using the menu.
+local activeWallRelease = nil
+registerCleanup(function()
+    if activeWallRelease then activeWallRelease() end
+end)
 local function pointWithinGui(guiObject, point)
     if not guiObject or not guiObject.Parent or not guiObject.Visible then return false end
     local topLeft = guiObject.AbsolutePosition
@@ -2258,137 +2267,88 @@ local function pointWithinGui(guiObject, point)
         and point.Y >= topLeft.Y and point.Y <= topLeft.Y + size.Y
 end
 
--- Release wall hold with normal movement, including jump and arrow keys.
--- The player is not permanently anchored after using this feature.
-local wallReleaseKeys = {
-    [Enum.KeyCode.W] = true, [Enum.KeyCode.A] = true,
-    [Enum.KeyCode.S] = true, [Enum.KeyCode.D] = true,
-    [Enum.KeyCode.Up] = true, [Enum.KeyCode.Down] = true,
-    [Enum.KeyCode.Left] = true, [Enum.KeyCode.Right] = true,
-    [Enum.KeyCode.Space] = true,
-}
-trackServiceConnection(UserInputService.InputBegan:Connect(function(input)
-    if wallClingRoot and not UserInputService:GetFocusedTextBox()
-        and wallReleaseKeys[input.KeyCode] then
-        releaseWallCling()
-    end
-end))
-trackServiceConnection(UserInputService.InputChanged:Connect(function(input)
-    if wallClingRoot and input.KeyCode == Enum.KeyCode.Thumbstick1
-        and input.Position.Magnitude > 0.20 then
-        releaseWallCling()
-    end
-end))
-
-local function teleportStatus(message)
-    if teleportStatusCallback then
-        pcall(teleportStatusCallback, message)
-    end
-end
-
-local function getCursorSurface(camera, pointer, character)
-    -- UIS:GetMouseLocation() uses full viewport pixels; ViewportPointToRay()
-    -- uses the same coordinate system. We skip completely invisible parts
-    -- that would otherwise intercept clicks meant for the wall behind them.
-    local ray = camera:ViewportPointToRay(pointer.X, pointer.Y)
-    local excluded = {character}
-    for _ = 1, 16 do
-        local params = RaycastParams.new()
-        params.FilterType = Enum.RaycastFilterType.Exclude
-        params.FilterDescendantsInstances = excluded
-        params.IgnoreWater = false
-        local hit = workspace:Raycast(ray.Origin, ray.Direction * 4096, params)
-        if not hit then return nil end
-        local object = hit.Instance
-        if object and object:IsA("BasePart") and object.Transparency >= 0.98 then
-            table.insert(excluded, object)
-        else
-            return hit
-        end
-    end
-    return nil
-end
-
-trackServiceConnection(UserInputService.InputBegan:Connect(function(input)
-    if destroyed or not teleportHoldKey or keyCaptureTarget then return end
+trackServiceConnection(UserInputService.InputBegan:Connect(function(input, processed)
+    if destroyed or not teleportHoldKey or keyCaptureTarget or processed then return end
     if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
-    if not UserInputService:IsKeyDown(teleportHoldKey) then return end
     if UserInputService:GetFocusedTextBox() then return end
-    if os.clock() - lastClickTeleportAt < 0.20 then return end
+    if not UserInputService:IsKeyDown(teleportHoldKey) then return end
+    if os.clock() - lastClickTeleportAt < 0.2 then return end
 
-    -- Do not depend only on gameProcessedEvent: some Roblox camera/input
-    -- controllers consume clicks that are still valid world interactions.
     local pointer = UserInputService:GetMouseLocation()
+    -- GUI uses IgnoreGuiInset=true, so its AbsolutePosition is screen-aligned.
+    -- Never teleport when clicking any part of the menu/floating toggle.
     if (menuOpen and pointWithinGui(main, pointer))
         or pointWithinGui(floatingToggleButton, pointer) then
         return
     end
-
     local character = getCharacter()
     local root = getRoot()
     local humanoid = character and character:FindFirstChildOfClass("Humanoid")
     local camera = workspace.CurrentCamera
-    if not camera or not character or not root or not humanoid or humanoid.Health <= 0 then
-        teleportStatus("Teleport unavailable: no active character/camera.")
-        return
-    end
+    if not camera or not character or not root or not humanoid or humanoid.Health <= 0 then return end
 
-    local hit = getCursorSurface(camera, pointer, character)
+    -- GetMouseLocation is viewport-based; ViewportPointToRay avoids the
+    -- top-bar inset mismatch when ScreenGui.IgnoreGuiInset is true.
+    local ray = camera:ViewportPointToRay(pointer.X, pointer.Y)
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    params.FilterDescendantsInstances = {character}
+    params.IgnoreWater = true
+    local hit = workspace:Raycast(ray.Origin, ray.Direction * 2048, params)
     if not hit then
-        teleportStatus("No raycastable surface at the mouse pointer.")
-        warn("[ErrorB1478Menu][TELEPORT] No raycast hit at pointer " .. tostring(pointer))
+        if teleportStatusCallback then teleportStatusCallback("No world surface under your cursor.") end
         return
     end
-
+    -- Surface-aware positioning. The raycast hit is exactly the mouse's
+    -- world point; place the character just OUTSIDE the surface, otherwise
+    -- Roblox physics pushes the root back out of the wall immediately.
     lastClickTeleportAt = os.clock()
-    local exactPoint = hit.Position
-    local surfaceNormal = hit.Normal
-    local wallOrCeiling = surfaceNormal.Y < 0.55
+    local normal = hit.Normal
+    local half = root.Size * 0.5
+    local separation = math.abs(normal.X) * half.X
+        + math.abs(normal.Y) * half.Y + math.abs(normal.Z) * half.Z + 0.05
+    local landingPosition = hit.Position + normal * separation
+    -- Release any previous wall cling before starting a new teleport.
+    if activeWallRelease then activeWallRelease() end
     local ok, err = pcall(function()
-        releaseWallCling()
-
-        -- The point on the object is exact. The ROOT must be offset from it:
-        -- its centre cannot occupy the same coordinates as a solid wall.
-        -- On walls the avatar's centre keeps the clicked Y coordinate.
-        local rootOffset
-        if wallOrCeiling then
-            rootOffset = math.max(1.8,
-                math.abs(surfaceNormal:Dot(root.CFrame.RightVector)) * root.Size.X / 2
-                + math.abs(surfaceNormal:Dot(root.CFrame.UpVector)) * root.Size.Y / 2
-                + math.abs(surfaceNormal:Dot(root.CFrame.LookVector)) * root.Size.Z / 2
-                + 0.5)
-        else
-            -- A floor requires root-to-foot clearance to avoid falling in.
-            rootOffset = math.max(1.2, humanoid.HipHeight + root.Size.Y / 2 + 0.1)
-        end
-        local landingRootPosition = exactPoint + surfaceNormal * rootOffset
-        local targetRootCF = CFrame.new(landingRootPosition) * root.CFrame.Rotation
-        local rootToModelPivot = root.CFrame:ToObjectSpace(character:GetPivot())
-
-        -- Anchor before the move for walls and ceilings to avoid falling the
-        -- instant physics simulates. Press WASD/arrows/jump to release.
-        if wallOrCeiling then
-            wallClingWasAnchored = root.Anchored
-            wallClingRoot = root
-            root.Anchored = true
-        end
-        character:PivotTo(targetRootCF * rootToModelPivot)
+        local originalRotation = root.CFrame.Rotation
+        root.Anchored = false
+        root.CFrame = CFrame.new(landingPosition) * originalRotation
         root.AssemblyLinearVelocity = Vector3.zero
         root.AssemblyAngularVelocity = Vector3.zero
+        -- Wall and ceiling: hold the clicked height until movement starts.
+        if normal.Y < 0.6 then
+            root.Anchored = true
+            local thisRoot = root
+            local released = false
+            local releaseConnection
+            local function release()
+                if released then return end
+                released = true
+                if releaseConnection then releaseConnection:Disconnect() end
+                if thisRoot.Parent then thisRoot.Anchored = false end
+                if activeWallRelease == release then activeWallRelease = nil end
+            end
+            activeWallRelease = release
+            releaseConnection = UserInputService.InputBegan:Connect(function(key, processedKey)
+                if processedKey or key.UserInputType ~= Enum.UserInputType.Keyboard then return end
+                local code = key.KeyCode
+                if code == Enum.KeyCode.W or code == Enum.KeyCode.A or code == Enum.KeyCode.S
+                    or code == Enum.KeyCode.D or code == Enum.KeyCode.Space then
+                    release()
+                end
+            end)
+            task.delay(10, release) -- Fail-safe: never trap a player indefinitely.
+        end
     end)
     if not ok then
-        releaseWallCling()
         warn("[ErrorB1478Menu][TELEPORT] " .. tostring(err))
-        teleportStatus("Teleport failed; inspect F9 for the error.")
-        return
-    end
-    local hitName = hit.Instance and hit.Instance.Name or "Terrain"
-    print("[ErrorB1478Menu][TELEPORT] Hit " .. hitName
-        .. " at " .. tostring(exactPoint) .. " | normal " .. tostring(surfaceNormal))
-    if wallOrCeiling then
-        teleportStatus("Wall/ceiling: " .. hitName .. " (exact clicked height). WASD/Space to release.")
+        if teleportStatusCallback then teleportStatusCallback("Teleport failed; check the F9 console.") end
     else
-        teleportStatus("Teleported to " .. hitName .. " at the clicked point.")
+        print("[ErrorB1478Menu][TELEPORT] Clicked " .. hit.Instance:GetFullName() .. " at " .. tostring(hit.Position))
+        if teleportStatusCallback then
+            teleportStatusCallback("Wall/object hit at " .. tostring(hit.Position) .. ". Move to release wall cling.")
+        end
     end
 end))
 
@@ -2555,7 +2515,7 @@ local destroyCorner = Instance.new("UICorner")
 destroyCorner.CornerRadius = UDim.new(0, 8)
 destroyCorner.Parent = destroyEverythingButton
 
-local function destroyEverything()
+destroyEverything = function()
     if destroyed then return end
     destroyed = true -- guard against every delayed callback and all keybinds immediately
     menuOpen = false
@@ -3956,7 +3916,7 @@ __EB1478_safeCall("Premium pages and extras", function()
 
     __EB1478_safeCall("Options page and keybinds", function()
     makeHeader(optionsPage, "Options & Keybinds", "Click CHANGE to assign a key. Click NONE to remove the shortcut.")
-    local optionsStatus = makeLabel(optionsPage, "OptionsStatus", "Hold T + click objects/walls. Move to release wall cling. ESC cancels key changes.", UDim2.fromOffset(22, 100), UDim2.new(1, -44, 0, 28), 11, C.muted, false)
+    local optionsStatus = makeLabel(optionsPage, "OptionsStatus", "Hold T + left-click any world surface to teleport. ESC cancels a key change.", UDim2.fromOffset(22, 100), UDim2.new(1, -44, 0, 28), 11, C.muted, false)
     optionsStatus.TextWrapped = true
     keyCaptureStatusCallback = function(message)
         if optionsStatus and optionsStatus.Parent then optionsStatus.Text = message end
@@ -3976,7 +3936,7 @@ __EB1478_safeCall("Premium pages and extras", function()
     scroller.ScrollBarImageColor3 = C.accent
     scroller.ScrollingDirection = Enum.ScrollingDirection.Y
     scroller.AutomaticCanvasSize = Enum.AutomaticSize.None
-    scroller.CanvasSize = UDim2.fromOffset(0, 660)
+    scroller.CanvasSize = UDim2.fromOffset(0, 805)
     scroller.Parent = optionsPage
 
     local keyRows = {}
@@ -3996,6 +3956,9 @@ __EB1478_safeCall("Premium pages and extras", function()
         elseif target == "position" then positionSaveKey = value
         elseif target == "teleport" then teleportHoldKey = value
         elseif target == "search" then commandSearchKey = value
+        elseif target == "destroy" then destroyAllKey = value
+        elseif target == "mouselock" then mouseLockKey = value
+        elseif target == "monochrome" then monochromeKey = value
         elseif target == "nav" then pageNavigationEnabled = value == true end
     end
     local function makeKeyRow(y, title, target)
@@ -4044,8 +4007,11 @@ __EB1478_safeCall("Premium pages and extras", function()
     makeKeyRow(292, "Hold + click teleport", "teleport")
     makeKeyRow(340, "Command search", "search")
     makeKeyRow(388, "Quick page navigation", "nav")
+    makeKeyRow(436, "DESTROY ALL", "destroy")
+    makeKeyRow(484, "Mouse lock", "mouselock")
+    makeKeyRow(532, "Monochrome outlines", "monochrome")
 
-    local floatingButtonSetting = makeButton(scroller, "FloatingToggleSetting", "Floating toggle: ON", UDim2.fromOffset(3, 449), UDim2.new(1, -14, 0, 36), true)
+    local floatingButtonSetting = makeButton(scroller, "FloatingToggleSetting", "Floating toggle: ON", UDim2.fromOffset(3, 593), UDim2.new(1, -14, 0, 36), true)
     floatingButtonSetting.Activated:Connect(function()
         if floatingToggleEnabled and not menuToggleKey then
             optionsStatus.Text = "Keep the floating toggle ON while the Menu shortcut is NONE."
@@ -4056,20 +4022,21 @@ __EB1478_safeCall("Premium pages and extras", function()
         floatingButtonSetting.Text = "Floating toggle: " .. (floatingToggleEnabled and "ON" or "OFF")
         optionsStatus.Text = floatingToggleEnabled and "Floating UI toggle is visible." or "Floating UI toggle is hidden. Use the Menu key to reopen."
     end)
-    local errorMonitorSetting = makeButton(scroller, "ErrorMonitorSetting", "Error Monitor: OFF", UDim2.fromOffset(3, 491), UDim2.new(1, -14, 0, 36), true)
+    local errorMonitorSetting = makeButton(scroller, "ErrorMonitorSetting", "Error Monitor: OFF", UDim2.fromOffset(3, 635), UDim2.new(1, -14, 0, 36), true)
     errorMonitorSetting.Activated:Connect(function()
         setErrorMonitorEnabled(not errorMonitorEnabled)
         errorMonitorSetting.Text = "Error Monitor: " .. (errorMonitorEnabled and "ON" or "OFF")
         optionsStatus.Text = errorMonitorEnabled and "Error Monitor enabled." or "Error Monitor disabled; check F9 for errors."
     end)
-    makeLabel(scroller, "HelpText", "Teleport places you beside the exact clicked surface. Wall/ceiling clicks hold you there until you move. Server scripts can still block client teleports.",
-        UDim2.fromOffset(6, 542), UDim2.new(1, -18, 0, 65), 11, C.muted, false)
+    makeLabel(scroller, "HelpText", "Teleport is client-controlled and may be blocked by your game's server scripts. Click any world surface or object, not the UI.",
+        UDim2.fromOffset(6, 684), UDim2.new(1, -18, 0, 81), 11, C.muted, false)
 
     refreshOptionsLabels = function()
         local values = {
             menu = menuToggleKey, fly = flyToggleKey, noclip = noclipToggleKey,
             jump = jumpToggleKey, esp = espToggleKey, position = positionSaveKey,
             teleport = teleportHoldKey, search = commandSearchKey,
+            destroy = destroyAllKey, mouselock = mouseLockKey, monochrome = monochromeKey,
         }
         for target, button in pairs(keyRows) do
             button.Text = formatKey(target, values[target])
@@ -4637,10 +4604,15 @@ __EB1478_safeCall("Studio edition UI and Toolkit", function()
     movementInfo.TextYAlignment = Enum.TextYAlignment.Top
 
     -- Dedicated toolkit, rather than cramming extra buttons into Movement or Fun.
-    local toolkitPage = Instance.new("Frame")
+    local toolkitPage = Instance.new("ScrollingFrame")
     toolkitPage.Name = "ToolkitPage"
     toolkitPage.Size = UDim2.fromScale(1, 1)
     toolkitPage.BackgroundTransparency = 1
+    toolkitPage.BorderSizePixel = 0
+    toolkitPage.ScrollBarThickness = 5
+    toolkitPage.ScrollingDirection = Enum.ScrollingDirection.Y
+    toolkitPage.AutomaticCanvasSize = Enum.AutomaticSize.None
+    toolkitPage.CanvasSize = UDim2.fromOffset(0, 740)
     toolkitPage.Visible = false
     toolkitPage.Parent = content
     local toolkitTab = action(sidebar, "ToolkitTab", "    TOOLKIT", UDim2.fromOffset(10, 404), UDim2.new(1, -20, 0, 38), false)
@@ -4793,6 +4765,149 @@ __EB1478_safeCall("Studio edition UI and Toolkit", function()
     stroke(coordinates, 0.55)
     local exportButton = action(toolkitPage, "ExportPosition", "MY COORDINATES", UDim2.fromOffset(18, 536), UDim2.new(0.5, -27, 0, 37), false)
     local fpsPickerButton = action(toolkitPage, "FpsPreference", "MAX FPS  /  ROBLOX", UDim2.new(0.5, 9, 0, 536), UDim2.new(0.5, -27, 0, 37), true)
+
+    -- NEW: Two independent on-screen toggles. No extra menu GUI is created.
+    local mouseLockButton = action(toolkitPage, "MouseLockToggle", "MOUSE LOCK   OFF", UDim2.fromOffset(18, 591), rowW, false)
+    local monochromeButton = action(toolkitPage, "MonochromeToggle", "MONOCHROME   OFF", UDim2.new(0.5, 9, 0, 591), rowW, true)
+    local newFeatureHelp = label(toolkitPage, "FeatureHelp", "Mouse lock centres the cursor while playing. Monochrome finds matching object names through walls.",
+        UDim2.fromOffset(21, 645), UDim2.new(1, -42, 0, 52), 11, COLORS.muted)
+    newFeatureHelp.TextWrapped = true
+
+    -- Mouse lock is automatically suspended while the menu is open so you
+    -- can still click UI buttons, then reapplied when the menu closes.
+    local mouseLockEnabled = false
+    local previousMouseBehavior = nil
+    local mouseLockRenderConnection = nil
+    local function disableMouseLock()
+        mouseLockEnabled = false
+        if mouseLockRenderConnection then
+            mouseLockRenderConnection:Disconnect()
+            mouseLockRenderConnection = nil
+        end
+        UserInputService.MouseBehavior = previousMouseBehavior or Enum.MouseBehavior.Default
+        previousMouseBehavior = nil
+        if mouseLockButton.Parent then mouseLockButton.Text = "MOUSE LOCK   OFF" end
+    end
+    toggleMouseLock = function()
+        if destroyed then return end
+        if mouseLockEnabled then
+            disableMouseLock()
+            newFeatureHelp.Text = "Mouse lock disabled. Cursor moves freely."
+        else
+            previousMouseBehavior = UserInputService.MouseBehavior
+            mouseLockEnabled = true
+            mouseLockRenderConnection = RunService.RenderStepped:Connect(function()
+                if destroyed then return end
+                local desired = menuOpen and Enum.MouseBehavior.Default or Enum.MouseBehavior.LockCenter
+                if UserInputService.MouseBehavior ~= desired then
+                    UserInputService.MouseBehavior = desired
+                end
+            end)
+            mouseLockButton.Text = "MOUSE LOCK   ON"
+            newFeatureHelp.Text = "Mouse lock on. Close the menu to lock the cursor; reopen to use buttons."
+        end
+    end
+    mouseLockButton.Activated:Connect(function() toggleMouseLock() end)
+
+    -- The client creates only its own temporary Highlight objects. Matching
+    -- is case-insensitive, checks names anywhere in Workspace, and includes
+    -- parts/models named Monochrome as well as named descendants of folders.
+    local monochromeEnabled = false
+    local monoFolder = nil
+    local monoHighlights = {}
+    local monoAddedConnection = nil
+    local monoRefreshConnection = nil
+    local MAX_MONO_HIGHLIGHTS = 31 -- Roblox renders a limited number of Highlights.
+    local function suitableTarget(instance)
+        if instance:IsA("BasePart") or instance:IsA("Model") then return instance end
+        local owner = instance:FindFirstAncestorWhichIsA("BasePart")
+        if owner then return owner end
+        return instance:FindFirstAncestorWhichIsA("Model")
+    end
+    local function tryHighlight(instance)
+        if not monochromeEnabled or not monoFolder or not monoFolder.Parent then return end
+        if not instance or not instance.Parent or instance:IsDescendantOf(monoFolder) then return end
+        if not string.find(string.lower(instance.Name), "monochrome", 1, true) then return end
+        local targets = {}
+        if instance:IsA("Folder") then
+            for _, descendant in ipairs(instance:GetDescendants()) do
+                if descendant:IsA("BasePart") then table.insert(targets, descendant) end
+            end
+        else
+            local target = suitableTarget(instance)
+            if target then table.insert(targets, target) end
+        end
+        for _, target in ipairs(targets) do
+            if not target:IsDescendantOf(workspace) or monoHighlights[target] then continue end
+            local count = 0
+            for _ in pairs(monoHighlights) do count += 1 end
+            if count >= MAX_MONO_HIGHLIGHTS then break end
+            local highlight = Instance.new("Highlight")
+            highlight.Name = "TargetOutline"
+            highlight.Adornee = target
+            highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            highlight.FillColor = Color3.fromRGB(168, 117, 255)
+            highlight.OutlineColor = Color3.fromRGB(242, 217, 255)
+            highlight.FillTransparency = 0.67
+            highlight.OutlineTransparency = 0
+            highlight.Parent = monoFolder
+            monoHighlights[target] = highlight
+        end
+    end
+    local function rescanMonochrome()
+        if not monochromeEnabled then return end
+        for target, highlight in pairs(monoHighlights) do
+            if not target.Parent or not target:IsDescendantOf(workspace) or not highlight.Parent then
+                if highlight.Parent then highlight:Destroy() end
+                monoHighlights[target] = nil
+            end
+        end
+        for _, item in ipairs(workspace:GetDescendants()) do
+            tryHighlight(item)
+        end
+        local count = 0
+        for _ in pairs(monoHighlights) do count += 1 end
+        monochromeButton.Text = "MONOCHROME   ON (" .. count .. ")"
+    end
+    local function disableMonochrome()
+        monochromeEnabled = false
+        if monoAddedConnection then monoAddedConnection:Disconnect(); monoAddedConnection = nil end
+        if monoRefreshConnection then monoRefreshConnection:Disconnect(); monoRefreshConnection = nil end
+        if monoFolder then monoFolder:Destroy(); monoFolder = nil end
+        table.clear(monoHighlights)
+        if monochromeButton.Parent then monochromeButton.Text = "MONOCHROME   OFF" end
+    end
+    toggleMonochromeHighlights = function()
+        if destroyed then return end
+        if monochromeEnabled then
+            disableMonochrome()
+            newFeatureHelp.Text = "Monochrome highlights cleared."
+            return
+        end
+        monochromeEnabled = true
+        monoFolder = Instance.new("Folder")
+        monoFolder.Name = "EB1478ClientVisuals"
+        monoFolder.Parent = workspace
+        rescanMonochrome()
+        monoAddedConnection = workspace.DescendantAdded:Connect(function(instance)
+            tryHighlight(instance)
+        end)
+        local elapsed = 0
+        monoRefreshConnection = RunService.Heartbeat:Connect(function(dt)
+            elapsed += dt
+            if elapsed < 4 then return end
+            elapsed = 0
+            rescanMonochrome() -- Also catches objects that get renamed.
+        end)
+        newFeatureHelp.Text = "Monochrome ON: name matches visible through walls (up to 31 active outlines)."
+    end
+    monochromeButton.Activated:Connect(function() toggleMonochromeHighlights() end)
+    registerCleanup(function()
+        disableMouseLock()
+        disableMonochrome()
+        toggleMouseLock = nil
+        toggleMonochromeHighlights = nil
+    end)
 
     -- Frame-rate preferences: user-selected target shown in this menu.
     -- IMPORTANT: Roblox's real Maximum Frame Rate setting is protected by
@@ -5067,6 +5182,14 @@ __EB1478_safeCall("Studio edition UI and Toolkit", function()
     table.insert(commands, {
         "FPS preference", "Select your target frame rate", openFpsPicker,
         "fps maximum framerate cap 30 60 120 144 240"
+    })
+    table.insert(commands, {
+        "Toggle mouse lock", "Lock cursor while playing", function() if toggleMouseLock then toggleMouseLock() end end,
+        "mouse lock unlock cursor centre shiftlock"
+    })
+    table.insert(commands, {
+        "Monochrome outlines", "Highlight matching objects through walls", function() if toggleMonochromeHighlights then toggleMonochromeHighlights() end end,
+        "monochrome highlight outline xray walls"
     })
     local function closePalette()
         paletteShade.Visible = false
