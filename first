@@ -1,6 +1,6 @@
 -- STUDIO EDITION (CENTRE + FPS + OPTIONAL KEYBINDS + HOLD-CLICK TELEPORT)
 -- All shortcut bindings can be cleared to NONE without removing their on-screen controls.
--- Hold the chosen teleport key (T by default) and LEFT-CLICK terrain to teleport.
+-- Hold the chosen teleport key (T by default) and LEFT-CLICK any world surface to teleport.
 -- Only the existing menu is moved off-screen on close; no GUI is rebuilt on G.
 -- G reuses the same GUI. Every reopen lands at UDim2.fromScale(0.5, 0.5).
 -- FPS chooser shows preferred target only; real cap must be selected in Roblox Settings.
@@ -2273,15 +2273,19 @@ trackServiceConnection(UserInputService.InputBegan:Connect(function(input, proce
         if teleportStatusCallback then teleportStatusCallback("No world surface under your cursor.") end
         return
     end
-    -- Only allow floor-like surfaces so a wall click does not embed the avatar.
-    if hit.Normal.Y < 0.45 then
-        if teleportStatusCallback then teleportStatusCallback("Click a floor or a walkable slope.") end
-        return
-    end
-
+    -- Any raycastable surface is valid: ground, walls, ceilings, objects, and terrain.
+    -- Offset horizontally away from vertical surfaces and vertically away from
+    -- horizontal surfaces, so the character isn't placed inside the target.
     lastClickTeleportAt = os.clock()
-    local clearance = math.max(2, humanoid.HipHeight + root.Size.Y * 0.5 + 0.5)
-    local landingPosition = hit.Position + Vector3.new(0, clearance, 0)
+    local verticalClearance = math.max(2, humanoid.HipHeight + root.Size.Y * 0.5 + 0.5)
+    local horizontalClearance = math.max(root.Size.X, root.Size.Z) * 0.5 + 0.75
+    local normal = hit.Normal
+    local verticalOffset = normal.Y < -0.45 and -verticalClearance or verticalClearance
+    local landingPosition = hit.Position + Vector3.new(
+        normal.X * horizontalClearance,
+        verticalOffset,
+        normal.Z * horizontalClearance
+    )
     local ok, err = pcall(function()
         local originalRotation = character:GetPivot().Rotation
         character:PivotTo(CFrame.new(landingPosition) * originalRotation)
@@ -2292,7 +2296,7 @@ trackServiceConnection(UserInputService.InputBegan:Connect(function(input, proce
         warn("[ErrorB1478Menu][TELEPORT] " .. tostring(err))
         if teleportStatusCallback then teleportStatusCallback("Teleport failed; check the F9 console.") end
     elseif teleportStatusCallback then
-        teleportStatusCallback("Teleported to clicked floor. Hold " .. teleportHoldKey.Name .. " + click again.")
+        teleportStatusCallback("Teleported to clicked surface. Hold " .. teleportHoldKey.Name .. " + click again.")
     end
 end))
 
@@ -3860,7 +3864,7 @@ __EB1478_safeCall("Premium pages and extras", function()
 
     __EB1478_safeCall("Options page and keybinds", function()
     makeHeader(optionsPage, "Options & Keybinds", "Click CHANGE to assign a key. Click NONE to remove the shortcut.")
-    local optionsStatus = makeLabel(optionsPage, "OptionsStatus", "T + left-click a floor to teleport. ESC cancels a key change.", UDim2.fromOffset(22, 100), UDim2.new(1, -44, 0, 28), 11, C.muted, false)
+    local optionsStatus = makeLabel(optionsPage, "OptionsStatus", "Hold T + left-click any world surface to teleport. ESC cancels a key change.", UDim2.fromOffset(22, 100), UDim2.new(1, -44, 0, 28), 11, C.muted, false)
     optionsStatus.TextWrapped = true
     keyCaptureStatusCallback = function(message)
         if optionsStatus and optionsStatus.Parent then optionsStatus.Text = message end
@@ -3966,7 +3970,7 @@ __EB1478_safeCall("Premium pages and extras", function()
         errorMonitorSetting.Text = "Error Monitor: " .. (errorMonitorEnabled and "ON" or "OFF")
         optionsStatus.Text = errorMonitorEnabled and "Error Monitor enabled." or "Error Monitor disabled; check F9 for errors."
     end)
-    makeLabel(scroller, "HelpText", "Teleport is client-controlled and may be blocked by your game's server scripts. Click a walkable surface, not the UI.",
+    makeLabel(scroller, "HelpText", "Teleport is client-controlled and may be blocked by your game's server scripts. Click any world surface or object, not the UI.",
         UDim2.fromOffset(6, 542), UDim2.new(1, -18, 0, 65), 11, C.muted, false)
 
     refreshOptionsLabels = function()
