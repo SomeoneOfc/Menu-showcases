@@ -1,4 +1,7 @@
--- STUDIO EDITION (CENTRE + FPS PREFERENCE)
+-- STUDIO EDITION (CENTRE + FPS + OPTIONAL KEYBINDS + HOLD-CLICK TELEPORT)
+-- All shortcut bindings can be cleared to NONE without removing their on-screen controls.
+-- Hold the chosen teleport key (T by default) and LEFT-CLICK terrain to teleport.
+-- Only the existing menu is moved off-screen on close; no GUI is rebuilt on G.
 -- G reuses the same GUI. Every reopen lands at UDim2.fromScale(0.5, 0.5).
 -- FPS chooser shows preferred target only; real cap must be selected in Roblox Settings.
 -- ERRORB1478 MENU - REVIEWED SAFE-LOAD BUILD
@@ -2014,7 +2017,13 @@ local flyToggleKey = Enum.KeyCode.F
 local noclipToggleKey = Enum.KeyCode.N
 local jumpToggleKey = Enum.KeyCode.J
 local espToggleKey = Enum.KeyCode.Y
-local positionSaveKey = Enum.KeyCode.P -- Press after dragging to save the menu position used by slide animations.
+local positionSaveKey = Enum.KeyCode.P -- Optional; reopening always returns to centre anyway.
+local teleportHoldKey = Enum.KeyCode.T -- Hold T and left-click the game world (not UI).
+local commandSearchKey = Enum.KeyCode.K -- Ctrl + chosen key; optional.
+local pageNavigationEnabled = true -- Alt + number; can be disabled entirely.
+local lastKeyCaptureAt = -math.huge
+local keyCaptureStatusCallback = nil
+local teleportStatusCallback = nil
 local keyCaptureTarget = nil
 local refreshOptionsLabels = nil
 local positionSaveStatusCallback = nil
@@ -2156,40 +2165,136 @@ local inputConnection = trackServiceConnection(UserInputService.InputBegan:Conne
         if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
 
         if keyCaptureTarget then
+            -- ESC cancels, BACKSPACE/DELETE clear the binding, and a normal
+            -- keyboard key assigns it. Never assign Unknown as a shortcut.
             local target = keyCaptureTarget
             keyCaptureTarget = nil
-            if target == "menu" then menuToggleKey = input.KeyCode
-            elseif target == "fly" then flyToggleKey = input.KeyCode
-            elseif target == "noclip" then noclipToggleKey = input.KeyCode
-            elseif target == "jump" then jumpToggleKey = input.KeyCode
-            elseif target == "esp" then espToggleKey = input.KeyCode
-            elseif target == "position" then positionSaveKey = input.KeyCode end
+            lastKeyCaptureAt = os.clock()
+            if input.KeyCode == Enum.KeyCode.Escape then
+                if keyCaptureStatusCallback then keyCaptureStatusCallback("Key change cancelled.") end
+            elseif input.KeyCode == Enum.KeyCode.Backspace or input.KeyCode == Enum.KeyCode.Delete then
+                if target == "menu" then menuToggleKey = nil
+                elseif target == "fly" then flyToggleKey = nil
+                elseif target == "noclip" then noclipToggleKey = nil
+                elseif target == "jump" then jumpToggleKey = nil
+                elseif target == "esp" then espToggleKey = nil
+                elseif target == "position" then positionSaveKey = nil
+                elseif target == "teleport" then teleportHoldKey = nil
+                elseif target == "search" then commandSearchKey = nil end
+                if keyCaptureStatusCallback then keyCaptureStatusCallback("Shortcut removed. You can still use the menu button.") end
+            elseif input.KeyCode ~= Enum.KeyCode.Unknown then
+                if target == "menu" then menuToggleKey = input.KeyCode
+                elseif target == "fly" then flyToggleKey = input.KeyCode
+                elseif target == "noclip" then noclipToggleKey = input.KeyCode
+                elseif target == "jump" then jumpToggleKey = input.KeyCode
+                elseif target == "esp" then espToggleKey = input.KeyCode
+                elseif target == "position" then positionSaveKey = input.KeyCode
+                elseif target == "teleport" then teleportHoldKey = input.KeyCode
+                elseif target == "search" then commandSearchKey = input.KeyCode end
+                if keyCaptureStatusCallback then keyCaptureStatusCallback("Shortcut updated: " .. input.KeyCode.Name .. ".") end
+            end
+            if not menuToggleKey and not floatingToggleEnabled then
+                floatingToggleEnabled = true
+                if floatingToggleButton then floatingToggleButton.Visible = true end
+            end
             if refreshOptionsLabels then refreshOptionsLabels() end
             return
         end
-        if processed then return end
+        if processed or os.clock() - lastKeyCaptureAt < 0.08 then return end
 
-        if input.KeyCode == positionSaveKey then
+        -- Nil bindings are genuinely disabled. A shortcut that matches None
+        -- cannot fire, and assigning None does not affect the GUI buttons.
+        if positionSaveKey and input.KeyCode == positionSaveKey then
             -- Keep the on-screen destination centred when reopening.
             savedMenuPosition = UDim2.fromScale(0.5, 0.5)
             print("[ErrorB1478Menu] Saved menu slide position: " .. tostring(savedMenuPosition) .. " (" .. positionSaveKey.Name .. ")")
             if positionSaveStatusCallback then pcall(positionSaveStatusCallback, positionSaveKey.Name) end
-        elseif input.KeyCode == menuToggleKey then
+        elseif menuToggleKey and input.KeyCode == menuToggleKey then
             setMenuVisible(not menuOpen)
-        elseif input.KeyCode == flyToggleKey then
+        elseif flyToggleKey and input.KeyCode == flyToggleKey then
             if flying then stopFly() else startFly() end
-        elseif input.KeyCode == noclipToggleKey then
+        elseif noclipToggleKey and input.KeyCode == noclipToggleKey then
             setNoclip(not noclip)
-        elseif input.KeyCode == jumpToggleKey then
+        elseif jumpToggleKey and input.KeyCode == jumpToggleKey then
             infiniteJump = not infiniteJump
             setInfiniteJumpButtonState()
-        elseif input.KeyCode == espToggleKey then
+        elseif espToggleKey and input.KeyCode == espToggleKey then
             setPlayerEspEnabled(not playerEspEnabled)
         end
     end
 ))
 
 table.insert(connections, inputConnection)
+
+--==================================================
+-- HOLD-KEY + LEFT-CLICK TELEPORT (CLIENT, GAME WORLD ONLY)
+--==================================================
+-- Does not create a tool, RenderStepped loop, GUI, or extra menu instance.
+-- Server-controlled anti-teleport or movement systems may override a
+-- LocalScript's character movement in games that enforce server authority.
+local lastClickTeleportAt = -math.huge
+local function pointWithinGui(guiObject, point)
+    if not guiObject or not guiObject.Parent or not guiObject.Visible then return false end
+    local topLeft = guiObject.AbsolutePosition
+    local size = guiObject.AbsoluteSize
+    return point.X >= topLeft.X and point.X <= topLeft.X + size.X
+        and point.Y >= topLeft.Y and point.Y <= topLeft.Y + size.Y
+end
+
+trackServiceConnection(UserInputService.InputBegan:Connect(function(input, processed)
+    if destroyed or not teleportHoldKey or keyCaptureTarget or processed then return end
+    if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+    if UserInputService:GetFocusedTextBox() then return end
+    if not UserInputService:IsKeyDown(teleportHoldKey) then return end
+    if os.clock() - lastClickTeleportAt < 0.2 then return end
+
+    local pointer = UserInputService:GetMouseLocation()
+    -- GUI uses IgnoreGuiInset=true, so its AbsolutePosition is screen-aligned.
+    -- Never teleport when clicking any part of the menu/floating toggle.
+    if (menuOpen and pointWithinGui(main, pointer))
+        or pointWithinGui(floatingToggleButton, pointer) then
+        return
+    end
+    local character = getCharacter()
+    local root = getRoot()
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+    local camera = workspace.CurrentCamera
+    if not camera or not character or not root or not humanoid or humanoid.Health <= 0 then return end
+
+    -- GetMouseLocation is viewport-based; ViewportPointToRay avoids the
+    -- top-bar inset mismatch when ScreenGui.IgnoreGuiInset is true.
+    local ray = camera:ViewportPointToRay(pointer.X, pointer.Y)
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    params.FilterDescendantsInstances = {character}
+    params.IgnoreWater = true
+    local hit = workspace:Raycast(ray.Origin, ray.Direction * 2048, params)
+    if not hit then
+        if teleportStatusCallback then teleportStatusCallback("No world surface under your cursor.") end
+        return
+    end
+    -- Only allow floor-like surfaces so a wall click does not embed the avatar.
+    if hit.Normal.Y < 0.45 then
+        if teleportStatusCallback then teleportStatusCallback("Click a floor or a walkable slope.") end
+        return
+    end
+
+    lastClickTeleportAt = os.clock()
+    local clearance = math.max(2, humanoid.HipHeight + root.Size.Y * 0.5 + 0.5)
+    local landingPosition = hit.Position + Vector3.new(0, clearance, 0)
+    local ok, err = pcall(function()
+        local originalRotation = character:GetPivot().Rotation
+        character:PivotTo(CFrame.new(landingPosition) * originalRotation)
+        root.AssemblyLinearVelocity = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
+    end)
+    if not ok then
+        warn("[ErrorB1478Menu][TELEPORT] " .. tostring(err))
+        if teleportStatusCallback then teleportStatusCallback("Teleport failed; check the F9 console.") end
+    elseif teleportStatusCallback then
+        teleportStatusCallback("Teleported to clicked floor. Hold " .. teleportHoldKey.Name .. " + click again.")
+    end
+end))
 
 --==================================================
 -- RESPAWN HANDLING
@@ -3754,47 +3859,139 @@ __EB1478_safeCall("Premium pages and extras", function()
     end)
 
     __EB1478_safeCall("Options page and keybinds", function()
-    makeHeader(optionsPage, "Options & Keybinds", "Click a key button, then press the key you want to use.")
-    local optionsStatus = makeLabel(optionsPage, "OptionsStatus", "Changes apply immediately for this session.", UDim2.fromOffset(22, 101), UDim2.new(1, -44, 0, 24), 11, C.muted, false)
-    positionSaveStatusCallback = function(keyName)
-        optionsStatus.Text = "Menu slide position saved. Press " .. keyName .. " again any time to save the current position."
+    makeHeader(optionsPage, "Options & Keybinds", "Click CHANGE to assign a key. Click NONE to remove the shortcut.")
+    local optionsStatus = makeLabel(optionsPage, "OptionsStatus", "T + left-click a floor to teleport. ESC cancels a key change.", UDim2.fromOffset(22, 100), UDim2.new(1, -44, 0, 28), 11, C.muted, false)
+    optionsStatus.TextWrapped = true
+    keyCaptureStatusCallback = function(message)
+        if optionsStatus and optionsStatus.Parent then optionsStatus.Text = message end
     end
-    local function makeKeyRow(y, title, keyName, target)
-        makeLabel(optionsPage, title .. "Label", title, UDim2.fromOffset(22, y), UDim2.new(1, -170, 0, 36), 12, C.text, true)
-        local keyButton = makeButton(optionsPage, title .. "KeyButton", "SET KEY", UDim2.new(1, -145, 0, y), UDim2.fromOffset(120, 34), false)
+    teleportStatusCallback = keyCaptureStatusCallback
+    positionSaveStatusCallback = function(keyName)
+        optionsStatus.Text = "Centre position confirmed. Reopening always centres the menu."
+    end
+
+    local scroller = Instance.new("ScrollingFrame")
+    scroller.Name = "KeybindAndSettingsScroll"
+    scroller.Position = UDim2.fromOffset(20, 132)
+    scroller.Size = UDim2.new(1, -40, 1, -144)
+    scroller.BackgroundTransparency = 1
+    scroller.BorderSizePixel = 0
+    scroller.ScrollBarThickness = 5
+    scroller.ScrollBarImageColor3 = C.accent
+    scroller.ScrollingDirection = Enum.ScrollingDirection.Y
+    scroller.AutomaticCanvasSize = Enum.AutomaticSize.None
+    scroller.CanvasSize = UDim2.fromOffset(0, 660)
+    scroller.Parent = optionsPage
+
+    local keyRows = {}
+    local function formatKey(target, value)
+        if target == "nav" then
+            return pageNavigationEnabled and "ALT + 1-9" or "NONE"
+        end
+        if not value then return "NONE" end
+        return (target == "search" and "CTRL + " or "") .. value.Name
+    end
+    local function setTargetKey(target, value)
+        if target == "menu" then menuToggleKey = value
+        elseif target == "fly" then flyToggleKey = value
+        elseif target == "noclip" then noclipToggleKey = value
+        elseif target == "jump" then jumpToggleKey = value
+        elseif target == "esp" then espToggleKey = value
+        elseif target == "position" then positionSaveKey = value
+        elseif target == "teleport" then teleportHoldKey = value
+        elseif target == "search" then commandSearchKey = value
+        elseif target == "nav" then pageNavigationEnabled = value == true end
+    end
+    local function makeKeyRow(y, title, target)
+        local row = Instance.new("Frame")
+        row.Name = target .. "KeyRow"
+        row.Position = UDim2.fromOffset(3, y)
+        row.Size = UDim2.new(1, -14, 0, 43)
+        row.BackgroundColor3 = C.panel
+        row.BorderSizePixel = 0
+        row.Parent = scroller
+        addCorner(row, 8)
+        makeLabel(row, "Title", title, UDim2.fromOffset(10, 4), UDim2.new(1, -235, 1, -8), 11, C.text, true)
+        local keyButton = makeButton(row, "Change" .. target, "CHANGE", UDim2.new(1, -218, 0, 5), UDim2.fromOffset(133, 33), false)
+        local noneButton = makeButton(row, "Clear" .. target, "NONE", UDim2.new(1, -79, 0, 5), UDim2.fromOffset(73, 33), false)
+        keyRows[target] = keyButton
         keyButton.Activated:Connect(function()
+            if target == "nav" then
+                pageNavigationEnabled = not pageNavigationEnabled
+                optionsStatus.Text = pageNavigationEnabled and "Alt + 1-9 page shortcuts enabled." or "Alt + 1-9 page shortcuts disabled."
+                if refreshOptionsLabels then refreshOptionsLabels() end
+                return
+            end
             keyCaptureTarget = target
-            optionsStatus.Text = "Press a keyboard key for " .. title .. "…"
-            keyButton.Text = "PRESS KEY…"
+            optionsStatus.Text = "Press a key for " .. title .. ". Backspace/Delete = NONE, Esc = cancel."
+            keyButton.Text = "PRESS KEY..."
+        end)
+        noneButton.Activated:Connect(function()
+            keyCaptureTarget = nil
+            setTargetKey(target, target == "nav" and false or nil)
+            if target == "menu" and not floatingToggleEnabled then
+                floatingToggleEnabled = true
+                if floatingToggleButton then floatingToggleButton.Visible = true end
+            end
+            optionsStatus.Text = title .. " shortcut disabled. Its on-screen controls still work."
+            if refreshOptionsLabels then refreshOptionsLabels() end
         end)
         return keyButton
     end
-    local menuKeyButton = makeKeyRow(137, "Menu toggle", "menu", "menu")
-    local flyKeyButton = makeKeyRow(180, "Fly", "fly", "fly")
-    local noclipKeyButton = makeKeyRow(223, "Noclip", "noclip", "noclip")
-    local jumpKeyButton = makeKeyRow(266, "Infinite jump", "jump", "jump")
-    local espKeyButton = makeKeyRow(309, "Player ESP + inventory", "esp", "esp")
-    local positionKeyButton = makeKeyRow(352, "Save menu position", "position", "position")
-    local floatingButtonSetting = makeButton(optionsPage, "FloatingToggleSetting", "Floating toggle: ON", UDim2.fromOffset(22, 397), UDim2.new(1, -44, 0, 36), true)
+
+    makeKeyRow(4, "Menu toggle", "menu")
+    makeKeyRow(52, "Fly", "fly")
+    makeKeyRow(100, "Noclip", "noclip")
+    makeKeyRow(148, "Infinite jump", "jump")
+    makeKeyRow(196, "Player ESP + tools", "esp")
+    makeKeyRow(244, "Save menu centre", "position")
+    makeKeyRow(292, "Hold + click teleport", "teleport")
+    makeKeyRow(340, "Command search", "search")
+    makeKeyRow(388, "Quick page navigation", "nav")
+
+    local floatingButtonSetting = makeButton(scroller, "FloatingToggleSetting", "Floating toggle: ON", UDim2.fromOffset(3, 449), UDim2.new(1, -14, 0, 36), true)
     floatingButtonSetting.Activated:Connect(function()
+        if floatingToggleEnabled and not menuToggleKey then
+            optionsStatus.Text = "Keep the floating toggle ON while the Menu shortcut is NONE."
+            return
+        end
         floatingToggleEnabled = not floatingToggleEnabled
         if floatingToggleButton then floatingToggleButton.Visible = floatingToggleEnabled end
         floatingButtonSetting.Text = "Floating toggle: " .. (floatingToggleEnabled and "ON" or "OFF")
-        optionsStatus.Text = floatingToggleEnabled and "Floating UI toggle is visible." or "Floating UI toggle is hidden. Use the Menu keybind to reopen the menu."
+        optionsStatus.Text = floatingToggleEnabled and "Floating UI toggle is visible." or "Floating UI toggle is hidden. Use the Menu key to reopen."
     end)
-    local errorMonitorSetting = makeButton(optionsPage, "ErrorMonitorSetting", "Error Monitor: OFF", UDim2.fromOffset(22, 441), UDim2.new(1, -44, 0, 36), true)
+    local errorMonitorSetting = makeButton(scroller, "ErrorMonitorSetting", "Error Monitor: OFF", UDim2.fromOffset(3, 491), UDim2.new(1, -14, 0, 36), true)
     errorMonitorSetting.Activated:Connect(function()
         setErrorMonitorEnabled(not errorMonitorEnabled)
         errorMonitorSetting.Text = "Error Monitor: " .. (errorMonitorEnabled and "ON" or "OFF")
-        optionsStatus.Text = errorMonitorEnabled and "Error Monitor enabled. Turn it off here to remove the panel." or "Error Monitor disabled; F9 diagnostics remain available."
+        optionsStatus.Text = errorMonitorEnabled and "Error Monitor enabled." or "Error Monitor disabled; check F9 for errors."
     end)
+    makeLabel(scroller, "HelpText", "Teleport is client-controlled and may be blocked by your game's server scripts. Click a walkable surface, not the UI.",
+        UDim2.fromOffset(6, 542), UDim2.new(1, -18, 0, 65), 11, C.muted, false)
+
     refreshOptionsLabels = function()
-        menuKeyButton.Text = "KEY: " .. menuToggleKey.Name
-        positionKeyButton.Text = "KEY: " .. positionSaveKey.Name
-        flyKeyButton.Text = "KEY: " .. flyToggleKey.Name
-        noclipKeyButton.Text = "KEY: " .. noclipToggleKey.Name
-        jumpKeyButton.Text = "KEY: " .. jumpToggleKey.Name
-        espKeyButton.Text = "KEY: " .. espToggleKey.Name
+        local values = {
+            menu = menuToggleKey, fly = flyToggleKey, noclip = noclipToggleKey,
+            jump = jumpToggleKey, esp = espToggleKey, position = positionSaveKey,
+            teleport = teleportHoldKey, search = commandSearchKey,
+        }
+        for target, button in pairs(keyRows) do
+            button.Text = formatKey(target, values[target])
+        end
+        local function nameOrNone(key)
+            return key and key.Name or "NONE"
+        end
+        hint.Text = menuToggleKey and (menuToggleKey.Name .. " ·  MENU") or "MENU: NONE"
+        homeInfo.Text = "CONTROL CENTER\nMenu: " .. nameOrNone(menuToggleKey)
+            .. "  ·  Teleport: hold " .. nameOrNone(teleportHoldKey) .. " + click\n"
+            .. "Change shortcuts or choose NONE in Options."
+        movementInfo.Text = "KEYBOARD SHORTCUTS\nFly: " .. nameOrNone(flyToggleKey)
+            .. "  ·  Noclip: " .. nameOrNone(noclipToggleKey)
+            .. "  ·  Infinite jump: " .. nameOrNone(jumpToggleKey)
+            .. "\nMenu: " .. nameOrNone(menuToggleKey)
+            .. "  ·  Teleport: hold " .. nameOrNone(teleportHoldKey) .. " + click"
+            .. "\nSearch: " .. (commandSearchKey and ("Ctrl + " .. commandSearchKey.Name) or "NONE")
+            .. "  ·  Page nav: " .. (pageNavigationEnabled and "Alt + 1-9" or "NONE")
         floatingButtonSetting.Text = "Floating toggle: " .. (floatingToggleEnabled and "ON" or "OFF")
         errorMonitorSetting.Text = "Error Monitor: " .. (errorMonitorEnabled and "ON" or "OFF")
     end
@@ -4825,20 +5022,23 @@ __EB1478_safeCall("Studio edition UI and Toolkit", function()
 
     trackServiceConnection(UserInputService.InputBegan:Connect(function(input, processed)
         if destroyed or input.UserInputType ~= Enum.UserInputType.Keyboard then return end
+        if keyCaptureTarget then return end
         if paletteShade.Visible and input.KeyCode == Enum.KeyCode.Escape then
             closePalette()
             return
         end
         local ctrlDown = UserInputService:IsKeyDown(Enum.KeyCode.LeftControl)
             or UserInputService:IsKeyDown(Enum.KeyCode.RightControl)
-        if input.KeyCode == Enum.KeyCode.K and ctrlDown then
+        if commandSearchKey and input.KeyCode == commandSearchKey and ctrlDown
+            and os.clock() - lastKeyCaptureAt >= 0.08 then
             if paletteShade.Visible then closePalette() else openPalette() end
             return
         end
         if processed or paletteShade.Visible then return end
         local altDown = UserInputService:IsKeyDown(Enum.KeyCode.LeftAlt)
             or UserInputService:IsKeyDown(Enum.KeyCode.RightAlt)
-        if altDown and menuOpen then
+        if pageNavigationEnabled and altDown and menuOpen
+            and os.clock() - lastKeyCaptureAt >= 0.08 then
             local index = ({[Enum.KeyCode.One] = 1, [Enum.KeyCode.Two] = 2,
                 [Enum.KeyCode.Three] = 3, [Enum.KeyCode.Four] = 4,
                 [Enum.KeyCode.Five] = 5, [Enum.KeyCode.Six] = 6,
@@ -4854,6 +5054,7 @@ __EB1478_safeCall("Studio edition UI and Toolkit", function()
 
     -- Retain the same GUI; don't create another page or menu when reopened.
     showPage(homePage)
+    if refreshOptionsLabels then refreshOptionsLabels() end
     print("[ErrorB1478Menu] Studio edition ready: Toolkit, command search and refined layout created once.")
 end)
 
