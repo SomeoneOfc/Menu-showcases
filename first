@@ -1,6 +1,6 @@
 -- STUDIO EDITION (CENTRE + FPS + OPTIONAL KEYBINDS + HOLD-CLICK TELEPORT)
 -- All shortcut bindings can be cleared to NONE without removing their on-screen controls.
--- Hold the chosen teleport key (T by default) and LEFT-CLICK any world surface to teleport.
+-- Hold the chosen teleport key (T by default) and LEFT-CLICK any world surface to teleport exactly to the clicked 3D point.
 -- Only the existing menu is moved off-screen on close; no GUI is rebuilt on G.
 -- G reuses the same GUI. Every reopen lands at UDim2.fromScale(0.5, 0.5).
 -- FPS chooser shows preferred target only; real cap must be selected in Roblox Settings.
@@ -2273,22 +2273,14 @@ trackServiceConnection(UserInputService.InputBegan:Connect(function(input, proce
         if teleportStatusCallback then teleportStatusCallback("No world surface under your cursor.") end
         return
     end
-    -- Any raycastable surface is valid: ground, walls, ceilings, objects, and terrain.
-    -- Offset horizontally away from vertical surfaces and vertically away from
-    -- horizontal surfaces, so the character isn't placed inside the target.
+    -- Exact surface hit: clicking the SIDE of a wall moves the HumanoidRootPart
+    -- to that precise 3D point, with no artificial horizontal or vertical offset.
+    -- Roblox collisions or server-authoritative movement can move it afterwards.
     lastClickTeleportAt = os.clock()
-    local verticalClearance = math.max(2, humanoid.HipHeight + root.Size.Y * 0.5 + 0.5)
-    local horizontalClearance = math.max(root.Size.X, root.Size.Z) * 0.5 + 0.75
-    local normal = hit.Normal
-    local verticalOffset = normal.Y < -0.45 and -verticalClearance or verticalClearance
-    local landingPosition = hit.Position + Vector3.new(
-        normal.X * horizontalClearance,
-        verticalOffset,
-        normal.Z * horizontalClearance
-    )
+    local landingPosition = hit.Position
     local ok, err = pcall(function()
-        local originalRotation = character:GetPivot().Rotation
-        character:PivotTo(CFrame.new(landingPosition) * originalRotation)
+        local originalRotation = root.CFrame.Rotation
+        root.CFrame = CFrame.new(landingPosition) * originalRotation
         root.AssemblyLinearVelocity = Vector3.zero
         root.AssemblyAngularVelocity = Vector3.zero
     end)
@@ -2296,7 +2288,7 @@ trackServiceConnection(UserInputService.InputBegan:Connect(function(input, proce
         warn("[ErrorB1478Menu][TELEPORT] " .. tostring(err))
         if teleportStatusCallback then teleportStatusCallback("Teleport failed; check the F9 console.") end
     elseif teleportStatusCallback then
-        teleportStatusCallback("Teleported to clicked surface. Hold " .. teleportHoldKey.Name .. " + click again.")
+        teleportStatusCallback("Teleported to exact clicked point. Hold " .. teleportHoldKey.Name .. " + click again.")
     end
 end))
 
