@@ -1,4 +1,5 @@
 -- STUDIO EDITION (CENTRE + FPS + OPTIONAL KEYBINDS + HOLD-CLICK TELEPORT)
+-- BSS additions: independent WarningDisk and Collectables auto-teleport toggles with editable stud ranges.
 -- All shortcut bindings can be cleared to NONE without removing their on-screen controls.
 -- Hold the chosen teleport key (T by default) and LEFT-CLICK a world surface to move to its clicked point.
 -- G only moves the existing menu. Launching a NEW copy requests full cleanup of the OLD copy before building a new UI.
@@ -4322,7 +4323,7 @@ __EB1478_safeCall("Premium pages and extras", function()
     end)
 
     __EB1478_safeCall("BSS HiddenStickers page", function()
-    makeHeader(bssPage, "BSS • HiddenStickers", "Browse objects in workspace.HiddenStickers and teleport to them.")
+    makeHeader(bssPage, "BSS • Teleport Tools", "Stinger, automatic nearby targets, and HiddenStickers.")
     local bssStatus = makeLabel(bssPage, "BSSStatus", "Checking workspace.HiddenStickers…", UDim2.fromOffset(22, 104), UDim2.new(1, -235, 0, 34), 11, C.muted, false)
     local refreshBSS = makeButton(bssPage, "RefreshBSS", "↻  REFRESH", UDim2.new(1, -145, 0, 103), UDim2.fromOffset(123, 36), true)
 
@@ -4395,10 +4396,214 @@ __EB1478_safeCall("Premium pages and extras", function()
         end
     end)
 
+    -- BSS AUTO TELEPORTS
+    -- Two independent toggles, each with its own editable detection radius.
+    -- Only a NEW eligible target is visited per scan; previously visited objects
+    -- do not cause repeated teleports/jitter until the toggle is reset.
+    local function makeBSSRadiusInput(name, y, startingRadius)
+        local input = Instance.new("TextBox")
+        input.Name = name
+        input.Position = UDim2.new(1, -135, 0, y)
+        input.Size = UDim2.fromOffset(75, 38)
+        input.BackgroundColor3 = C.panel2
+        input.BorderSizePixel = 0
+        input.ClearTextOnFocus = false
+        input.Text = tostring(startingRadius)
+        input.PlaceholderText = "Studs"
+        input.TextColor3 = C.text
+        input.PlaceholderColor3 = C.muted
+        input.TextSize = 13
+        input.Font = Enum.Font.GothamSemibold
+        input.Parent = bssPage
+        addCorner(input, 9)
+        addOutline(input, C.border, 0.3)
+        makeLabel(bssPage, name .. "Units", "STUDS", UDim2.new(1, -53, 0, y), UDim2.fromOffset(53, 38), 10, C.muted, true)
+        return input
+    end
+
+    local warningDiskButton = makeButton(bssPage, "AutoWarningDisk", "WARNING DISK: OFF", UDim2.fromOffset(20, 198), UDim2.new(1, -165, 0, 38), false)
+    local warningRadiusInput = makeBSSRadiusInput("WarningDiskRadius", 198, 100)
+    local collectablesButton = makeButton(bssPage, "AutoCollectables", "COLLECTABLES: OFF", UDim2.fromOffset(20, 246), UDim2.new(1, -165, 0, 38), false)
+    local collectablesRadiusInput = makeBSSRadiusInput("CollectablesRadius", 246, 150)
+    makeLabel(bssPage, "AutoTPDescription", "Auto TP scans nearby targets. Click again to stop. Range is measured from your character.", UDim2.fromOffset(22, 289), UDim2.new(1, -44, 0, 38), 10, C.muted, false)
+
+    local warningRadius, collectablesRadius = 100, 150
+    local warningOn, collectablesOn = false, false
+    local warningVersion, collectablesVersion = 0, 0
+    local visitedWarnings = setmetatable({}, {__mode = "k"})
+    local visitedCollectables = setmetatable({}, {__mode = "k"})
+
+    local function updateRadius(input, previous)
+        local entered = tonumber(input.Text)
+        if not entered or entered ~= entered then
+            input.Text = tostring(previous)
+            bssStatus.Text = "Enter a valid range in studs (5 to 10000)."
+            bssStatus.TextColor3 = C.yellow
+            return previous
+        end
+        local parsed = math.clamp(math.floor(entered + 0.5), 5, 10000)
+        input.Text = tostring(parsed)
+        return parsed
+    end
+    warningRadiusInput.FocusLost:Connect(function()
+        warningRadius = updateRadius(warningRadiusInput, warningRadius)
+    end)
+    collectablesRadiusInput.FocusLost:Connect(function()
+        collectablesRadius = updateRadius(collectablesRadiusInput, collectablesRadius)
+    end)
+
+    local function getBSSPosition(object)
+        if not object then return nil end
+        if object:IsA("BasePart") then return object.Position end
+        if object:IsA("Attachment") then return object.WorldPosition end
+        if object:IsA("Vector3Value") then return object.Value end
+        if object:IsA("CFrameValue") then return object.Value.Position end
+        if object:IsA("Model") then
+            if object:FindFirstChildWhichIsA("BasePart", true) then
+                return object:GetPivot().Position
+            end
+        end
+        -- Handle named folders / particle emitters / other containers, too.
+        for _, descendant in ipairs(object:GetDescendants()) do
+            if descendant:IsA("BasePart") then return descendant.Position end
+            if descendant:IsA("Attachment") then return descendant.WorldPosition end
+            if descendant:IsA("Vector3Value") then return descendant.Value end
+            if descendant:IsA("CFrameValue") then return descendant.Value.Position end
+        end
+        -- A particle emitter named WarningDisk may reside under an attachment.
+        local ancestor = object.Parent
+        while ancestor and ancestor ~= workspace do
+            if ancestor:IsA("Attachment") then return ancestor.WorldPosition end
+            if ancestor:IsA("BasePart") then return ancestor.Position end
+            ancestor = ancestor.Parent
+        end
+        return nil
+    end
+
+    local function findNearestWarning(origin, radius, visited)
+        local particles = workspace:FindFirstChild("Particles")
+        if not particles then return nil end
+        local nearest, nearestPosition, bestDistance = nil, nil, radius
+        for _, object in ipairs(particles:GetDescendants()) do
+            if object.Name == "WarningDisk" and not visited[object] then
+                local position = getBSSPosition(object)
+                if position then
+                    local distance = (position - origin).Magnitude
+                    if distance <= bestDistance then
+                        nearest, nearestPosition, bestDistance = object, position, distance
+                    end
+                end
+            end
+        end
+        return nearest, nearestPosition
+    end
+
+    local function findNearestCollectable(origin, radius, visited)
+        local folder = workspace:FindFirstChild("Collectables")
+        if not folder then return nil end
+        local nearest, nearestPosition, bestDistance = nil, nil, radius
+        local function inspect(object)
+            if object:IsA("Folder") then
+                for _, child in ipairs(object:GetChildren()) do inspect(child) end
+                return
+            end
+            if visited[object] then return end
+            local position = getBSSPosition(object)
+            if position then
+                local distance = (position - origin).Magnitude
+                if distance <= bestDistance then
+                    nearest, nearestPosition, bestDistance = object, position, distance
+                end
+            else
+                for _, child in ipairs(object:GetChildren()) do inspect(child) end
+            end
+        end
+        for _, child in ipairs(folder:GetChildren()) do inspect(child) end
+        return nearest, nearestPosition
+    end
+
+    local function moveToBSSPosition(position)
+        local character = player.Character
+        local root = character and character:FindFirstChild("HumanoidRootPart")
+        if not root then return false end
+        local destination = position + Vector3.new(0, 3, 0)
+        local ok, err = pcall(function()
+            character:PivotTo(CFrame.new(destination) * root.CFrame.Rotation)
+        end)
+        if not ok then warn("[ErrorB1478Menu][BSS Auto TP] " .. tostring(err)) end
+        return ok
+    end
+
+    local function setWarningEnabled(enabled)
+        warningVersion = warningVersion + 1
+        warningOn = enabled and not destroyed
+        warningDiskButton.Text = warningOn and "WARNING DISK: ON" or "WARNING DISK: OFF"
+        warningDiskButton.BackgroundColor3 = warningOn and C.accent or C.panel2
+        if not warningOn then return end
+        visitedWarnings = setmetatable({}, {__mode = "k"})
+        local thisVersion = warningVersion
+        bssStatus.Text = "WarningDisk auto TP enabled (" .. warningRadius .. " studs)."
+        bssStatus.TextColor3 = C.green
+        task.spawn(function()
+            while not destroyed and warningOn and thisVersion == warningVersion do
+                local success, err = pcall(function()
+                    local character = player.Character
+                    local root = character and character:FindFirstChild("HumanoidRootPart")
+                    if not root then return end
+                    local target, position = findNearestWarning(root.Position, warningRadius, visitedWarnings)
+                    if target and position and moveToBSSPosition(position) then
+                        visitedWarnings[target] = true
+                        bssStatus.Text = "WarningDisk: teleported to " .. target:GetFullName()
+                        bssStatus.TextColor3 = C.green
+                    end
+                end)
+                if not success then warn("[ErrorB1478Menu][WarningDisk] " .. tostring(err)) end
+                task.wait(0.4)
+            end
+        end)
+    end
+
+    local function setCollectablesEnabled(enabled)
+        collectablesVersion = collectablesVersion + 1
+        collectablesOn = enabled and not destroyed
+        collectablesButton.Text = collectablesOn and "COLLECTABLES: ON" or "COLLECTABLES: OFF"
+        collectablesButton.BackgroundColor3 = collectablesOn and C.accent or C.panel2
+        if not collectablesOn then return end
+        visitedCollectables = setmetatable({}, {__mode = "k"})
+        local thisVersion = collectablesVersion
+        bssStatus.Text = "Collectables auto TP enabled (" .. collectablesRadius .. " studs)."
+        bssStatus.TextColor3 = C.green
+        task.spawn(function()
+            while not destroyed and collectablesOn and thisVersion == collectablesVersion do
+                local success, err = pcall(function()
+                    local character = player.Character
+                    local root = character and character:FindFirstChild("HumanoidRootPart")
+                    if not root then return end
+                    local target, position = findNearestCollectable(root.Position, collectablesRadius, visitedCollectables)
+                    if target and position and moveToBSSPosition(position) then
+                        visitedCollectables[target] = true
+                        bssStatus.Text = "Collectables: teleported to " .. target.Name
+                        bssStatus.TextColor3 = C.green
+                    end
+                end)
+                if not success then warn("[ErrorB1478Menu][Collectables] " .. tostring(err)) end
+                task.wait(0.4)
+            end
+        end)
+    end
+
+    warningDiskButton.Activated:Connect(function() setWarningEnabled(not warningOn) end)
+    collectablesButton.Activated:Connect(function() setCollectablesEnabled(not collectablesOn) end)
+    registerCleanup(function()
+        warningVersion = warningVersion + 1
+        collectablesVersion = collectablesVersion + 1
+        warningOn, collectablesOn = false, false
+    end)
+
     local bssList = Instance.new("ScrollingFrame")
     bssList.Name = "HiddenStickersList"
-    bssList.Position = UDim2.fromOffset(20, 198)
-    bssList.Size = UDim2.new(1, -40, 1, -218)
+    bssList.Position = UDim2.fromOffset(20, 336)
+    bssList.Size = UDim2.new(1, -40, 1, -356)
     bssList.BackgroundColor3 = C.background
     bssList.BorderSizePixel = 0
     bssList.ScrollBarThickness = 5
