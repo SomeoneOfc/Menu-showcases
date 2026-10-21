@@ -1,3 +1,6 @@
+-- ERROR_B1478 2036 STARTUP RELIABILITY BUILD
+-- Contains a reduced-local startup scope and nonblocking Roblox profile lookup.
+-- If an error remains, copy the FULL first red Roblox Output/F9 line.
 -- ERROR_B1478 CLEAN STANDALONE BUILD
 -- REPLACE the contents of your old LocalScript with ALL of this file.
 -- Do not paste it under an existing menu: this file is already the complete menu.
@@ -33,6 +36,7 @@
 --==================================================
 -- SELF-DIAGNOSTICS / SAFE-LOAD SUPPORT
 --==================================================
+print("[ErrorB1478Menu][BOOT] Startup reliability build active. Check F9 Client Output if it fails.")
 local __EB1478_entryOk, __EB1478_entryError = xpcall(function()
 local __EB1478_currentSection = "Startup"
 local __EB1478_loadedSections = {}
@@ -358,9 +362,11 @@ main.BackgroundColor3 = Color3.fromRGB(20, 20, 27)
 main.BorderSizePixel = 0
 main.Parent = gui
 
-local mainCorner = Instance.new("UICorner")
-mainCorner.CornerRadius = UDim.new(0, 14)
-mainCorner.Parent = main
+do
+    local mainCorner = Instance.new("UICorner")
+    mainCorner.CornerRadius = UDim.new(0, 14)
+    mainCorner.Parent = main
+end
 
 local topBar = Instance.new("Frame")
 topBar.Size = UDim2.new(1, 0, 0, 55)
@@ -368,9 +374,11 @@ topBar.BackgroundColor3 = Color3.fromRGB(27, 27, 36)
 topBar.BorderSizePixel = 0
 topBar.Parent = main
 
-local topCorner = Instance.new("UICorner")
-topCorner.CornerRadius = UDim.new(0, 14)
-topCorner.Parent = topBar
+do
+    local topCorner = Instance.new("UICorner")
+    topCorner.CornerRadius = UDim.new(0, 14)
+    topCorner.Parent = topBar
+end
 
 local title = Instance.new("TextLabel")
 title.Size = UDim2.fromOffset(500, 55)
@@ -460,7 +468,9 @@ homeSubtitle.Parent = homePage
 --==================================================
 -- PROFILE THUMBNAILS
 --==================================================
-
+-- The profile-specific helpers live in their own scope to keep the core
+-- function under Luau's local-variable limit.
+do
 local function getUserThumbnail(userId)
     local success, imageUrl = pcall(function()
         local contentUrl = Players:GetUserThumbnailAsync(
@@ -500,6 +510,7 @@ local function createProfileCard(
     y
 )
     local card = Instance.new("Frame")
+    card.Name = titleText == "Created by" and "CreatorProfileCard" or "UserProfileCard"
     card.Size = UDim2.fromOffset(470, 125)
     card.Position = UDim2.fromOffset(x, y)
     card.BackgroundColor3 = Color3.fromRGB(30, 30, 39)
@@ -569,25 +580,22 @@ local function createProfileCard(
     return card
 end
 
-local creatorUserId = getUserId("Error_B1478")
-
-createProfileCard(
-    homePage,
-    "Created by",
-    "Error_B1478",
-    creatorUserId,
-    20,
-    125
-)
-
-createProfileCard(
-    homePage,
-    "Using this menu",
-    player.Name,
-    player.UserId,
-    20,
-    265
-)
+-- Build both cards immediately; resolve the creator's account ID in the
+-- background. The previous synchronous lookup could stall the entire menu
+-- on slow/throttled Roblox API requests.
+createProfileCard(homePage, "Created by", "Error_B1478", nil, 20, 125)
+createProfileCard(homePage, "Using this menu", player.Name, player.UserId, 20, 265)
+task.spawn(function()
+    local creatorId = getUserId("Error_B1478")
+    if not destroyed and gui and gui.Parent then
+        local creatorCard = homePage:FindFirstChild("CreatorProfileCard")
+        if creatorId and creatorCard then
+            local avatar = creatorCard:FindFirstChildWhichIsA("ImageLabel")
+            if avatar then avatar.Image = getUserThumbnail(creatorId) end
+        end
+    end
+end)
+end -- profile helpers scope
 
 local homeInfo = Instance.new("TextLabel")
 homeInfo.Size = UDim2.fromOffset(470, 90)
@@ -2010,6 +2018,7 @@ local function setPlayerEspEnabled(enabled)
     end
 end
 
+do
 local playerAddedConnection = trackServiceConnection(Players.PlayerAdded:Connect(function(targetPlayer)
     if playerEspEnabled then
         task.defer(function()
@@ -2041,6 +2050,7 @@ local espRefreshConnection = trackServiceConnection(RunService.Heartbeat:Connect
     end
 end))
 table.insert(connections, espRefreshConnection)
+end -- player ESP listener scope
 
 --==================================================
 -- KEYBINDS
@@ -2472,6 +2482,7 @@ panicButton.Font =
 panicButton.Parent =
     sidebar
 
+do
 local panicCorner =
     Instance.new("UICorner")
 
@@ -2480,6 +2491,7 @@ panicCorner.CornerRadius =
 
 panicCorner.Parent =
     panicButton
+end
 
 --==================================================
 -- PANIC CLEANUP
@@ -2545,9 +2557,11 @@ destroyEverythingButton.TextColor3 = Color3.new(1, 1, 1)
 destroyEverythingButton.TextSize = 12
 destroyEverythingButton.Font = Enum.Font.GothamBold
 destroyEverythingButton.Parent = sidebar
+do
 local destroyCorner = Instance.new("UICorner")
 destroyCorner.CornerRadius = UDim.new(0, 8)
 destroyCorner.Parent = destroyEverythingButton
+end
 
 destroyEverything = function()
     if destroyed then return end
@@ -2632,6 +2646,7 @@ minimizeButton.Font =
 minimizeButton.Parent =
     sidebar
 
+do
 local minimizeCorner =
     Instance.new("UICorner")
 
@@ -2640,6 +2655,7 @@ minimizeCorner.CornerRadius =
 
 minimizeCorner.Parent =
     minimizeButton
+end
 
 minimizeButton.MouseButton1Click:Connect(
     function()
@@ -5616,5 +5632,27 @@ else
 end
 end, debug.traceback)
 if not __EB1478_entryOk then
-    warn("[ErrorB1478Menu][FATAL STARTUP ERROR] The core script stopped before all features could initialize:\n" .. tostring(__EB1478_entryError))
+    local diagnostic = "[ErrorB1478Menu][FATAL STARTUP ERROR] " .. tostring(__EB1478_entryError)
+    warn(diagnostic)
+    pcall(function()
+        local p = game:GetService("Players").LocalPlayer
+        if not p then return end
+        local screen = Instance.new("ScreenGui")
+        screen.Name = "ErrorB1478StartupFailure"
+        screen.ResetOnSpawn = false
+        screen.DisplayOrder = 1000
+        screen.Parent = p:WaitForChild("PlayerGui")
+        local banner = Instance.new("TextLabel")
+        banner.Name = "StartupError"
+        banner.AnchorPoint = Vector2.new(0.5, 0)
+        banner.Position = UDim2.fromScale(0.5, 0.04)
+        banner.Size = UDim2.new(0.92, 0, 0, 100)
+        banner.BackgroundColor3 = Color3.fromRGB(90, 26, 37)
+        banner.TextColor3 = Color3.fromRGB(255, 255, 255)
+        banner.TextWrapped = true
+        banner.Font = Enum.Font.GothamBold
+        banner.TextSize = 13
+        banner.Text = "MENU STARTUP ERROR. Open F9 > Client Output and copy the first red error.\n" .. string.sub(tostring(__EB1478_entryError), 1, 360)
+        banner.Parent = screen
+    end)
 end
