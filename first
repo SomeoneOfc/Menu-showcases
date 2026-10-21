@@ -1,5 +1,5 @@
 -- STUDIO EDITION (CENTRE + FPS + OPTIONAL KEYBINDS + HOLD-CLICK TELEPORT)
--- BSS additions: independent WarningDisk and Collectables auto-teleport toggles with editable stud ranges.
+-- BSS additions: independent WarningDisk and Collectables auto-teleport toggles with editable stud ranges, updating every 0.1 seconds.
 -- All shortcut bindings can be cleared to NONE without removing their on-screen controls.
 -- Hold the chosen teleport key (T by default) and LEFT-CLICK a world surface to move to its clicked point.
 -- G only moves the existing menu. Launching a NEW copy requests full cleanup of the OLD copy before building a new UI.
@@ -4398,8 +4398,8 @@ __EB1478_safeCall("Premium pages and extras", function()
 
     -- BSS AUTO TELEPORTS
     -- Two independent toggles, each with its own editable detection radius.
-    -- Only a NEW eligible target is visited per scan; previously visited objects
-    -- do not cause repeated teleports/jitter until the toggle is reset.
+    -- Each active toggle checks every 0.1 seconds and teleports to one nearest
+    -- eligible target per check, including targets teleported to previously.
     local function makeBSSRadiusInput(name, y, startingRadius)
         local input = Instance.new("TextBox")
         input.Name = name
@@ -4425,13 +4425,11 @@ __EB1478_safeCall("Premium pages and extras", function()
     local warningRadiusInput = makeBSSRadiusInput("WarningDiskRadius", 198, 100)
     local collectablesButton = makeButton(bssPage, "AutoCollectables", "COLLECTABLES: OFF", UDim2.fromOffset(20, 246), UDim2.new(1, -165, 0, 38), false)
     local collectablesRadiusInput = makeBSSRadiusInput("CollectablesRadius", 246, 150)
-    makeLabel(bssPage, "AutoTPDescription", "Auto TP scans nearby targets. Click again to stop. Range is measured from your character.", UDim2.fromOffset(22, 289), UDim2.new(1, -44, 0, 38), 10, C.muted, false)
+    makeLabel(bssPage, "AutoTPDescription", "Auto TP every 0.1s to one nearby target. Click again to stop. Each range uses your position.", UDim2.fromOffset(22, 289), UDim2.new(1, -44, 0, 38), 10, C.muted, false)
 
     local warningRadius, collectablesRadius = 100, 150
     local warningOn, collectablesOn = false, false
     local warningVersion, collectablesVersion = 0, 0
-    local visitedWarnings = setmetatable({}, {__mode = "k"})
-    local visitedCollectables = setmetatable({}, {__mode = "k"})
 
     local function updateRadius(input, previous)
         local entered = tonumber(input.Text)
@@ -4480,12 +4478,12 @@ __EB1478_safeCall("Premium pages and extras", function()
         return nil
     end
 
-    local function findNearestWarning(origin, radius, visited)
+    local function findNearestWarning(origin, radius)
         local particles = workspace:FindFirstChild("Particles")
         if not particles then return nil end
         local nearest, nearestPosition, bestDistance = nil, nil, radius
         for _, object in ipairs(particles:GetDescendants()) do
-            if object.Name == "WarningDisk" and not visited[object] then
+            if object.Name == "WarningDisk" then
                 local position = getBSSPosition(object)
                 if position then
                     local distance = (position - origin).Magnitude
@@ -4498,7 +4496,7 @@ __EB1478_safeCall("Premium pages and extras", function()
         return nearest, nearestPosition
     end
 
-    local function findNearestCollectable(origin, radius, visited)
+    local function findNearestCollectable(origin, radius)
         local folder = workspace:FindFirstChild("Collectables")
         if not folder then return nil end
         local nearest, nearestPosition, bestDistance = nil, nil, radius
@@ -4507,7 +4505,6 @@ __EB1478_safeCall("Premium pages and extras", function()
                 for _, child in ipairs(object:GetChildren()) do inspect(child) end
                 return
             end
-            if visited[object] then return end
             local position = getBSSPosition(object)
             if position then
                 local distance = (position - origin).Magnitude
@@ -4540,9 +4537,8 @@ __EB1478_safeCall("Premium pages and extras", function()
         warningDiskButton.Text = warningOn and "WARNING DISK: ON" or "WARNING DISK: OFF"
         warningDiskButton.BackgroundColor3 = warningOn and C.accent or C.panel2
         if not warningOn then return end
-        visitedWarnings = setmetatable({}, {__mode = "k"})
         local thisVersion = warningVersion
-        bssStatus.Text = "WarningDisk auto TP enabled (" .. warningRadius .. " studs)."
+        bssStatus.Text = "WarningDisk auto TP every 0.1s (" .. warningRadius .. " studs)."
         bssStatus.TextColor3 = C.green
         task.spawn(function()
             while not destroyed and warningOn and thisVersion == warningVersion do
@@ -4550,15 +4546,14 @@ __EB1478_safeCall("Premium pages and extras", function()
                     local character = player.Character
                     local root = character and character:FindFirstChild("HumanoidRootPart")
                     if not root then return end
-                    local target, position = findNearestWarning(root.Position, warningRadius, visitedWarnings)
+                    local target, position = findNearestWarning(root.Position, warningRadius)
                     if target and position and moveToBSSPosition(position) then
-                        visitedWarnings[target] = true
                         bssStatus.Text = "WarningDisk: teleported to " .. target:GetFullName()
                         bssStatus.TextColor3 = C.green
                     end
                 end)
                 if not success then warn("[ErrorB1478Menu][WarningDisk] " .. tostring(err)) end
-                task.wait(0.4)
+                task.wait(0.1)
             end
         end)
     end
@@ -4569,9 +4564,8 @@ __EB1478_safeCall("Premium pages and extras", function()
         collectablesButton.Text = collectablesOn and "COLLECTABLES: ON" or "COLLECTABLES: OFF"
         collectablesButton.BackgroundColor3 = collectablesOn and C.accent or C.panel2
         if not collectablesOn then return end
-        visitedCollectables = setmetatable({}, {__mode = "k"})
         local thisVersion = collectablesVersion
-        bssStatus.Text = "Collectables auto TP enabled (" .. collectablesRadius .. " studs)."
+        bssStatus.Text = "Collectables auto TP every 0.1s (" .. collectablesRadius .. " studs)."
         bssStatus.TextColor3 = C.green
         task.spawn(function()
             while not destroyed and collectablesOn and thisVersion == collectablesVersion do
@@ -4579,15 +4573,14 @@ __EB1478_safeCall("Premium pages and extras", function()
                     local character = player.Character
                     local root = character and character:FindFirstChild("HumanoidRootPart")
                     if not root then return end
-                    local target, position = findNearestCollectable(root.Position, collectablesRadius, visitedCollectables)
+                    local target, position = findNearestCollectable(root.Position, collectablesRadius)
                     if target and position and moveToBSSPosition(position) then
-                        visitedCollectables[target] = true
                         bssStatus.Text = "Collectables: teleported to " .. target.Name
                         bssStatus.TextColor3 = C.green
                     end
                 end)
                 if not success then warn("[ErrorB1478Menu][Collectables] " .. tostring(err)) end
-                task.wait(0.4)
+                task.wait(0.1)
             end
         end)
     end
