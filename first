@@ -1,3 +1,9 @@
+-- ERROR_B1478 CLEAN STANDALONE BUILD
+-- REPLACE the contents of your old LocalScript with ALL of this file.
+-- Do not paste it under an existing menu: this file is already the complete menu.
+-- For a Roblox error, use F9 and copy the ENTIRE first red error, not just its line number.
+-- BSS: TP TO C (toggle, 0.1s), WarningDisk (toggle, 0.1s), TP TO STINGER.
+
 -- STUDIO EDITION (CENTRE + FPS + OPTIONAL KEYBINDS + HOLD-CLICK TELEPORT)
 -- BSS additions: independent WarningDisk and Collectables auto-teleport toggles with editable stud ranges, updating every 0.1 seconds.
 -- All shortcut bindings can be cleared to NONE without removing their on-screen controls.
@@ -4498,7 +4504,7 @@ __EB1478_safeCall("Premium pages and extras", function()
 
     local function findNearestCollectable(origin, radius)
         local folder = workspace:FindFirstChild("Collectables")
-        if not folder then return nil end
+        if not folder or not folder:IsDescendantOf(workspace) then return nil end
         local nearest, nearestPosition, bestDistance = nil, nil, radius
         -- Collectable targets are instances named exactly "C", including
         -- those nested inside models or folders under Workspace.Collectables.
@@ -4521,10 +4527,12 @@ __EB1478_safeCall("Premium pages and extras", function()
     -- This lets either auto toggle teleport to a named object's world position
     -- in the same way that TP TO STINGER does.
     local function moveToBSSPosition(position)
+        if destroyed or typeof(position) ~= "Vector3" then return false end
         local character = player.Character
         local root = character and character:FindFirstChild("HumanoidRootPart")
-        if not root or typeof(position) ~= "Vector3" then return false end
+        if not root or not root:IsA("BasePart") then return false end
         local ok, err = pcall(function()
+            -- Same placement as the Stinger teleport: four studs above target.
             root.CFrame = CFrame.new(position + Vector3.new(0, 4, 0)) * root.CFrame.Rotation
         end)
         if not ok then warn("[ErrorB1478Menu][BSS Auto TP] " .. tostring(err)) end
