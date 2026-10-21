@@ -4423,9 +4423,9 @@ __EB1478_safeCall("Premium pages and extras", function()
 
     local warningDiskButton = makeButton(bssPage, "AutoWarningDisk", "WARNING DISK: OFF", UDim2.fromOffset(20, 198), UDim2.new(1, -165, 0, 38), false)
     local warningRadiusInput = makeBSSRadiusInput("WarningDiskRadius", 198, 100)
-    local collectablesButton = makeButton(bssPage, "AutoCollectables", "COLLECTABLE C: OFF", UDim2.fromOffset(20, 246), UDim2.new(1, -165, 0, 38), false)
+    local collectablesButton = makeButton(bssPage, "AutoCollectables", "TP TO C: OFF", UDim2.fromOffset(20, 246), UDim2.new(1, -165, 0, 38), false)
     local collectablesRadiusInput = makeBSSRadiusInput("CollectablesRadius", 246, 150)
-    makeLabel(bssPage, "AutoTPDescription", "Auto TP every 0.1s to one nearby target. Click again to stop. Each range uses your position.", UDim2.fromOffset(22, 289), UDim2.new(1, -44, 0, 38), 10, C.muted, false)
+    makeLabel(bssPage, "AutoTPDescription", "Toggle auto teleport to a nearby object every 0.1s. Collectables targets objects named C.", UDim2.fromOffset(22, 289), UDim2.new(1, -44, 0, 38), 10, C.muted, false)
 
     local warningRadius, collectablesRadius = 100, 150
     local warningOn, collectablesOn = false, false
@@ -4516,13 +4516,16 @@ __EB1478_safeCall("Premium pages and extras", function()
         return nearest, nearestPosition
     end
 
+    -- Use the same HumanoidRootPart teleport used by the regular BSS
+    -- TELEPORT buttons, rather than moving the whole character with PivotTo.
+    -- This lets either auto toggle teleport to a named object's world position
+    -- in the same way that TP TO STINGER does.
     local function moveToBSSPosition(position)
         local character = player.Character
         local root = character and character:FindFirstChild("HumanoidRootPart")
-        if not root then return false end
-        local destination = position + Vector3.new(0, 3, 0)
+        if not root or typeof(position) ~= "Vector3" then return false end
         local ok, err = pcall(function()
-            character:PivotTo(CFrame.new(destination) * root.CFrame.Rotation)
+            root.CFrame = CFrame.new(position + Vector3.new(0, 4, 0)) * root.CFrame.Rotation
         end)
         if not ok then warn("[ErrorB1478Menu][BSS Auto TP] " .. tostring(err)) end
         return ok
@@ -4558,11 +4561,11 @@ __EB1478_safeCall("Premium pages and extras", function()
     local function setCollectablesEnabled(enabled)
         collectablesVersion = collectablesVersion + 1
         collectablesOn = enabled and not destroyed
-        collectablesButton.Text = collectablesOn and "COLLECTABLE C: ON" or "COLLECTABLE C: OFF"
+        collectablesButton.Text = collectablesOn and "TP TO C: ON" or "TP TO C: OFF"
         collectablesButton.BackgroundColor3 = collectablesOn and C.accent or C.panel2
         if not collectablesOn then return end
         local thisVersion = collectablesVersion
-        bssStatus.Text = "Collectables C auto TP every 0.1s (" .. collectablesRadius .. " studs)."
+        bssStatus.Text = "TP to Collectables.C every 0.1s (" .. collectablesRadius .. " studs)."
         bssStatus.TextColor3 = C.green
         task.spawn(function()
             while not destroyed and collectablesOn and thisVersion == collectablesVersion do
@@ -4572,7 +4575,7 @@ __EB1478_safeCall("Premium pages and extras", function()
                     if not root then return end
                     local target, position = findNearestCollectable(root.Position, collectablesRadius)
                     if target and position and moveToBSSPosition(position) then
-                        bssStatus.Text = "Collectables: teleported to " .. target:GetFullName()
+                        bssStatus.Text = "Teleported to C: " .. target:GetFullName()
                         bssStatus.TextColor3 = C.green
                     end
                 end)
