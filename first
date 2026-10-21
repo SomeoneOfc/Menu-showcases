@@ -4325,10 +4325,80 @@ __EB1478_safeCall("Premium pages and extras", function()
     makeHeader(bssPage, "BSS • HiddenStickers", "Browse objects in workspace.HiddenStickers and teleport to them.")
     local bssStatus = makeLabel(bssPage, "BSSStatus", "Checking workspace.HiddenStickers…", UDim2.fromOffset(22, 104), UDim2.new(1, -235, 0, 34), 11, C.muted, false)
     local refreshBSS = makeButton(bssPage, "RefreshBSS", "↻  REFRESH", UDim2.new(1, -145, 0, 103), UDim2.fromOffset(123, 36), true)
+
+    -- BSS Stinger shortcut: resolve the target fresh on each click because
+    -- WaitingThorn may spawn/despawn during a Bee Swarm Simulator session.
+    local stingerButton = makeButton(bssPage, "TPToStinger", "TP TO STINGER", UDim2.fromOffset(20, 148), UDim2.new(1, -40, 0, 38), true)
+    stingerButton.Activated:Connect(function()
+        local particles = workspace:FindFirstChild("Particles")
+        local wts = particles and particles:FindFirstChild("WTs")
+        local thorn = wts and wts:FindFirstChild("WaitingThorn")
+        if not thorn then
+            bssStatus.Text = "Stinger not found: Workspace.Particles.WTs.WaitingThorn"
+            bssStatus.TextColor3 = C.yellow
+            return
+        end
+
+        local targetPosition
+        if thorn:IsA("Attachment") then
+            targetPosition = thorn.WorldPosition
+        elseif thorn:IsA("BasePart") then
+            targetPosition = thorn.Position
+        elseif thorn:IsA("Model") then
+            targetPosition = thorn:GetPivot().Position
+        elseif thorn:IsA("Vector3Value") then
+            targetPosition = thorn.Value
+        elseif thorn:IsA("CFrameValue") then
+            targetPosition = thorn.Value.Position
+        else
+            local part = thorn:FindFirstChildWhichIsA("BasePart", true)
+            if not part then
+                local ancestor = thorn.Parent
+                while ancestor and ancestor ~= workspace do
+                    if ancestor:IsA("Attachment") then
+                        targetPosition = ancestor.WorldPosition
+                        break
+                    elseif ancestor:IsA("BasePart") then
+                        targetPosition = ancestor.Position
+                        break
+                    end
+                    ancestor = ancestor.Parent
+                end
+            else
+                targetPosition = part.Position
+            end
+        end
+        if not targetPosition then
+            bssStatus.Text = "WaitingThorn exists, but has no usable world position."
+            bssStatus.TextColor3 = C.red
+            return
+        end
+
+        local character = player.Character
+        local root = character and character:FindFirstChild("HumanoidRootPart")
+        if not root then
+            bssStatus.Text = "Your character is not ready."
+            bssStatus.TextColor3 = C.red
+            return
+        end
+        -- Appear just above the target to avoid clipping into its geometry.
+        local ok, err = pcall(function()
+            root.CFrame = CFrame.new(targetPosition + Vector3.new(0, 4, 0)) * root.CFrame.Rotation
+        end)
+        if ok then
+            bssStatus.Text = "Teleported to WaitingThorn (Stinger)."
+            bssStatus.TextColor3 = C.green
+        else
+            bssStatus.Text = "Stinger teleport failed. Check F9 console."
+            bssStatus.TextColor3 = C.red
+            warn("[Error_B1478 BSS] Stinger teleport failed:", err)
+        end
+    end)
+
     local bssList = Instance.new("ScrollingFrame")
     bssList.Name = "HiddenStickersList"
-    bssList.Position = UDim2.fromOffset(20, 148)
-    bssList.Size = UDim2.new(1, -40, 1, -168)
+    bssList.Position = UDim2.fromOffset(20, 198)
+    bssList.Size = UDim2.new(1, -40, 1, -218)
     bssList.BackgroundColor3 = C.background
     bssList.BorderSizePixel = 0
     bssList.ScrollBarThickness = 5
