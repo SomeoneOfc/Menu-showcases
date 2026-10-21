@@ -1,3 +1,4 @@
+-- BSS AUTO-TP PLAYER FIX: Moves the local player character to C/WarningDisk target positions without the old +4-stud height offset.
 -- ERROR_B1478 2036 STARTUP RELIABILITY BUILD
 -- Contains a reduced-local startup scope and nonblocking Roblox profile lookup.
 -- If an error remains, copy the FULL first red Roblox Output/F9 line.
@@ -4447,7 +4448,7 @@ __EB1478_safeCall("Premium pages and extras", function()
     local warningRadiusInput = makeBSSRadiusInput("WarningDiskRadius", 198, 100)
     local collectablesButton = makeButton(bssPage, "AutoCollectables", "TP TO C: OFF", UDim2.fromOffset(20, 246), UDim2.new(1, -165, 0, 38), false)
     local collectablesRadiusInput = makeBSSRadiusInput("CollectablesRadius", 246, 150)
-    makeLabel(bssPage, "AutoTPDescription", "Toggle auto teleport to a nearby object every 0.1s. Collectables targets objects named C.", UDim2.fromOffset(22, 289), UDim2.new(1, -44, 0, 38), 10, C.muted, false)
+    makeLabel(bssPage, "AutoTPDescription", "Moves YOUR character directly to the nearest target every 0.1s. Collectables finds objects named C.", UDim2.fromOffset(22, 289), UDim2.new(1, -44, 0, 38), 10, C.muted, false)
 
     local warningRadius, collectablesRadius = 100, 150
     local warningOn, collectablesOn = false, false
@@ -4538,18 +4539,22 @@ __EB1478_safeCall("Premium pages and extras", function()
         return nearest, nearestPosition
     end
 
-    -- Use the same HumanoidRootPart teleport used by the regular BSS
-    -- TELEPORT buttons, rather than moving the whole character with PivotTo.
-    -- This lets either auto toggle teleport to a named object's world position
-    -- in the same way that TP TO STINGER does.
+    -- Move the LOCAL PLAYER'S ENTIRE CHARACTER to the target's world position.
+    -- Placing the HumanoidRootPart four studs above small collectibles can miss
+    -- their pickup hitboxes. No vertical offset is applied for these toggles.
+    -- Character:PivotTo moves the whole rig and preserves its current facing.
     local function moveToBSSPosition(position)
         if destroyed or typeof(position) ~= "Vector3" then return false end
         local character = player.Character
         local root = character and character:FindFirstChild("HumanoidRootPart")
-        if not root or not root:IsA("BasePart") then return false end
+        local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+        if not root or not root:IsA("BasePart") or not humanoid or humanoid.Health <= 0 then
+            return false
+        end
         local ok, err = pcall(function()
-            -- Same placement as the Stinger teleport: four studs above target.
-            root.CFrame = CFrame.new(position + Vector3.new(0, 4, 0)) * root.CFrame.Rotation
+            character:PivotTo(CFrame.new(position) * character:GetPivot().Rotation)
+            root.AssemblyLinearVelocity = Vector3.zero
+            root.AssemblyAngularVelocity = Vector3.zero
         end)
         if not ok then warn("[ErrorB1478Menu][BSS Auto TP] " .. tostring(err)) end
         return ok
@@ -4598,9 +4603,17 @@ __EB1478_safeCall("Premium pages and extras", function()
                     local root = character and character:FindFirstChild("HumanoidRootPart")
                     if not root then return end
                     local target, position = findNearestCollectable(root.Position, collectablesRadius)
-                    if target and position and moveToBSSPosition(position) then
-                        bssStatus.Text = "Teleported to C: " .. target:GetFullName()
-                        bssStatus.TextColor3 = C.green
+                    if target and position then
+                        if moveToBSSPosition(position) then
+                            bssStatus.Text = "Your character TP'd to: " .. target:GetFullName()
+                            bssStatus.TextColor3 = C.green
+                        else
+                            bssStatus.Text = "Cannot teleport: character is not ready."
+                            bssStatus.TextColor3 = C.yellow
+                        end
+                    else
+                        bssStatus.Text = "No C in range (" .. collectablesRadius .. " studs)."
+                        bssStatus.TextColor3 = C.yellow
                     end
                 end)
                 if not success then warn("[ErrorB1478Menu][Collectables] " .. tostring(err)) end
