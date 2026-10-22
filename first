@@ -1,3 +1,4 @@
+-- BSS NEAREST C: Validates the local player username, finds the closest C in Workspace.Collectables, checks its measured distance against the chosen range, and teleports the player only if in range.
 -- BSS CONTROLS UPDATE: Separate START/STOP buttons and editable START/STOP keybind fields for WarningDisk and Collectables C.
 -- BSS AUTO-TP PLAYER FIX: Moves the local player character to C/WarningDisk target positions without the old +4-stud height offset.
 -- ERROR_B1478 2036 STARTUP RELIABILITY BUILD
@@ -4488,7 +4489,7 @@ __EB1478_safeCall("Premium pages and extras", function()
         makeBSSAutoCard("WarningDisk", "WARNING DISK AUTO TP", 196, 100)
     local collectablesRadiusInput, collectStartButton, collectStopButton, collectState, collectStartKeyBox, collectStopKeyBox =
         makeBSSAutoCard("CollectableC", "COLLECTABLE C AUTO TP", 327, 150)
-    makeLabel(bssPage, "AutoTPDescription", "Every 0.1s, teleports YOUR character to one nearby target. Type a key name or NONE, then press Enter.",
+    makeLabel(bssPage, "AutoTPDescription", "Every 0.1s, checks your username and closest target distance. Type a key or NONE, then Enter.",
         UDim2.fromOffset(22, 455), UDim2.new(1, -44, 0, 30), 10, C.muted, false)
 
     local warningRadius, collectablesRadius = 100, 150
@@ -4632,24 +4633,41 @@ __EB1478_safeCall("Premium pages and extras", function()
         return nearest, nearestPosition
     end
 
-    local function findNearestCollectable(origin, radius)
+    -- Always determine the actual nearest C before checking the user's range.
+    -- Search is recursive to include C instances inside folders and models.
+    local function findNearestCollectable(origin)
         local folder = workspace:FindFirstChild("Collectables")
-        if not folder or not folder:IsDescendantOf(workspace) then return nil end
-        local nearest, nearestPosition, bestDistance = nil, nil, radius
-        -- Collectable targets are instances named exactly "C", including
-        -- those nested inside models or folders under Workspace.Collectables.
+        if not folder then return nil, nil, nil end
+        local nearest, nearestPosition, bestDistance = nil, nil, math.huge
         for _, object in ipairs(folder:GetDescendants()) do
             if object.Name == "C" then
                 local position = getBSSPosition(object)
                 if position then
                     local distance = (position - origin).Magnitude
-                    if distance <= bestDistance then
+                    if distance < bestDistance then
                         nearest, nearestPosition, bestDistance = object, position, distance
                     end
                 end
             end
         end
-        return nearest, nearestPosition
+        return nearest, nearestPosition, bestDistance
+    end
+
+    -- Verify that the character being moved belongs to the player running
+    -- this LocalScript, by their current Roblox username (Name, not DisplayName).
+    local function getBSSLocalCharacter()
+        local username = player.Name
+        local verifiedPlayer = Players:FindFirstChild(username)
+        if verifiedPlayer ~= player or verifiedPlayer.UserId ~= player.UserId then
+            return nil, nil, username
+        end
+        local character = verifiedPlayer.Character
+        local root = character and character:FindFirstChild("HumanoidRootPart")
+        local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+        if not root or not root:IsA("BasePart") or not humanoid or humanoid.Health <= 0 then
+            return nil, nil, username
+        end
+        return character, root, username
     end
 
     -- Move the LOCAL PLAYER'S ENTIRE CHARACTER to the target's world position.
@@ -4658,12 +4676,8 @@ __EB1478_safeCall("Premium pages and extras", function()
     -- Character:PivotTo moves the whole rig and preserves its current facing.
     local function moveToBSSPosition(position)
         if destroyed or typeof(position) ~= "Vector3" then return false end
-        local character = player.Character
-        local root = character and character:FindFirstChild("HumanoidRootPart")
-        local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-        if not root or not root:IsA("BasePart") or not humanoid or humanoid.Health <= 0 then
-            return false
-        end
+        local character, root = getBSSLocalCharacter()
+        if not character then return false end
         local ok, err = pcall(function()
             character:PivotTo(CFrame.new(position) * character:GetPivot().Rotation)
             root.AssemblyLinearVelocity = Vector3.zero
@@ -4720,20 +4734,24 @@ __EB1478_safeCall("Premium pages and extras", function()
         task.spawn(function()
             while not destroyed and collectablesOn and thisVersion == collectablesVersion do
                 local success, err = pcall(function()
-                    local character = player.Character
-                    local root = character and character:FindFirstChild("HumanoidRootPart")
-                    if not root then return end
-                    local target, position = findNearestCollectable(root.Position, collectablesRadius)
-                    if target and position then
-                        if moveToBSSPosition(position) then
-                            bssStatus.Text = "Your character TP'd to: " .. target:GetFullName()
-                            bssStatus.TextColor3 = C.green
-                        else
-                            bssStatus.Text = "Cannot teleport: character is not ready."
-                            bssStatus.TextColor3 = C.yellow
-                        end
+                    local character, root, username = getBSSLocalCharacter()
+                    if not character then
+                        bssStatus.Text = "Player " .. username .. ": character not ready or username check failed."
+                        bssStatus.TextColor3 = C.yellow
+                        return
+                    end
+                    local target, position, distance = findNearestCollectable(root.Position)
+                    if not target then
+                        bssStatus.Text = username .. ": no C found in Workspace.Collectables."
+                        bssStatus.TextColor3 = C.yellow
+                    elseif distance > collectablesRadius then
+                        bssStatus.Text = string.format("%s: closest C %.1f studs away (limit %d).", username, distance, collectablesRadius)
+                        bssStatus.TextColor3 = C.yellow
+                    elseif moveToBSSPosition(position) then
+                        bssStatus.Text = string.format("%s: TP to closest C (%.1f / %d studs).", username, distance, collectablesRadius)
+                        bssStatus.TextColor3 = C.green
                     else
-                        bssStatus.Text = "No C in range (" .. collectablesRadius .. " studs)."
+                        bssStatus.Text = username .. ": cannot teleport; character is not ready."
                         bssStatus.TextColor3 = C.yellow
                     end
                 end)
