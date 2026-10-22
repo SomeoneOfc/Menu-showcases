@@ -1,3 +1,4 @@
+-- BSS CONTROLS UPDATE: Separate START/STOP buttons and editable START/STOP keybind fields for WarningDisk and Collectables C.
 -- BSS AUTO-TP PLAYER FIX: Moves the local player character to C/WarningDisk target positions without the old +4-stud height offset.
 -- ERROR_B1478 2036 STARTUP RELIABILITY BUILD
 -- Contains a reduced-local startup scope and nonblocking Roblox profile lookup.
@@ -4420,35 +4421,75 @@ __EB1478_safeCall("Premium pages and extras", function()
     end)
 
     -- BSS AUTO TELEPORTS
-    -- Two independent toggles, each with its own editable detection radius.
-    -- Each active toggle checks every 0.1 seconds and teleports to one nearest
-    -- eligible target per check, including targets teleported to previously.
-    local function makeBSSRadiusInput(name, y, startingRadius)
-        local input = Instance.new("TextBox")
-        input.Name = name
-        input.Position = UDim2.new(1, -135, 0, y)
-        input.Size = UDim2.fromOffset(75, 38)
-        input.BackgroundColor3 = C.panel2
-        input.BorderSizePixel = 0
-        input.ClearTextOnFocus = false
-        input.Text = tostring(startingRadius)
-        input.PlaceholderText = "Studs"
-        input.TextColor3 = C.text
-        input.PlaceholderColor3 = C.muted
-        input.TextSize = 13
-        input.Font = Enum.Font.GothamSemibold
-        input.Parent = bssPage
-        addCorner(input, 9)
-        addOutline(input, C.border, 0.3)
-        makeLabel(bssPage, name .. "Units", "STUDS", UDim2.new(1, -53, 0, y), UDim2.fromOffset(53, 38), 10, C.muted, true)
-        return input
+    -- Independent START/STOP controls, editable ranges and four optional
+    -- keyboard shortcuts. No shortcuts are assigned by default: type a key
+    -- name (F6, Z, BackSlash, Quote, etc.) into the corresponding text box.
+    -- Type NONE (or leave blank) to disable that shortcut.
+    local function makeBSSAutoCard(name, title, top, startingRadius)
+        local card = Instance.new("Frame")
+        card.Name = name .. "Card"
+        card.Position = UDim2.fromOffset(20, top)
+        card.Size = UDim2.new(1, -40, 0, 123)
+        card.BackgroundColor3 = C.panel
+        card.BorderSizePixel = 0
+        card.Parent = bssPage
+        addCorner(card, 10)
+        addOutline(card, C.border, 0.42)
+        makeLabel(card, "SectionTitle", title, UDim2.fromOffset(13, 7), UDim2.new(1, -196, 0, 26), 12, C.text, true)
+        makeLabel(card, "RangeLabel", "RANGE", UDim2.new(1, -180, 0, 7), UDim2.fromOffset(54, 26), 10, C.muted, true)
+        local radius = Instance.new("TextBox")
+        radius.Name = name .. "Radius"
+        radius.Position = UDim2.new(1, -120, 0, 6)
+        radius.Size = UDim2.fromOffset(75, 29)
+        radius.BackgroundColor3 = C.panel2
+        radius.BorderSizePixel = 0
+        radius.ClearTextOnFocus = false
+        radius.Text = tostring(startingRadius)
+        radius.PlaceholderText = "Studs"
+        radius.TextColor3 = C.text
+        radius.PlaceholderColor3 = C.muted
+        radius.TextSize = 12
+        radius.Font = Enum.Font.GothamSemibold
+        radius.Parent = card
+        addCorner(radius, 7)
+        addOutline(radius, C.border, 0.3)
+        makeLabel(card, "StudsUnit", "ST", UDim2.new(1, -41, 0, 7), UDim2.fromOffset(31, 26), 10, C.muted, true)
+
+        local startButton = makeButton(card, name .. "Start", "START", UDim2.fromOffset(12, 40), UDim2.fromOffset(118, 34), true)
+        local stopButton = makeButton(card, name .. "Stop", "STOP", UDim2.fromOffset(138, 40), UDim2.fromOffset(118, 34), false)
+        local state = makeLabel(card, name .. "Status", "STOPPED", UDim2.fromOffset(268, 42), UDim2.new(1, -280, 0, 28), 11, C.muted, true)
+
+        local function makeShortcutBox(suffix, label, x)
+            makeLabel(card, name .. suffix .. "Label", label, UDim2.fromOffset(x, 83), UDim2.fromOffset(80, 29), 10, C.muted, true)
+            local box = Instance.new("TextBox")
+            box.Name = name .. suffix .. "Keybind"
+            box.Position = UDim2.fromOffset(x + 80, 83)
+            box.Size = UDim2.fromOffset(81, 28)
+            box.BackgroundColor3 = C.panel2
+            box.BorderSizePixel = 0
+            box.ClearTextOnFocus = false
+            box.Text = "NONE"
+            box.PlaceholderText = "NONE"
+            box.TextColor3 = C.text
+            box.PlaceholderColor3 = C.muted
+            box.Font = Enum.Font.GothamSemibold
+            box.TextSize = 12
+            box.Parent = card
+            addCorner(box, 7)
+            addOutline(box, C.border, 0.3)
+            return box
+        end
+        local startKey = makeShortcutBox("Start", "START KEY", 12)
+        local stopKey = makeShortcutBox("Stop", "STOP KEY", 218)
+        return radius, startButton, stopButton, state, startKey, stopKey
     end
 
-    local warningDiskButton = makeButton(bssPage, "AutoWarningDisk", "WARNING DISK: OFF", UDim2.fromOffset(20, 198), UDim2.new(1, -165, 0, 38), false)
-    local warningRadiusInput = makeBSSRadiusInput("WarningDiskRadius", 198, 100)
-    local collectablesButton = makeButton(bssPage, "AutoCollectables", "TP TO C: OFF", UDim2.fromOffset(20, 246), UDim2.new(1, -165, 0, 38), false)
-    local collectablesRadiusInput = makeBSSRadiusInput("CollectablesRadius", 246, 150)
-    makeLabel(bssPage, "AutoTPDescription", "Moves YOUR character directly to the nearest target every 0.1s. Collectables finds objects named C.", UDim2.fromOffset(22, 289), UDim2.new(1, -44, 0, 38), 10, C.muted, false)
+    local warningRadiusInput, warningStartButton, warningStopButton, warningState, warningStartKeyBox, warningStopKeyBox =
+        makeBSSAutoCard("WarningDisk", "WARNING DISK AUTO TP", 196, 100)
+    local collectablesRadiusInput, collectStartButton, collectStopButton, collectState, collectStartKeyBox, collectStopKeyBox =
+        makeBSSAutoCard("CollectableC", "COLLECTABLE C AUTO TP", 327, 150)
+    makeLabel(bssPage, "AutoTPDescription", "Every 0.1s, teleports YOUR character to one nearby target. Type a key name or NONE, then press Enter.",
+        UDim2.fromOffset(22, 455), UDim2.new(1, -44, 0, 30), 10, C.muted, false)
 
     local warningRadius, collectablesRadius = 100, 150
     local warningOn, collectablesOn = false, false
@@ -4472,6 +4513,78 @@ __EB1478_safeCall("Premium pages and extras", function()
     collectablesRadiusInput.FocusLost:Connect(function()
         collectablesRadius = updateRadius(collectablesRadiusInput, collectablesRadius)
     end)
+
+    local bssKeybinds = {}
+    local bssKeyInputs = {
+        warningStart = warningStartKeyBox,
+        warningStop = warningStopKeyBox,
+        collectStart = collectStartKeyBox,
+        collectStop = collectStopKeyBox,
+    }
+    local function keyToText(key)
+        if not key then return "NONE" end
+        if key == Enum.KeyCode.Quote then return "'" end
+        if key == Enum.KeyCode.BackSlash then return "\\" end
+        return key.Name
+    end
+    local function resolveKeyText(textValue)
+        local name = tostring(textValue or ""):match("^%s*(.-)%s*$")
+        if not name or name == "" or name:upper() == "NONE" then return nil, true end
+        local upper = name:upper()
+        if name == "'" then return Enum.KeyCode.Quote, true end
+        if name == "\\" then return Enum.KeyCode.BackSlash, true end
+        if upper == "ESC" then upper = "ESCAPE" end
+        if upper == "CTRL" then upper = "LEFTCONTROL" end
+        for _, code in ipairs(Enum.KeyCode:GetEnumItems()) do
+            if code.Name:upper() == upper and code ~= Enum.KeyCode.Unknown then
+                return code, true
+            end
+        end
+        return nil, false
+    end
+    local function isReservedBSSKey(key)
+        if not key then return false end
+        -- Avoid triggering multiple unrelated menu actions with one keystroke.
+        for _, used in pairs({
+            menuToggleKey, flyToggleKey, noclipToggleKey, jumpToggleKey,
+            espToggleKey, positionSaveKey, teleportHoldKey, destroyAllKey,
+            mouseLockKey, monochromeKey, commandSearchKey
+        }) do
+            if key == used then return true end
+        end
+        return false
+    end
+    for action, box in pairs(bssKeyInputs) do
+        box.FocusLost:Connect(function()
+            local key, valid = resolveKeyText(box.Text)
+            if not valid then
+                bssStatus.Text = "Unknown key. Try F6, R, Quote, BackSlash, or NONE."
+                bssStatus.TextColor3 = C.yellow
+            elseif isReservedBSSKey(key) then
+                bssStatus.Text = "That key is assigned elsewhere in the menu. Choose another."
+                bssStatus.TextColor3 = C.yellow
+            else
+                local usedBy
+                if key then
+                    for otherAction, assigned in pairs(bssKeybinds) do
+                        if otherAction ~= action and key == assigned then
+                            usedBy = otherAction
+                            break
+                        end
+                    end
+                end
+                if usedBy then
+                    bssStatus.Text = "Already used by " .. usedBy .. ". Choose another key."
+                    bssStatus.TextColor3 = C.yellow
+                else
+                    bssKeybinds[action] = key
+                    bssStatus.Text = action .. " key: " .. keyToText(key)
+                    bssStatus.TextColor3 = C.green
+                end
+            end
+            box.Text = keyToText(bssKeybinds[action])
+        end)
+    end
 
     local function getBSSPosition(object)
         if not object then return nil end
@@ -4563,9 +4676,13 @@ __EB1478_safeCall("Premium pages and extras", function()
     local function setWarningEnabled(enabled)
         warningVersion = warningVersion + 1
         warningOn = enabled and not destroyed
-        warningDiskButton.Text = warningOn and "WARNING DISK: ON" or "WARNING DISK: OFF"
-        warningDiskButton.BackgroundColor3 = warningOn and C.accent or C.panel2
-        if not warningOn then return end
+        warningState.Text = warningOn and "RUNNING" or "STOPPED"
+        warningState.TextColor3 = warningOn and C.green or C.muted
+        if not warningOn then
+            bssStatus.Text = "WarningDisk auto TP stopped."
+            bssStatus.TextColor3 = C.muted
+            return
+        end
         local thisVersion = warningVersion
         bssStatus.Text = "WarningDisk auto TP every 0.1s (" .. warningRadius .. " studs)."
         bssStatus.TextColor3 = C.green
@@ -4590,9 +4707,13 @@ __EB1478_safeCall("Premium pages and extras", function()
     local function setCollectablesEnabled(enabled)
         collectablesVersion = collectablesVersion + 1
         collectablesOn = enabled and not destroyed
-        collectablesButton.Text = collectablesOn and "TP TO C: ON" or "TP TO C: OFF"
-        collectablesButton.BackgroundColor3 = collectablesOn and C.accent or C.panel2
-        if not collectablesOn then return end
+        collectState.Text = collectablesOn and "RUNNING" or "STOPPED"
+        collectState.TextColor3 = collectablesOn and C.green or C.muted
+        if not collectablesOn then
+            bssStatus.Text = "Collectables C auto TP stopped."
+            bssStatus.TextColor3 = C.muted
+            return
+        end
         local thisVersion = collectablesVersion
         bssStatus.Text = "TP to Collectables.C every 0.1s (" .. collectablesRadius .. " studs)."
         bssStatus.TextColor3 = C.green
@@ -4622,8 +4743,28 @@ __EB1478_safeCall("Premium pages and extras", function()
         end)
     end
 
-    warningDiskButton.Activated:Connect(function() setWarningEnabled(not warningOn) end)
-    collectablesButton.Activated:Connect(function() setCollectablesEnabled(not collectablesOn) end)
+    -- START and STOP buttons use the same controls as the hotkeys.
+    warningStartButton.Activated:Connect(function() setWarningEnabled(true) end)
+    warningStopButton.Activated:Connect(function() setWarningEnabled(false) end)
+    collectStartButton.Activated:Connect(function() setCollectablesEnabled(true) end)
+    collectStopButton.Activated:Connect(function() setCollectablesEnabled(false) end)
+
+    -- Keyboard shortcuts only work when gameplay has keyboard focus, and
+    -- they are disconnected by DESTROY ALL or automatic menu replacement.
+    trackServiceConnection(UserInputService.InputBegan:Connect(function(input, processed)
+        if destroyed or processed or keyCaptureTarget or UserInputService:GetFocusedTextBox() then return end
+        if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
+        if isReservedBSSKey(input.KeyCode) then return end
+        if bssKeybinds.warningStart and input.KeyCode == bssKeybinds.warningStart then
+            setWarningEnabled(true)
+        elseif bssKeybinds.warningStop and input.KeyCode == bssKeybinds.warningStop then
+            setWarningEnabled(false)
+        elseif bssKeybinds.collectStart and input.KeyCode == bssKeybinds.collectStart then
+            setCollectablesEnabled(true)
+        elseif bssKeybinds.collectStop and input.KeyCode == bssKeybinds.collectStop then
+            setCollectablesEnabled(false)
+        end
+    end))
     registerCleanup(function()
         warningVersion = warningVersion + 1
         collectablesVersion = collectablesVersion + 1
@@ -4632,8 +4773,8 @@ __EB1478_safeCall("Premium pages and extras", function()
 
     local bssList = Instance.new("ScrollingFrame")
     bssList.Name = "HiddenStickersList"
-    bssList.Position = UDim2.fromOffset(20, 336)
-    bssList.Size = UDim2.new(1, -40, 1, -356)
+    bssList.Position = UDim2.fromOffset(20, 489)
+    bssList.Size = UDim2.new(1, -40, 1, -502)
     bssList.BackgroundColor3 = C.background
     bssList.BorderSizePixel = 0
     bssList.ScrollBarThickness = 5
