@@ -1,3 +1,4 @@
+-- BSS Scan All C: scans all loaded descendants named C; reports count and nearest distance.
 -- BSS NEAREST C: Validates the local player username, finds the closest C in Workspace.Collectables, checks its measured distance against the chosen range, and teleports the player only if in range.
 -- BSS CONTROLS UPDATE: Separate START/STOP buttons and editable START/STOP keybind fields for WarningDisk and Collectables C.
 -- BSS AUTO-TP PLAYER FIX: Moves the local player character to C/WarningDisk target positions without the old +4-stud height offset.
@@ -4637,12 +4638,15 @@ __EB1478_safeCall("Premium pages and extras", function()
     -- Search is recursive to include C instances inside folders and models.
     local function findNearestCollectable(origin)
         local folder = workspace:FindFirstChild("Collectables")
-        if not folder then return nil, nil, nil end
+        if not folder then return nil, nil, nil, 0, 0 end
         local nearest, nearestPosition, bestDistance = nil, nil, math.huge
+        local foundCount, positionedCount = 0, 0
         for _, object in ipairs(folder:GetDescendants()) do
             if object.Name == "C" then
+                foundCount = foundCount + 1
                 local position = getBSSPosition(object)
                 if position then
+                    positionedCount = positionedCount + 1
                     local distance = (position - origin).Magnitude
                     if distance < bestDistance then
                         nearest, nearestPosition, bestDistance = object, position, distance
@@ -4650,7 +4654,7 @@ __EB1478_safeCall("Premium pages and extras", function()
                 end
             end
         end
-        return nearest, nearestPosition, bestDistance
+        return nearest, nearestPosition, bestDistance, foundCount, positionedCount
     end
 
     -- Verify that the character being moved belongs to the player running
@@ -4740,15 +4744,15 @@ __EB1478_safeCall("Premium pages and extras", function()
                         bssStatus.TextColor3 = C.yellow
                         return
                     end
-                    local target, position, distance = findNearestCollectable(root.Position)
+                    local target, position, distance, foundCount, positionedCount = findNearestCollectable(root.Position)
                     if not target then
-                        bssStatus.Text = username .. ": no C found in Workspace.Collectables."
+                        bssStatus.Text = string.format("%s: found %d C objects; %d with positions.", username, foundCount, positionedCount)
                         bssStatus.TextColor3 = C.yellow
                     elseif distance > collectablesRadius then
-                        bssStatus.Text = string.format("%s: closest C %.1f studs away (limit %d).", username, distance, collectablesRadius)
+                        bssStatus.Text = string.format("%s: %d C (%d located). Nearest %.1f / %d studs: out of range.", username, foundCount, positionedCount, distance, collectablesRadius)
                         bssStatus.TextColor3 = C.yellow
                     elseif moveToBSSPosition(position) then
-                        bssStatus.Text = string.format("%s: TP to closest C (%.1f / %d studs).", username, distance, collectablesRadius)
+                        bssStatus.Text = string.format("%s: %d C (%d located). TP nearest at %.1f / %d studs.", username, foundCount, positionedCount, distance, collectablesRadius)
                         bssStatus.TextColor3 = C.green
                     else
                         bssStatus.Text = username .. ": cannot teleport; character is not ready."
