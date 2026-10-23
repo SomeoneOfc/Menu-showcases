@@ -1,6 +1,7 @@
--- BSS Scan All C: scans all loaded descendants named C; reports count and nearest distance.
+-- BSS TP TO C (ONE CLICK): Scans all loaded descendants named C; picks the nearest, checks the configured range, then teleports once per click.
+-- WarningDisk auto TP retains its existing START/STOP controls and optional shortcuts.
 -- BSS NEAREST C: Validates the local player username, finds the closest C in Workspace.Collectables, checks its measured distance against the chosen range, and teleports the player only if in range.
--- BSS CONTROLS UPDATE: Separate START/STOP buttons and editable START/STOP keybind fields for WarningDisk and Collectables C.
+-- BSS CONTROLS UPDATE: WarningDisk START/STOP remains; Collectables C uses a single TP TO C button.
 -- BSS AUTO-TP PLAYER FIX: Moves the local player character to C/WarningDisk target positions without the old +4-stud height offset.
 -- ERROR_B1478 2036 STARTUP RELIABILITY BUILD
 -- Contains a reduced-local startup scope and nonblocking Roblox profile lookup.
@@ -9,10 +10,10 @@
 -- REPLACE the contents of your old LocalScript with ALL of this file.
 -- Do not paste it under an existing menu: this file is already the complete menu.
 -- For a Roblox error, use F9 and copy the ENTIRE first red error, not just its line number.
--- BSS: TP TO C (toggle, 0.1s), WarningDisk (toggle, 0.1s), TP TO STINGER.
+-- BSS: TP TO C (single click), WarningDisk (automatic 0.1s), TP TO STINGER.
 
 -- STUDIO EDITION (CENTRE + FPS + OPTIONAL KEYBINDS + HOLD-CLICK TELEPORT)
--- BSS additions: independent WarningDisk and Collectables auto-teleport toggles with editable stud ranges, updating every 0.1 seconds.
+-- BSS additions: WarningDisk auto-teleport uses 0.1-second checks; Collectables C uses a single teleport per click. Both have editable stud ranges.
 -- All shortcut bindings can be cleared to NONE without removing their on-screen controls.
 -- Hold the chosen teleport key (T by default) and LEFT-CLICK a world surface to move to its clicked point.
 -- G only moves the existing menu. Launching a NEW copy requests full cleanup of the OLD copy before building a new UI.
@@ -4349,7 +4350,7 @@ __EB1478_safeCall("Premium pages and extras", function()
     end)
 
     __EB1478_safeCall("BSS HiddenStickers page", function()
-    makeHeader(bssPage, "BSS • Teleport Tools", "Stinger, automatic nearby targets, and HiddenStickers.")
+    makeHeader(bssPage, "BSS • Teleport Tools", "Stinger, nearby Collectables C, WarningDisk, and HiddenStickers.")
     local bssStatus = makeLabel(bssPage, "BSSStatus", "Checking workspace.HiddenStickers…", UDim2.fromOffset(22, 104), UDim2.new(1, -235, 0, 34), 11, C.muted, false)
     local refreshBSS = makeButton(bssPage, "RefreshBSS", "↻  REFRESH", UDim2.new(1, -145, 0, 103), UDim2.fromOffset(123, 36), true)
 
@@ -4488,14 +4489,55 @@ __EB1478_safeCall("Premium pages and extras", function()
 
     local warningRadiusInput, warningStartButton, warningStopButton, warningState, warningStartKeyBox, warningStopKeyBox =
         makeBSSAutoCard("WarningDisk", "WARNING DISK AUTO TP", 196, 100)
-    local collectablesRadiusInput, collectStartButton, collectStopButton, collectState, collectStartKeyBox, collectStopKeyBox =
-        makeBSSAutoCard("CollectableC", "COLLECTABLE C AUTO TP", 327, 150)
-    makeLabel(bssPage, "AutoTPDescription", "Every 0.1s, checks your username and closest target distance. Type a key or NONE, then Enter.",
+    -- One-shot C control: no auto-running loop, no START/STOP toggle or shortcuts.
+    local function makeCollectablesOneShotCard()
+        local card = Instance.new("Frame")
+        card.Name = "CollectableCOneShotCard"
+        card.Position = UDim2.fromOffset(20, 327)
+        card.Size = UDim2.new(1, -40, 0, 123)
+        card.BackgroundColor3 = C.panel
+        card.BorderSizePixel = 0
+        card.Parent = bssPage
+        addCorner(card, 10)
+        addOutline(card, C.border, 0.42)
+
+        makeLabel(card, "SectionTitle", "COLLECTABLES • NEAREST C", UDim2.fromOffset(13, 7),
+            UDim2.new(1, -196, 0, 26), 12, C.text, true)
+        makeLabel(card, "RangeLabel", "RANGE", UDim2.new(1, -180, 0, 7),
+            UDim2.fromOffset(54, 26), 10, C.muted, true)
+        local radius = Instance.new("TextBox")
+        radius.Name = "CollectableCRadius"
+        radius.Position = UDim2.new(1, -120, 0, 6)
+        radius.Size = UDim2.fromOffset(75, 29)
+        radius.BackgroundColor3 = C.panel2
+        radius.BorderSizePixel = 0
+        radius.ClearTextOnFocus = false
+        radius.Text = "150"
+        radius.PlaceholderText = "Studs"
+        radius.TextColor3 = C.text
+        radius.PlaceholderColor3 = C.muted
+        radius.TextSize = 12
+        radius.Font = Enum.Font.GothamSemibold
+        radius.Parent = card
+        addCorner(radius, 7)
+        addOutline(radius, C.border, 0.3)
+        makeLabel(card, "StudsUnit", "ST", UDim2.new(1, -41, 0, 7),
+            UDim2.fromOffset(31, 26), 10, C.muted, true)
+
+        local button = makeButton(card, "CollectableCTeleport", "TP TO NEAREST C",
+            UDim2.fromOffset(12, 42), UDim2.new(1, -24, 0, 36), true)
+        local state = makeLabel(card, "CollectableCOneShotStatus",
+            "Press TP to scan once and teleport to the nearest C in range.",
+            UDim2.fromOffset(13, 85), UDim2.new(1, -26, 0, 29), 10, C.muted, false)
+        return radius, button, state
+    end
+    local collectablesRadiusInput, collectTeleportButton, collectState = makeCollectablesOneShotCard()
+    makeLabel(bssPage, "AutoTPDescription", "WarningDisk checks every 0.1s. C teleports once per click if its nearest target is in range.",
         UDim2.fromOffset(22, 455), UDim2.new(1, -44, 0, 30), 10, C.muted, false)
 
     local warningRadius, collectablesRadius = 100, 150
-    local warningOn, collectablesOn = false, false
-    local warningVersion, collectablesVersion = 0, 0
+    local warningOn = false
+    local warningVersion = 0
 
     local function updateRadius(input, previous)
         local entered = tonumber(input.Text)
@@ -4520,8 +4562,6 @@ __EB1478_safeCall("Premium pages and extras", function()
     local bssKeyInputs = {
         warningStart = warningStartKeyBox,
         warningStop = warningStopKeyBox,
-        collectStart = collectStartKeyBox,
-        collectStop = collectStopKeyBox,
     }
     local function keyToText(key)
         if not key then return "NONE" end
@@ -4722,54 +4762,50 @@ __EB1478_safeCall("Premium pages and extras", function()
         end)
     end
 
-    local function setCollectablesEnabled(enabled)
-        collectablesVersion = collectablesVersion + 1
-        collectablesOn = enabled and not destroyed
-        collectState.Text = collectablesOn and "RUNNING" or "STOPPED"
-        collectState.TextColor3 = collectablesOn and C.green or C.muted
-        if not collectablesOn then
-            bssStatus.Text = "Collectables C auto TP stopped."
-            bssStatus.TextColor3 = C.muted
-            return
-        end
-        local thisVersion = collectablesVersion
-        bssStatus.Text = "TP to Collectables.C every 0.1s (" .. collectablesRadius .. " studs)."
-        bssStatus.TextColor3 = C.green
-        task.spawn(function()
-            while not destroyed and collectablesOn and thisVersion == collectablesVersion do
-                local success, err = pcall(function()
-                    local character, root, username = getBSSLocalCharacter()
-                    if not character then
-                        bssStatus.Text = "Player " .. username .. ": character not ready or username check failed."
-                        bssStatus.TextColor3 = C.yellow
-                        return
-                    end
-                    local target, position, distance, foundCount, positionedCount = findNearestCollectable(root.Position)
-                    if not target then
-                        bssStatus.Text = string.format("%s: found %d C objects; %d with positions.", username, foundCount, positionedCount)
-                        bssStatus.TextColor3 = C.yellow
-                    elseif distance > collectablesRadius then
-                        bssStatus.Text = string.format("%s: %d C (%d located). Nearest %.1f / %d studs: out of range.", username, foundCount, positionedCount, distance, collectablesRadius)
-                        bssStatus.TextColor3 = C.yellow
-                    elseif moveToBSSPosition(position) then
-                        bssStatus.Text = string.format("%s: %d C (%d located). TP nearest at %.1f / %d studs.", username, foundCount, positionedCount, distance, collectablesRadius)
-                        bssStatus.TextColor3 = C.green
-                    else
-                        bssStatus.Text = username .. ": cannot teleport; character is not ready."
-                        bssStatus.TextColor3 = C.yellow
-                    end
-                end)
-                if not success then warn("[ErrorB1478Menu][Collectables] " .. tostring(err)) end
-                task.wait(0.1)
+    -- One press, one scan, one teleport (no background Collectables loop).
+    local function teleportToNearestCollectable()
+        if destroyed then return end
+        collectablesRadius = updateRadius(collectablesRadiusInput, collectablesRadius)
+        local ok, err = pcall(function()
+            local character, root, username = getBSSLocalCharacter()
+            if not character then
+                bssStatus.Text = "Player " .. username .. ": character not ready or username check failed."
+                bssStatus.TextColor3 = C.yellow
+                collectState.Text = "Character not ready."
+                return
+            end
+
+            local target, position, distance, foundCount, positionedCount = findNearestCollectable(root.Position)
+            if not target or not position then
+                bssStatus.Text = string.format("%s: found %d C objects; %d with positions.", username, foundCount, positionedCount)
+                bssStatus.TextColor3 = C.yellow
+                collectState.Text = "No reachable C found."
+            elseif distance > collectablesRadius then
+                bssStatus.Text = string.format("%s: nearest C is %.1f studs away; range is %d.", username, distance, collectablesRadius)
+                bssStatus.TextColor3 = C.yellow
+                collectState.Text = "Out of range. Increase RANGE or move closer."
+            elseif moveToBSSPosition(position) then
+                bssStatus.Text = string.format("%s: teleported to nearest C at %.1f studs (%d C found).", username, distance, foundCount)
+                bssStatus.TextColor3 = C.green
+                collectState.Text = "Teleport requested. Click again for another C."
+            else
+                bssStatus.Text = username .. ": teleport failed; character not ready."
+                bssStatus.TextColor3 = C.yellow
+                collectState.Text = "Teleport failed. Check F9 output."
             end
         end)
+        if not ok then
+            warn("[ErrorB1478Menu][Collectables TP] " .. tostring(err))
+            bssStatus.Text = "Collectables teleport error. Check F9 output."
+            bssStatus.TextColor3 = C.red
+            collectState.Text = "Error while scanning C targets."
+        end
     end
 
-    -- START and STOP buttons use the same controls as the hotkeys.
+    -- WarningDisk keeps its START/STOP controls; Collectables C uses only TP.
     warningStartButton.Activated:Connect(function() setWarningEnabled(true) end)
     warningStopButton.Activated:Connect(function() setWarningEnabled(false) end)
-    collectStartButton.Activated:Connect(function() setCollectablesEnabled(true) end)
-    collectStopButton.Activated:Connect(function() setCollectablesEnabled(false) end)
+    collectTeleportButton.Activated:Connect(teleportToNearestCollectable)
 
     -- Keyboard shortcuts only work when gameplay has keyboard focus, and
     -- they are disconnected by DESTROY ALL or automatic menu replacement.
@@ -4781,16 +4817,12 @@ __EB1478_safeCall("Premium pages and extras", function()
             setWarningEnabled(true)
         elseif bssKeybinds.warningStop and input.KeyCode == bssKeybinds.warningStop then
             setWarningEnabled(false)
-        elseif bssKeybinds.collectStart and input.KeyCode == bssKeybinds.collectStart then
-            setCollectablesEnabled(true)
-        elseif bssKeybinds.collectStop and input.KeyCode == bssKeybinds.collectStop then
-            setCollectablesEnabled(false)
+
         end
     end))
     registerCleanup(function()
         warningVersion = warningVersion + 1
-        collectablesVersion = collectablesVersion + 1
-        warningOn, collectablesOn = false, false
+        warningOn = false
     end)
 
     local bssList = Instance.new("ScrollingFrame")
