@@ -1,7 +1,7 @@
--- BSS TP TO C (ONE CLICK): Scans all loaded descendants named C; picks the nearest, checks the configured range, then teleports once per click.
+-- BSS C AUTO TP: Toggle ON/OFF; checks all C inside the player-centered X/Y/Z box range every 0.1 seconds; custom optional shortcut.
 -- WarningDisk auto TP retains its existing START/STOP controls and optional shortcuts.
--- BSS C BOX RANGE: Checks all C in Workspace.Collectibles (fallback Collectables), compares X/Y/Z offsets independently, and teleports once on button click.
--- BSS CONTROLS UPDATE: WarningDisk START/STOP remains; Collectables C uses a single TP TO C button.
+-- BSS C BOX RANGE: Checks all C in Workspace.Collectibles (fallback Collectables), comparing X/Y/Z offsets independently.
+-- BSS CONTROLS UPDATE: WarningDisk START/STOP remains; Collectibles C has one ON/OFF button and editable keybind.
 -- BSS AUTO-TP PLAYER FIX: Moves the local player character to C/WarningDisk target positions without the old +4-stud height offset.
 -- ERROR_B1478 2036 STARTUP RELIABILITY BUILD
 -- Contains a reduced-local startup scope and nonblocking Roblox profile lookup.
@@ -10,10 +10,10 @@
 -- REPLACE the contents of your old LocalScript with ALL of this file.
 -- Do not paste it under an existing menu: this file is already the complete menu.
 -- For a Roblox error, use F9 and copy the ENTIRE first red error, not just its line number.
--- BSS: TP TO C (single click), WarningDisk (automatic 0.1s), TP TO STINGER.
+-- BSS: TP TO C (toggle auto every 0.1s), WarningDisk (automatic 0.1s), TP TO STINGER.
 
 -- STUDIO EDITION (CENTRE + FPS + OPTIONAL KEYBINDS + HOLD-CLICK TELEPORT)
--- BSS additions: WarningDisk auto-teleport uses 0.1-second checks; Collectables C uses a single teleport per click. Both have editable stud ranges.
+-- BSS additions: WarningDisk and Collectibles C use independent 0.1-second loops; C uses a custom toggle key. Both have editable stud ranges.
 -- All shortcut bindings can be cleared to NONE without removing their on-screen controls.
 -- Hold the chosen teleport key (T by default) and LEFT-CLICK a world surface to move to its clicked point.
 -- G only moves the existing menu. Launching a NEW copy requests full cleanup of the OLD copy before building a new UI.
@@ -4489,10 +4489,10 @@ __EB1478_safeCall("Premium pages and extras", function()
 
     local warningRadiusInput, warningStartButton, warningStopButton, warningState, warningStartKeyBox, warningStopKeyBox =
         makeBSSAutoCard("WarningDisk", "WARNING DISK AUTO TP", 196, 100)
-    -- One-shot C control: no auto-running loop, no START/STOP toggle or shortcuts.
-    local function makeCollectablesOneShotCard()
+    -- Collectibles C auto-teleport: click the toggle or press the custom key.
+    local function makeCollectablesToggleCard()
         local card = Instance.new("Frame")
-        card.Name = "CollectableCOneShotCard"
+        card.Name = "CollectableCToggleCard"
         card.Position = UDim2.fromOffset(20, 327)
         card.Size = UDim2.new(1, -40, 0, 123)
         card.BackgroundColor3 = C.panel
@@ -4501,7 +4501,7 @@ __EB1478_safeCall("Premium pages and extras", function()
         addCorner(card, 10)
         addOutline(card, C.border, 0.42)
 
-        makeLabel(card, "SectionTitle", "COLLECTIBLES • TP TO C", UDim2.fromOffset(13, 7),
+        makeLabel(card, "SectionTitle", "COLLECTIBLES • AUTO TP TO C", UDim2.fromOffset(13, 7),
             UDim2.new(1, -196, 0, 26), 12, C.text, true)
         makeLabel(card, "RangeLabel", "RANGE", UDim2.new(1, -180, 0, 7),
             UDim2.fromOffset(54, 26), 10, C.muted, true)
@@ -4524,20 +4524,40 @@ __EB1478_safeCall("Premium pages and extras", function()
         makeLabel(card, "StudsUnit", "ST", UDim2.new(1, -41, 0, 7),
             UDim2.fromOffset(31, 26), 10, C.muted, true)
 
-        local button = makeButton(card, "CollectableCTeleport", "TP TO C",
-            UDim2.fromOffset(12, 42), UDim2.new(1, -24, 0, 36), true)
-        local state = makeLabel(card, "CollectableCOneShotStatus",
-            "Press TP to find a C within +/- RANGE on X, Y and Z.",
+        local button = makeButton(card, "CollectableCToggle", "AUTO TP TO C: OFF",
+            UDim2.fromOffset(12, 42), UDim2.fromOffset(190, 36), true)
+        makeLabel(card, "CollectableCKeyLabel", "TOGGLE KEY", UDim2.fromOffset(217, 45),
+            UDim2.fromOffset(85, 28), 10, C.muted, true)
+        local keyBox = Instance.new("TextBox")
+        keyBox.Name = "CollectableCToggleKeybind"
+        keyBox.Position = UDim2.fromOffset(305, 46)
+        keyBox.Size = UDim2.fromOffset(92, 29)
+        keyBox.BackgroundColor3 = C.panel2
+        keyBox.BorderSizePixel = 0
+        keyBox.ClearTextOnFocus = false
+        keyBox.Text = "NONE"
+        keyBox.PlaceholderText = "NONE"
+        keyBox.TextColor3 = C.text
+        keyBox.PlaceholderColor3 = C.muted
+        keyBox.TextSize = 12
+        keyBox.Font = Enum.Font.GothamSemibold
+        keyBox.Parent = card
+        addCorner(keyBox, 7)
+        addOutline(keyBox, C.border, 0.3)
+        local state = makeLabel(card, "CollectableCToggleStatus",
+            "OFF • Searches +/- RANGE on X, Y and Z when enabled.",
             UDim2.fromOffset(13, 85), UDim2.new(1, -26, 0, 29), 10, C.muted, false)
-        return radius, button, state
+        return radius, button, state, keyBox
     end
-    local collectablesRadiusInput, collectTeleportButton, collectState = makeCollectablesOneShotCard()
-    makeLabel(bssPage, "AutoTPDescription", "WarningDisk checks every 0.1s. TP TO C checks a cube around your character once per click.",
+    local collectablesRadiusInput, collectTeleportButton, collectState, collectToggleKeyBox = makeCollectablesToggleCard()
+    makeLabel(bssPage, "AutoTPDescription", "Both auto TPs scan every 0.1 seconds. C uses a box range around your character.",
         UDim2.fromOffset(22, 455), UDim2.new(1, -44, 0, 30), 10, C.muted, false)
 
     local warningRadius, collectablesRadius = 100, 150
     local warningOn = false
     local warningVersion = 0
+    local collectOn = false
+    local collectVersion = 0
 
     local function updateRadius(input, previous)
         local entered = tonumber(input.Text)
@@ -4562,6 +4582,7 @@ __EB1478_safeCall("Premium pages and extras", function()
     local bssKeyInputs = {
         warningStart = warningStartKeyBox,
         warningStop = warningStopKeyBox,
+        collectToggle = collectToggleKeyBox,
     }
     local function keyToText(key)
         if not key then return "NONE" end
@@ -4777,55 +4798,68 @@ __EB1478_safeCall("Premium pages and extras", function()
         end)
     end
 
-    -- One press, one scan, one teleport: no automatic Collectibles C loop.
-    local function teleportToNearestCollectable()
-        if destroyed then return end
+    -- Every 0.1s while enabled, scan every loaded C in the configured X/Y/Z
+    -- cube centered on the LOCAL player's current position; teleport to the
+    -- closest in-range C. Version invalidation stops old loops immediately.
+    local function setCollectEnabled(enabled)
+        collectVersion = collectVersion + 1
+        collectOn = enabled and not destroyed
+        collectTeleportButton.Text = collectOn and "AUTO TP TO C: ON" or "AUTO TP TO C: OFF"
+        collectState.Text = collectOn and "RUNNING • Scanning every 0.1 seconds." or "STOPPED • Press to start."
+        collectState.TextColor3 = collectOn and C.green or C.muted
+        if not collectOn then
+            bssStatus.Text = "Collectibles C auto TP stopped."
+            bssStatus.TextColor3 = C.muted
+            return
+        end
         collectablesRadius = updateRadius(collectablesRadiusInput, collectablesRadius)
-        local ok, err = pcall(function()
-            local character, root, username = getBSSLocalCharacter()
-            if not character then
-                bssStatus.Text = "Player " .. username .. ": character not ready."
-                bssStatus.TextColor3 = C.yellow
-                collectState.Text = "Character not ready."
-                return
-            end
-
-            local target, position, distance, foundCount, positionedCount, inRangeCount, folderName =
-                findNearestCollectableInBox(root.Position, collectablesRadius)
-            if not folderName then
-                bssStatus.Text = "Missing Workspace.Collectibles (or Workspace.Collectables)."
-                bssStatus.TextColor3 = C.yellow
-                collectState.Text = "Collectibles folder not found."
-            elseif not target or not position then
-                bssStatus.Text = string.format(
-                    "%s: %d C found in %s, %d positioned, %d inside +/- %d X/Y/Z studs.",
-                    username, foundCount, folderName, positionedCount, inRangeCount, collectablesRadius)
-                bssStatus.TextColor3 = C.yellow
-                collectState.Text = "No C inside your box range."
-            elseif moveToBSSPosition(position) then
-                bssStatus.Text = string.format(
-                    "%s: TP to %s.C (%.1f studs); %d C inside +/- %d X/Y/Z.",
-                    username, folderName, distance, inRangeCount, collectablesRadius)
-                bssStatus.TextColor3 = C.green
-                collectState.Text = "Teleported once. Click TP TO C to scan again."
-            else
-                bssStatus.Text = username .. ": teleport failed; character not ready."
-                bssStatus.TextColor3 = C.yellow
-                collectState.Text = "Teleport failed. Check F9."
+        local thisVersion = collectVersion
+        bssStatus.Text = "Collectibles C auto TP enabled: +/- " .. collectablesRadius .. " studs on each axis."
+        bssStatus.TextColor3 = C.green
+        task.spawn(function()
+            while not destroyed and collectOn and thisVersion == collectVersion do
+                local ok, err = pcall(function()
+                    local character, root, username = getBSSLocalCharacter()
+                    if not character then
+                        collectState.Text = "Waiting for " .. username .. "'s character..."
+                        return
+                    end
+                    -- Radius changes are picked up immediately if the user edits the box.
+                    local requestedRadius = tonumber(collectablesRadiusInput.Text)
+                    if requestedRadius and requestedRadius == requestedRadius then
+                        collectablesRadius = math.clamp(math.floor(requestedRadius + 0.5), 5, 10000)
+                    end
+                    local target, position, distance, foundCount, positionedCount, inRangeCount, folderName =
+                        findNearestCollectableInBox(root.Position, collectablesRadius)
+                    -- Prevent a late in-flight scan from teleporting after STOP.
+                    if destroyed or not collectOn or thisVersion ~= collectVersion then return end
+                    if not folderName then
+                        collectState.Text = "Missing Workspace.Collectibles / Collectables"
+                        collectState.TextColor3 = C.yellow
+                    elseif not target or not position then
+                        collectState.Text = string.format("RUNNING • %d C found, %d positioned, %d in box", foundCount, positionedCount, inRangeCount)
+                        collectState.TextColor3 = C.yellow
+                    elseif moveToBSSPosition(position) then
+                        collectState.Text = string.format("RUNNING • %s: TP to C (%.1f studs)", username, distance)
+                        collectState.TextColor3 = C.green
+                    else
+                        collectState.Text = "RUNNING • Character could not teleport"
+                        collectState.TextColor3 = C.yellow
+                    end
+                end)
+                if not ok then
+                    warn("[ErrorB1478Menu][Collectibles C Auto TP] " .. tostring(err))
+                    collectState.Text = "SCAN ERROR • Check F9"
+                    collectState.TextColor3 = C.red
+                end
+                task.wait(0.1)
             end
         end)
-        if not ok then
-            warn("[ErrorB1478Menu][Collectibles TP] " .. tostring(err))
-            bssStatus.Text = "Collectibles teleport error. Check F9 output."
-            bssStatus.TextColor3 = C.red
-            collectState.Text = "Error while scanning C targets."
-        end
     end
 
-    -- WarningDisk keeps its START/STOP controls; Collectibles C has a one-shot TP button.
     warningStartButton.Activated:Connect(function() setWarningEnabled(true) end)
     warningStopButton.Activated:Connect(function() setWarningEnabled(false) end)
-    collectTeleportButton.Activated:Connect(teleportToNearestCollectable)
+    collectTeleportButton.Activated:Connect(function() setCollectEnabled(not collectOn) end)
 
     -- Keyboard shortcuts only work when gameplay has keyboard focus, and
     -- they are disconnected by DESTROY ALL or automatic menu replacement.
@@ -4837,12 +4871,15 @@ __EB1478_safeCall("Premium pages and extras", function()
             setWarningEnabled(true)
         elseif bssKeybinds.warningStop and input.KeyCode == bssKeybinds.warningStop then
             setWarningEnabled(false)
-
+        elseif bssKeybinds.collectToggle and input.KeyCode == bssKeybinds.collectToggle then
+            setCollectEnabled(not collectOn)
         end
     end))
     registerCleanup(function()
         warningVersion = warningVersion + 1
         warningOn = false
+        collectVersion = collectVersion + 1
+        collectOn = false
     end)
 
     local bssList = Instance.new("ScrollingFrame")
