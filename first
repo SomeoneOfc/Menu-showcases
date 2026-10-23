@@ -1,4 +1,5 @@
 -- BSS C AUTO TP: Toggle ON/OFF; checks all C inside the player-centered X/Y/Z box range every 0.1 seconds; custom optional shortcut.
+-- Each unique C gets at most THREE successful auto-teleports per menu session; the scanner moves to other eligible C afterward.
 -- WarningDisk auto TP retains its existing START/STOP controls and optional shortcuts.
 -- BSS C BOX RANGE: Checks all C in Workspace.Collectibles (fallback Collectables), comparing X/Y/Z offsets independently.
 -- BSS CONTROLS UPDATE: WarningDisk START/STOP remains; Collectibles C has one ON/OFF button and editable keybind.
@@ -4572,7 +4573,7 @@ __EB1478_safeCall("Premium pages and extras", function()
     local collectablesRadiusInput, collectTeleportButton, collectState, collectToggleKeyBox, collectApplyButton =
         makeCollectablesToggleCard()
     makeLabel(bssPage, "AutoTPDescription",
-        "C scans every 0.1s while ON. Range is a +/- X/Y/Z box centered on your character.",
+        "C scans every 0.1s while ON. Max 3 TPs per C. Range: +/- X/Y/Z from your character.",
         UDim2.fromOffset(22, 517), UDim2.new(1, -44, 0, 31), 10, C.muted, false)
 
     local warningRadius, collectablesRadius = 100, 150
@@ -4580,6 +4581,11 @@ __EB1478_safeCall("Premium pages and extras", function()
     local warningVersion = 0
     local collectOn = false
     local collectVersion = 0
+    -- Track the number of successful teleports for EACH C instance.
+    -- Counts survive toggling OFF/ON, but reset when the script is restarted.
+    -- Weak keys let Roblox release C instances that have been removed.
+    local collectTeleportCounts = setmetatable({}, {__mode = "k"})
+    local maxTeleportsPerC = 3
 
     local function updateRadius(input, previous)
         local entered = tonumber(input.Text)
@@ -4738,7 +4744,7 @@ __EB1478_safeCall("Premium pages and extras", function()
         if not folder then return nil, nil, nil, 0, 0, 0, nil end
 
         local nearest, nearestPosition, bestDistance = nil, nil, math.huge
-        local foundCount, positionedCount, inRangeCount = 0, 0, 0
+        local foundCount, positionedCount, inRangeCount, exhaustedCount = 0, 0, 0, 0
 
         local function checkC(object)
             if object.Name ~= "C" then return end
@@ -4751,6 +4757,12 @@ __EB1478_safeCall("Premium pages and extras", function()
                 and math.abs(offset.Y) <= radius
                 and math.abs(offset.Z) <= radius then
                 inRangeCount = inRangeCount + 1
+                -- Do not select this specific C after successfully TP'ing to it 3 times.
+                -- Continue scanning ALL other C instances for an eligible target.
+                if (collectTeleportCounts[object] or 0) >= maxTeleportsPerC then
+                    exhaustedCount = exhaustedCount + 1
+                    return
+                end
                 local distance = offset.Magnitude
                 if distance < bestDistance then
                     nearest, nearestPosition, bestDistance = object, position, distance
@@ -4763,7 +4775,7 @@ __EB1478_safeCall("Premium pages and extras", function()
         for _, object in ipairs(folder:GetDescendants()) do
             checkC(object)
         end
-        return nearest, nearestPosition, bestDistance, foundCount, positionedCount, inRangeCount, folder.Name
+        return nearest, nearestPosition, bestDistance, foundCount, positionedCount, inRangeCount, folder.Name, exhaustedCount
     end
 
     -- Verify that the character being moved belongs to the player running
@@ -4863,7 +4875,7 @@ __EB1478_safeCall("Premium pages and extras", function()
                     if requestedRadius and requestedRadius == requestedRadius then
                         collectablesRadius = math.clamp(math.floor(requestedRadius + 0.5), 5, 10000)
                     end
-                    local target, position, distance, foundCount, positionedCount, inRangeCount, folderName =
+                    local target, position, distance, foundCount, positionedCount, inRangeCount, folderName, exhaustedCount =
                         findNearestCollectableInBox(root.Position, collectablesRadius)
                     -- Prevent a late in-flight scan from teleporting after STOP.
                     if destroyed or not collectOn or thisVersion ~= collectVersion then return end
@@ -4871,10 +4883,17 @@ __EB1478_safeCall("Premium pages and extras", function()
                         collectState.Text = "Missing Workspace.Collectibles / Collectables"
                         collectState.TextColor3 = C.yellow
                     elseif not target or not position then
-                        collectState.Text = string.format("RUNNING • %d C found, %d positioned, %d in box", foundCount, positionedCount, inRangeCount)
-                        collectState.TextColor3 = C.yellow
+                        if inRangeCount > 0 and exhaustedCount == inRangeCount then
+                            collectState.Text = string.format("RUNNING • All %d in-range C reached %d/%d TPs", exhaustedCount, maxTeleportsPerC, maxTeleportsPerC)
+                            collectState.TextColor3 = C.green
+                        else
+                            collectState.Text = string.format("RUNNING • %d C found, %d positioned, %d in box, %d finished", foundCount, positionedCount, inRangeCount, exhaustedCount)
+                            collectState.TextColor3 = C.yellow
+                        end
                     elseif moveToBSSPosition(position) then
-                        collectState.Text = string.format("RUNNING • %s: TP to C (%.1f studs)", username, distance)
+                        local count = math.min(maxTeleportsPerC, (collectTeleportCounts[target] or 0) + 1)
+                        collectTeleportCounts[target] = count
+                        collectState.Text = string.format("RUNNING • %s: C TP %d/%d (%.1f studs)", username, count, maxTeleportsPerC, distance)
                         collectState.TextColor3 = C.green
                     else
                         collectState.Text = "RUNNING • Character could not teleport"
