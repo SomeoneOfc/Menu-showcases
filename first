@@ -1,5 +1,5 @@
 -- BSS C AUTO TP: Toggle ON/OFF; checks all C inside the player-centered X/Y/Z box range every 0.1 seconds; custom optional shortcut.
--- Each unique C gets at most THREE successful auto-teleports per menu session; the scanner moves to other eligible C afterward.
+-- Each exact C is visited at most THREE times. A strong object record + stable position fingerprint block revisiting even if the object streams back in at the same location.
 -- WarningDisk auto TP retains its existing START/STOP controls and optional shortcuts.
 -- BSS C BOX RANGE: Checks all C in Workspace.Collectibles (fallback Collectables), comparing X/Y/Z offsets independently.
 -- BSS CONTROLS UPDATE: WarningDisk START/STOP remains; Collectibles C has one ON/OFF button and editable keybind.
@@ -4581,11 +4581,30 @@ __EB1478_safeCall("Premium pages and extras", function()
     local warningVersion = 0
     local collectOn = false
     local collectVersion = 0
-    -- Track the number of successful teleports for EACH C instance.
-    -- Counts survive toggling OFF/ON, but reset when the script is restarted.
-    -- Weak keys let Roblox release C instances that have been removed.
-    local collectTeleportCounts = setmetatable({}, {__mode = "k"})
+    -- A STRONG object key prevents recounting the same exact C.
+    -- A separate string key in this SAME table also blocks regenerated C
+    -- objects at the same path/position (including after streaming reload).
+    -- These records are never cleared when turning Auto TP OFF/ON.
+    local collectTeleportCounts = {}
     local maxTeleportsPerC = 3
+
+    -- Returns number of prior TPs for this object or its world location.
+    -- Pass true as recordTeleport ONLY after a successful character move.
+    local function cTeleportCount(object, position, recordTeleport)
+        local function cell(value)
+            -- 0.5-stud buckets handle small differences when objects reload.
+            return math.floor(value * 2 + 0.5)
+        end
+        local parentPath = object.Parent and object.Parent:GetFullName() or "Workspace.Collectibles"
+        local locationKey = "loc:" .. parentPath .. "|" .. cell(position.X) .. ":" .. cell(position.Y) .. ":" .. cell(position.Z)
+        local count = math.max(collectTeleportCounts[object] or 0, collectTeleportCounts[locationKey] or 0)
+        if recordTeleport then
+            count = math.min(maxTeleportsPerC, count + 1)
+            collectTeleportCounts[object] = count
+            collectTeleportCounts[locationKey] = count
+        end
+        return count
+    end
 
     local function updateRadius(input, previous)
         local entered = tonumber(input.Text)
@@ -4759,7 +4778,7 @@ __EB1478_safeCall("Premium pages and extras", function()
                 inRangeCount = inRangeCount + 1
                 -- Do not select this specific C after successfully TP'ing to it 3 times.
                 -- Continue scanning ALL other C instances for an eligible target.
-                if (collectTeleportCounts[object] or 0) >= maxTeleportsPerC then
+                if cTeleportCount(object, position, false) >= maxTeleportsPerC then
                     exhaustedCount = exhaustedCount + 1
                     return
                 end
@@ -4891,9 +4910,8 @@ __EB1478_safeCall("Premium pages and extras", function()
                             collectState.TextColor3 = C.yellow
                         end
                     elseif moveToBSSPosition(position) then
-                        local count = math.min(maxTeleportsPerC, (collectTeleportCounts[target] or 0) + 1)
-                        collectTeleportCounts[target] = count
-                        collectState.Text = string.format("RUNNING • %s: C TP %d/%d (%.1f studs)", username, count, maxTeleportsPerC, distance)
+                        local count = cTeleportCount(target, position, true)
+                        collectState.Text = string.format("RUNNING • %s: C TP %d/%d (%.1f studs) • skipped forever at 3/3", username, count, maxTeleportsPerC, distance)
                         collectState.TextColor3 = C.green
                     else
                         collectState.Text = "RUNNING • Character could not teleport"
