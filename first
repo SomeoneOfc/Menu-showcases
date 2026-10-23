@@ -3133,7 +3133,19 @@ __EB1478_safeCall("Premium pages and extras", function()
 
     local waypointsPage = makePage("WaypointsPage")
     local consolePage = makePage("ConsolePage")
-    local bssPage = makePage("BSSPage")
+    -- BSS has more controls than a single viewport can show. A dedicated
+    -- vertical ScrollingFrame keeps the C toggle, keybind and other tools reachable.
+    local bssPage = Instance.new("ScrollingFrame")
+    bssPage.Name = "BSSPage"
+    bssPage.Size = UDim2.fromScale(1, 1)
+    bssPage.BackgroundTransparency = 1
+    bssPage.BorderSizePixel = 0
+    bssPage.ScrollBarThickness = 6
+    bssPage.ScrollingDirection = Enum.ScrollingDirection.Y
+    bssPage.ScrollBarImageColor3 = Color3.fromRGB(107, 171, 245)
+    bssPage.CanvasSize = UDim2.fromOffset(0, 805)
+    bssPage.Visible = false
+    bssPage.Parent = content
     local optionsPage = makePage("OptionsPage")
     local funPage = makePage("FunPage")
 
@@ -3184,6 +3196,8 @@ __EB1478_safeCall("Premium pages and extras", function()
             highlightTab(consoleTab)
         elseif page == bssPage then
             bssPage.Visible = true
+            -- Always reveal the C auto-teleport toggle when opening BSS.
+            bssPage.CanvasPosition = Vector2.new(0, 0)
             highlightTab(bssTab)
         elseif page == optionsPage then
             optionsPage.Visible = true
@@ -4350,13 +4364,13 @@ __EB1478_safeCall("Premium pages and extras", function()
     end)
 
     __EB1478_safeCall("BSS HiddenStickers page", function()
-    makeHeader(bssPage, "BSS • Teleport Tools", "Stinger, nearby Collectibles C, WarningDisk, and HiddenStickers.")
+    makeHeader(bssPage, "BSS • Teleport Tools", "Auto TP to nearby C, WarningDisk, Stinger, and HiddenStickers.")
     local bssStatus = makeLabel(bssPage, "BSSStatus", "Checking workspace.HiddenStickers…", UDim2.fromOffset(22, 104), UDim2.new(1, -235, 0, 34), 11, C.muted, false)
     local refreshBSS = makeButton(bssPage, "RefreshBSS", "↻  REFRESH", UDim2.new(1, -145, 0, 103), UDim2.fromOffset(123, 36), true)
 
     -- BSS Stinger shortcut: resolve the target fresh on each click because
     -- WaitingThorn may spawn/despawn during a Bee Swarm Simulator session.
-    local stingerButton = makeButton(bssPage, "TPToStinger", "TP TO STINGER", UDim2.fromOffset(20, 148), UDim2.new(1, -40, 0, 38), true)
+    local stingerButton = makeButton(bssPage, "TPToStinger", "TP TO STINGER", UDim2.fromOffset(20, 473), UDim2.new(1, -40, 0, 38), true)
     stingerButton.Activated:Connect(function()
         local particles = workspace:FindFirstChild("Particles")
         local wts = particles and particles:FindFirstChild("WTs")
@@ -4488,27 +4502,28 @@ __EB1478_safeCall("Premium pages and extras", function()
     end
 
     local warningRadiusInput, warningStartButton, warningStopButton, warningState, warningStartKeyBox, warningStopKeyBox =
-        makeBSSAutoCard("WarningDisk", "WARNING DISK AUTO TP", 196, 100)
-    -- Collectibles C auto-teleport: click the toggle or press the custom key.
+        makeBSSAutoCard("WarningDisk", "WARNING DISK AUTO TP", 340, 100)
+    -- Primary BSS control. Placed directly beneath the BSS status instead of
+    -- below the WarningDisk section, and stays accessible on smaller screens.
     local function makeCollectablesToggleCard()
         local card = Instance.new("Frame")
         card.Name = "CollectableCToggleCard"
-        card.Position = UDim2.fromOffset(20, 327)
-        card.Size = UDim2.new(1, -40, 0, 123)
+        card.Position = UDim2.fromOffset(20, 149)
+        card.Size = UDim2.new(1, -40, 0, 181)
         card.BackgroundColor3 = C.panel
         card.BorderSizePixel = 0
         card.Parent = bssPage
-        addCorner(card, 10)
-        addOutline(card, C.border, 0.42)
+        addCorner(card, 12)
+        addOutline(card, C.accent, 0.20)
 
-        makeLabel(card, "SectionTitle", "COLLECTIBLES • AUTO TP TO C", UDim2.fromOffset(13, 7),
-            UDim2.new(1, -196, 0, 26), 12, C.text, true)
-        makeLabel(card, "RangeLabel", "RANGE", UDim2.new(1, -180, 0, 7),
-            UDim2.fromOffset(54, 26), 10, C.muted, true)
+        makeLabel(card, "SectionTitle", "COLLECTIBLES  /  AUTO TP TO C",
+            UDim2.fromOffset(13, 8), UDim2.new(1, -197, 0, 28), 13, C.text, true)
+        makeLabel(card, "RangeLabel", "RANGE",
+            UDim2.new(1, -183, 0, 9), UDim2.fromOffset(55, 26), 10, C.muted, true)
         local radius = Instance.new("TextBox")
         radius.Name = "CollectableCRadius"
-        radius.Position = UDim2.new(1, -120, 0, 6)
-        radius.Size = UDim2.fromOffset(75, 29)
+        radius.Position = UDim2.new(1, -121, 0, 7)
+        radius.Size = UDim2.fromOffset(78, 29)
         radius.BackgroundColor3 = C.panel2
         radius.BorderSizePixel = 0
         radius.ClearTextOnFocus = false
@@ -4521,37 +4536,44 @@ __EB1478_safeCall("Premium pages and extras", function()
         radius.Parent = card
         addCorner(radius, 7)
         addOutline(radius, C.border, 0.3)
-        makeLabel(card, "StudsUnit", "ST", UDim2.new(1, -41, 0, 7),
-            UDim2.fromOffset(31, 26), 10, C.muted, true)
+        makeLabel(card, "StudsUnit", "ST", UDim2.new(1, -39, 0, 9),
+            UDim2.fromOffset(28, 26), 10, C.muted, true)
 
-        local button = makeButton(card, "CollectableCToggle", "AUTO TP TO C: OFF",
-            UDim2.fromOffset(12, 42), UDim2.fromOffset(190, 36), true)
-        makeLabel(card, "CollectableCKeyLabel", "TOGGLE KEY", UDim2.fromOffset(217, 45),
-            UDim2.fromOffset(85, 28), 10, C.muted, true)
+        local toggleButton = makeButton(card, "CollectableCToggle", "AUTO TP TO C   •   OFF",
+            UDim2.fromOffset(13, 46), UDim2.new(1, -26, 0, 42), true)
+        toggleButton.TextSize = 15
+        toggleButton.Font = Enum.Font.GothamBold
+        makeLabel(card, "CollectableCKeyLabel", "TOGGLE KEY",
+            UDim2.fromOffset(14, 100), UDim2.fromOffset(108, 30), 11, C.muted, true)
         local keyBox = Instance.new("TextBox")
         keyBox.Name = "CollectableCToggleKeybind"
-        keyBox.Position = UDim2.fromOffset(305, 46)
-        keyBox.Size = UDim2.fromOffset(92, 29)
+        keyBox.Position = UDim2.fromOffset(122, 99)
+        keyBox.Size = UDim2.fromOffset(120, 32)
         keyBox.BackgroundColor3 = C.panel2
         keyBox.BorderSizePixel = 0
         keyBox.ClearTextOnFocus = false
         keyBox.Text = "NONE"
-        keyBox.PlaceholderText = "NONE"
+        keyBox.PlaceholderText = "F6 / Z / NONE"
         keyBox.TextColor3 = C.text
         keyBox.PlaceholderColor3 = C.muted
         keyBox.TextSize = 12
         keyBox.Font = Enum.Font.GothamSemibold
         keyBox.Parent = card
         addCorner(keyBox, 7)
-        addOutline(keyBox, C.border, 0.3)
+        addOutline(keyBox, C.border, 0.25)
+        local applyButton = makeButton(card, "CollectableCApplyKey", "APPLY KEY",
+            UDim2.fromOffset(251, 99), UDim2.fromOffset(116, 32), false)
+        applyButton.TextSize = 11
         local state = makeLabel(card, "CollectableCToggleStatus",
-            "OFF • Searches +/- RANGE on X, Y and Z when enabled.",
-            UDim2.fromOffset(13, 85), UDim2.new(1, -26, 0, 29), 10, C.muted, false)
-        return radius, button, state, keyBox
+            "OFF  •  Click the button to start. Set a key and click APPLY KEY.",
+            UDim2.fromOffset(13, 142), UDim2.new(1, -26, 0, 29), 11, C.muted, false)
+        return radius, toggleButton, state, keyBox, applyButton
     end
-    local collectablesRadiusInput, collectTeleportButton, collectState, collectToggleKeyBox = makeCollectablesToggleCard()
-    makeLabel(bssPage, "AutoTPDescription", "Both auto TPs scan every 0.1 seconds. C uses a box range around your character.",
-        UDim2.fromOffset(22, 455), UDim2.new(1, -44, 0, 30), 10, C.muted, false)
+    local collectablesRadiusInput, collectTeleportButton, collectState, collectToggleKeyBox, collectApplyButton =
+        makeCollectablesToggleCard()
+    makeLabel(bssPage, "AutoTPDescription",
+        "C scans every 0.1s while ON. Range is a +/- X/Y/Z box centered on your character.",
+        UDim2.fromOffset(22, 517), UDim2.new(1, -44, 0, 31), 10, C.muted, false)
 
     local warningRadius, collectablesRadius = 100, 150
     local warningOn = false
@@ -4617,37 +4639,48 @@ __EB1478_safeCall("Premium pages and extras", function()
         end
         return false
     end
-    for action, box in pairs(bssKeyInputs) do
-        box.FocusLost:Connect(function()
-            local key, valid = resolveKeyText(box.Text)
-            if not valid then
-                bssStatus.Text = "Unknown key. Try F6, R, Quote, BackSlash, or NONE."
-                bssStatus.TextColor3 = C.yellow
-            elseif isReservedBSSKey(key) then
-                bssStatus.Text = "That key is assigned elsewhere in the menu. Choose another."
-                bssStatus.TextColor3 = C.yellow
-            else
-                local usedBy
-                if key then
-                    for otherAction, assigned in pairs(bssKeybinds) do
-                        if otherAction ~= action and key == assigned then
-                            usedBy = otherAction
-                            break
-                        end
+    local function applyBSSKeybind(action, box)
+        if destroyed then return end
+        local key, valid = resolveKeyText(box.Text)
+        if not valid then
+            bssStatus.Text = "Unknown key. Try F6, Z, Quote, BackSlash, or NONE."
+            bssStatus.TextColor3 = C.yellow
+        elseif isReservedBSSKey(key) then
+            bssStatus.Text = "That key is assigned elsewhere in the menu. Choose another."
+            bssStatus.TextColor3 = C.yellow
+        else
+            local usedBy
+            if key then
+                for otherAction, assigned in pairs(bssKeybinds) do
+                    if otherAction ~= action and key == assigned then
+                        usedBy = otherAction
+                        break
                     end
                 end
-                if usedBy then
-                    bssStatus.Text = "Already used by " .. usedBy .. ". Choose another key."
-                    bssStatus.TextColor3 = C.yellow
-                else
-                    bssKeybinds[action] = key
-                    bssStatus.Text = action .. " key: " .. keyToText(key)
-                    bssStatus.TextColor3 = C.green
-                end
             end
-            box.Text = keyToText(bssKeybinds[action])
+            if usedBy then
+                bssStatus.Text = "Key already used by " .. usedBy .. ". Choose another."
+                bssStatus.TextColor3 = C.yellow
+            else
+                bssKeybinds[action] = key
+                bssStatus.Text = action .. " keybind saved: " .. keyToText(key)
+                bssStatus.TextColor3 = C.green
+            end
+        end
+        box.Text = keyToText(bssKeybinds[action])
+    end
+    for action, box in pairs(bssKeyInputs) do
+        box.FocusLost:Connect(function()
+            applyBSSKeybind(action, box)
         end)
     end
+    collectApplyButton.Activated:Connect(function()
+        applyBSSKeybind("collectToggle", collectToggleKeyBox)
+        -- Pressing APPLY after typing a key should never also toggle the TP.
+        if UserInputService:GetFocusedTextBox() == collectToggleKeyBox then
+            collectToggleKeyBox:ReleaseFocus()
+        end
+    end)
 
     local function getBSSPosition(object)
         if not object then return nil end
@@ -4804,8 +4837,9 @@ __EB1478_safeCall("Premium pages and extras", function()
     local function setCollectEnabled(enabled)
         collectVersion = collectVersion + 1
         collectOn = enabled and not destroyed
-        collectTeleportButton.Text = collectOn and "AUTO TP TO C: ON" or "AUTO TP TO C: OFF"
-        collectState.Text = collectOn and "RUNNING • Scanning every 0.1 seconds." or "STOPPED • Press to start."
+        collectTeleportButton.Text = collectOn and "AUTO TP TO C   •   ON" or "AUTO TP TO C   •   OFF"
+        collectTeleportButton.BackgroundColor3 = collectOn and C.green or C.accent
+        collectState.Text = collectOn and "ON  •  Scanning every 0.1 seconds." or "OFF  •  Click the button or press your toggle key."
         collectState.TextColor3 = collectOn and C.green or C.muted
         if not collectOn then
             bssStatus.Text = "Collectibles C auto TP stopped."
@@ -4884,8 +4918,8 @@ __EB1478_safeCall("Premium pages and extras", function()
 
     local bssList = Instance.new("ScrollingFrame")
     bssList.Name = "HiddenStickersList"
-    bssList.Position = UDim2.fromOffset(20, 489)
-    bssList.Size = UDim2.new(1, -40, 1, -502)
+    bssList.Position = UDim2.fromOffset(20, 556)
+    bssList.Size = UDim2.new(1, -40, 0, 219)
     bssList.BackgroundColor3 = C.background
     bssList.BorderSizePixel = 0
     bssList.ScrollBarThickness = 5
