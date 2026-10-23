@@ -1,6 +1,6 @@
 -- BSS TP TO C (ONE CLICK): Scans all loaded descendants named C; picks the nearest, checks the configured range, then teleports once per click.
 -- WarningDisk auto TP retains its existing START/STOP controls and optional shortcuts.
--- BSS NEAREST C: Validates the local player username, finds the closest C in Workspace.Collectables, checks its measured distance against the chosen range, and teleports the player only if in range.
+-- BSS C BOX RANGE: Checks all C in Workspace.Collectibles (fallback Collectables), compares X/Y/Z offsets independently, and teleports once on button click.
 -- BSS CONTROLS UPDATE: WarningDisk START/STOP remains; Collectables C uses a single TP TO C button.
 -- BSS AUTO-TP PLAYER FIX: Moves the local player character to C/WarningDisk target positions without the old +4-stud height offset.
 -- ERROR_B1478 2036 STARTUP RELIABILITY BUILD
@@ -4350,7 +4350,7 @@ __EB1478_safeCall("Premium pages and extras", function()
     end)
 
     __EB1478_safeCall("BSS HiddenStickers page", function()
-    makeHeader(bssPage, "BSS • Teleport Tools", "Stinger, nearby Collectables C, WarningDisk, and HiddenStickers.")
+    makeHeader(bssPage, "BSS • Teleport Tools", "Stinger, nearby Collectibles C, WarningDisk, and HiddenStickers.")
     local bssStatus = makeLabel(bssPage, "BSSStatus", "Checking workspace.HiddenStickers…", UDim2.fromOffset(22, 104), UDim2.new(1, -235, 0, 34), 11, C.muted, false)
     local refreshBSS = makeButton(bssPage, "RefreshBSS", "↻  REFRESH", UDim2.new(1, -145, 0, 103), UDim2.fromOffset(123, 36), true)
 
@@ -4501,7 +4501,7 @@ __EB1478_safeCall("Premium pages and extras", function()
         addCorner(card, 10)
         addOutline(card, C.border, 0.42)
 
-        makeLabel(card, "SectionTitle", "COLLECTABLES • NEAREST C", UDim2.fromOffset(13, 7),
+        makeLabel(card, "SectionTitle", "COLLECTIBLES • TP TO C", UDim2.fromOffset(13, 7),
             UDim2.new(1, -196, 0, 26), 12, C.text, true)
         makeLabel(card, "RangeLabel", "RANGE", UDim2.new(1, -180, 0, 7),
             UDim2.fromOffset(54, 26), 10, C.muted, true)
@@ -4524,15 +4524,15 @@ __EB1478_safeCall("Premium pages and extras", function()
         makeLabel(card, "StudsUnit", "ST", UDim2.new(1, -41, 0, 7),
             UDim2.fromOffset(31, 26), 10, C.muted, true)
 
-        local button = makeButton(card, "CollectableCTeleport", "TP TO NEAREST C",
+        local button = makeButton(card, "CollectableCTeleport", "TP TO C",
             UDim2.fromOffset(12, 42), UDim2.new(1, -24, 0, 36), true)
         local state = makeLabel(card, "CollectableCOneShotStatus",
-            "Press TP to scan once and teleport to the nearest C in range.",
+            "Press TP to find a C within +/- RANGE on X, Y and Z.",
             UDim2.fromOffset(13, 85), UDim2.new(1, -26, 0, 29), 10, C.muted, false)
         return radius, button, state
     end
     local collectablesRadiusInput, collectTeleportButton, collectState = makeCollectablesOneShotCard()
-    makeLabel(bssPage, "AutoTPDescription", "WarningDisk checks every 0.1s. C teleports once per click if its nearest target is in range.",
+    makeLabel(bssPage, "AutoTPDescription", "WarningDisk checks every 0.1s. TP TO C checks a cube around your character once per click.",
         UDim2.fromOffset(22, 455), UDim2.new(1, -44, 0, 30), 10, C.muted, false)
 
     local warningRadius, collectablesRadius = 100, 150
@@ -4674,27 +4674,42 @@ __EB1478_safeCall("Premium pages and extras", function()
         return nearest, nearestPosition
     end
 
-    -- Always determine the actual nearest C before checking the user's range.
-    -- Search is recursive to include C instances inside folders and models.
-    local function findNearestCollectable(origin)
-        local folder = workspace:FindFirstChild("Collectables")
-        if not folder then return nil, nil, nil, 0, 0 end
+    -- Search the box centered on the local player's HumanoidRootPart.
+    -- Example: origin (0,0,0), RANGE 150 => X/Y/Z must EACH be between -150 and 150.
+    -- Among all matching C instances, pick the nearest in actual 3D distance.
+    local function findNearestCollectableInBox(origin, radius)
+        -- The game's folder may be spelled Collectibles or Collectables.
+        -- Prioritize the exact path requested by the user.
+        local folder = workspace:FindFirstChild("Collectibles") or workspace:FindFirstChild("Collectables")
+        if not folder then return nil, nil, nil, 0, 0, 0, nil end
+
         local nearest, nearestPosition, bestDistance = nil, nil, math.huge
-        local foundCount, positionedCount = 0, 0
-        for _, object in ipairs(folder:GetDescendants()) do
-            if object.Name == "C" then
-                foundCount = foundCount + 1
-                local position = getBSSPosition(object)
-                if position then
-                    positionedCount = positionedCount + 1
-                    local distance = (position - origin).Magnitude
-                    if distance < bestDistance then
-                        nearest, nearestPosition, bestDistance = object, position, distance
-                    end
+        local foundCount, positionedCount, inRangeCount = 0, 0, 0
+
+        local function checkC(object)
+            if object.Name ~= "C" then return end
+            foundCount = foundCount + 1
+            local position = getBSSPosition(object)
+            if not position then return end
+            positionedCount = positionedCount + 1
+            local offset = position - origin
+            if math.abs(offset.X) <= radius
+                and math.abs(offset.Y) <= radius
+                and math.abs(offset.Z) <= radius then
+                inRangeCount = inRangeCount + 1
+                local distance = offset.Magnitude
+                if distance < bestDistance then
+                    nearest, nearestPosition, bestDistance = object, position, distance
                 end
             end
         end
-        return nearest, nearestPosition, bestDistance, foundCount, positionedCount
+
+        -- Include a directly named C and all descendants named C.
+        checkC(folder)
+        for _, object in ipairs(folder:GetDescendants()) do
+            checkC(object)
+        end
+        return nearest, nearestPosition, bestDistance, foundCount, positionedCount, inRangeCount, folder.Name
     end
 
     -- Verify that the character being moved belongs to the player running
@@ -4762,47 +4777,52 @@ __EB1478_safeCall("Premium pages and extras", function()
         end)
     end
 
-    -- One press, one scan, one teleport (no background Collectables loop).
+    -- One press, one scan, one teleport: no automatic Collectibles C loop.
     local function teleportToNearestCollectable()
         if destroyed then return end
         collectablesRadius = updateRadius(collectablesRadiusInput, collectablesRadius)
         local ok, err = pcall(function()
             local character, root, username = getBSSLocalCharacter()
             if not character then
-                bssStatus.Text = "Player " .. username .. ": character not ready or username check failed."
+                bssStatus.Text = "Player " .. username .. ": character not ready."
                 bssStatus.TextColor3 = C.yellow
                 collectState.Text = "Character not ready."
                 return
             end
 
-            local target, position, distance, foundCount, positionedCount = findNearestCollectable(root.Position)
-            if not target or not position then
-                bssStatus.Text = string.format("%s: found %d C objects; %d with positions.", username, foundCount, positionedCount)
+            local target, position, distance, foundCount, positionedCount, inRangeCount, folderName =
+                findNearestCollectableInBox(root.Position, collectablesRadius)
+            if not folderName then
+                bssStatus.Text = "Missing Workspace.Collectibles (or Workspace.Collectables)."
                 bssStatus.TextColor3 = C.yellow
-                collectState.Text = "No reachable C found."
-            elseif distance > collectablesRadius then
-                bssStatus.Text = string.format("%s: nearest C is %.1f studs away; range is %d.", username, distance, collectablesRadius)
+                collectState.Text = "Collectibles folder not found."
+            elseif not target or not position then
+                bssStatus.Text = string.format(
+                    "%s: %d C found in %s, %d positioned, %d inside +/- %d X/Y/Z studs.",
+                    username, foundCount, folderName, positionedCount, inRangeCount, collectablesRadius)
                 bssStatus.TextColor3 = C.yellow
-                collectState.Text = "Out of range. Increase RANGE or move closer."
+                collectState.Text = "No C inside your box range."
             elseif moveToBSSPosition(position) then
-                bssStatus.Text = string.format("%s: teleported to nearest C at %.1f studs (%d C found).", username, distance, foundCount)
+                bssStatus.Text = string.format(
+                    "%s: TP to %s.C (%.1f studs); %d C inside +/- %d X/Y/Z.",
+                    username, folderName, distance, inRangeCount, collectablesRadius)
                 bssStatus.TextColor3 = C.green
-                collectState.Text = "Teleport requested. Click again for another C."
+                collectState.Text = "Teleported once. Click TP TO C to scan again."
             else
                 bssStatus.Text = username .. ": teleport failed; character not ready."
                 bssStatus.TextColor3 = C.yellow
-                collectState.Text = "Teleport failed. Check F9 output."
+                collectState.Text = "Teleport failed. Check F9."
             end
         end)
         if not ok then
-            warn("[ErrorB1478Menu][Collectables TP] " .. tostring(err))
-            bssStatus.Text = "Collectables teleport error. Check F9 output."
+            warn("[ErrorB1478Menu][Collectibles TP] " .. tostring(err))
+            bssStatus.Text = "Collectibles teleport error. Check F9 output."
             bssStatus.TextColor3 = C.red
             collectState.Text = "Error while scanning C targets."
         end
     end
 
-    -- WarningDisk keeps its START/STOP controls; Collectables C uses only TP.
+    -- WarningDisk keeps its START/STOP controls; Collectibles C has a one-shot TP button.
     warningStartButton.Activated:Connect(function() setWarningEnabled(true) end)
     warningStopButton.Activated:Connect(function() setWarningEnabled(false) end)
     collectTeleportButton.Activated:Connect(teleportToNearestCollectable)
