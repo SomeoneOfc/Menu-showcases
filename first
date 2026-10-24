@@ -1,3 +1,4 @@
+-- BSS COMMANDO CHICK: ON/OFF AFK routine TP to spawner, wait for monster, wait 3s, hover at adjustable height until despawn.
 -- CINEMATIC PORTAL GUN: Animated vortex portals, neon lighting, plasma particles, built-in sci-fi sounds, energy beams, screen pulse, detailed blaster Tool and clean removal.
 -- Left-click green, right-click blue, walk into a portal for local travel. Optional Universe ID opens a Roblox confirmation if supported.
 -- BSS C AUTO FLY: Smoothly moves the local character toward the nearest C at a configurable speed (studs/second).
@@ -5014,7 +5015,7 @@ __EB1478_safeCall("Premium pages and extras", function()
     end)
 
     __EB1478_safeCall("BSS HiddenStickers page", function()
-    makeHeader(bssPage, "BSS • Teleport Tools", "Full planters, C, PetalPart, WarningDisk, Stinger and Windy Bee.")
+    makeHeader(bssPage, "BSS • Teleport Tools", "Collectibles, petals, WarningDisk, Commando Chick and quick teleports.")
     local bssStatus = makeLabel(bssPage, "BSSStatus", "Checking workspace.HiddenStickers…", UDim2.fromOffset(22, 104), UDim2.new(1, -235, 0, 34), 11, C.muted, false)
     local refreshBSS = makeButton(bssPage, "RefreshBSS", "↻  REFRESH", UDim2.new(1, -145, 0, 103), UDim2.fromOffset(123, 36), true)
 
@@ -6083,6 +6084,198 @@ __EB1478_safeCall("Premium pages and extras", function()
     refreshBSS.Activated:Connect(refreshBSSObjects)
     refreshBSSObjects()
 
+    -- AFK COMMANDO CHICK: standalone BSS card. One toggle controls the entire
+    -- spawner -> detect monster -> 3-second delay -> hover sequence.
+    -- The movement is client-side and does not automatically attack the monster.
+    do
+        local commandoCard = Instance.new("Frame")
+        commandoCard.Name = "AFKCommandoChickCard"
+        commandoCard.BackgroundColor3 = C.panel
+        commandoCard.BorderSizePixel = 0
+        commandoCard.Parent = bssPage
+        addCorner(commandoCard, 11)
+        addOutline(commandoCard, C.border, 0.35)
+
+        makeLabel(commandoCard, "Title", "AFK KILL COMMANDO CHICK",
+            UDim2.fromOffset(13, 8), UDim2.new(1, -26, 0, 27), 13, C.text, true)
+        makeLabel(commandoCard, "HeightCaption", "HOVER HEIGHT (STUDS)",
+            UDim2.fromOffset(13, 42), UDim2.fromOffset(176, 26), 11, C.muted, true)
+
+        local heightBox = Instance.new("TextBox")
+        heightBox.Name = "CommandoHoverHeight"
+        heightBox.Position = UDim2.fromOffset(194, 40)
+        heightBox.Size = UDim2.fromOffset(102, 30)
+        heightBox.BackgroundColor3 = C.panel2
+        heightBox.BorderSizePixel = 0
+        heightBox.ClearTextOnFocus = false
+        heightBox.Text = "15"
+        heightBox.PlaceholderText = "Studs"
+        heightBox.TextColor3 = C.text
+        heightBox.PlaceholderColor3 = C.muted
+        heightBox.Font = Enum.Font.GothamSemibold
+        heightBox.TextSize = 13
+        heightBox.Parent = commandoCard
+        addCorner(heightBox, 7)
+        addOutline(heightBox, C.border, 0.3)
+
+        local toggle = makeButton(commandoCard, "CommandoAFKToggle",
+            "AFK KILL COMMANDO CHICK   •   OFF", UDim2.fromOffset(13, 81),
+            UDim2.new(1, -26, 0, 40), true)
+        toggle.TextSize = 13
+        local status = makeLabel(commandoCard, "CommandoAFKStatus",
+            "OFF  •  Teleport to spawner, then hover 3s after spawning.",
+            UDim2.fromOffset(13, 130), UDim2.new(1, -26, 0, 36), 11, C.muted, false)
+        status.TextWrapped = true
+
+        local hoverHeight = 15
+        local enabled = false
+        local generation = 0
+        heightBox.FocusLost:Connect(function()
+            local value = tonumber(heightBox.Text)
+            if not value or value ~= value then value = hoverHeight end
+            hoverHeight = math.clamp(value, 1, 500)
+            heightBox.Text = string.format("%g", hoverHeight)
+        end)
+
+        local function objectPosition(object)
+            if not object then return nil end
+            if object:IsA("Attachment") then return object.WorldPosition end
+            if object:IsA("BasePart") then return object.Position end
+            if object:IsA("Model") then
+                local part = object:FindFirstChildWhichIsA("BasePart", true)
+                return part and object:GetPivot().Position or nil
+            end
+            local part = object:FindFirstChildWhichIsA("BasePart", true)
+            return part and part.Position or nil
+        end
+
+        local function currentCharacter()
+            local character = player.Character
+            local root = character and character:FindFirstChild("HumanoidRootPart")
+            local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+            if not root or not humanoid or humanoid.Health <= 0 then return nil, nil end
+            return character, root
+        end
+
+        local function moveCharacterTo(position)
+            local character, root = currentCharacter()
+            if not character or typeof(position) ~= "Vector3" then return false end
+            local ok, err = pcall(function()
+                character:PivotTo(CFrame.new(position) * character:GetPivot().Rotation)
+                root.AssemblyLinearVelocity = Vector3.zero
+                root.AssemblyAngularVelocity = Vector3.zero
+            end)
+            if not ok then warn("[ErrorB1478Menu][Commando AFK] " .. tostring(err)) end
+            return ok
+        end
+
+        local function findSpawner()
+            local spawners = workspace:FindFirstChild("MonsterSpawners")
+            if not spawners then return nil end
+            return spawners:FindFirstChild("Commando Chick", true)
+        end
+
+        local function findMonster()
+            local monsters = workspace:FindFirstChild("Monsters")
+            if not monsters then return nil, nil end
+            -- Accept exact name and common level suffixes: "Commando Chick (Level 3)".
+            for _, candidate in ipairs(monsters:GetDescendants()) do
+                if string.sub(string.lower(candidate.Name), 1, #"commando chick") == "commando chick" then
+                    local position = objectPosition(candidate)
+                    if position then return candidate, position end
+                end
+            end
+            return nil, nil
+        end
+
+        local function isRunning(version)
+            return enabled and not destroyed and version == generation
+        end
+
+        local function setEnabled(value)
+            generation += 1
+            enabled = value and not destroyed
+            toggle.Text = enabled and "AFK KILL COMMANDO CHICK   •   ON" or "AFK KILL COMMANDO CHICK   •   OFF"
+            toggle.BackgroundColor3 = enabled and C.green or C.accent
+            status.TextColor3 = enabled and C.green or C.muted
+            if not enabled then
+                status.Text = "OFF  •  Commando routine stopped."
+                return
+            end
+
+            local spawner = findSpawner()
+            local spawnPosition = objectPosition(spawner)
+            if not spawnPosition then
+                enabled = false
+                toggle.Text = "AFK KILL COMMANDO CHICK   •   OFF"
+                toggle.BackgroundColor3 = C.accent
+                status.TextColor3 = C.yellow
+                status.Text = "Missing Workspace.MonsterSpawners.Commando Chick."
+                return
+            end
+
+            local version = generation
+            task.spawn(function()
+                -- Every time the monster disappears, return to the spawner and
+                -- wait for the next one. This routine does not create any objects.
+                while isRunning(version) do
+                    local targetSpawner = findSpawner()
+                    local targetSpawnPosition = objectPosition(targetSpawner)
+                    if not targetSpawnPosition then
+                        status.Text = "Spawner not loaded; retrying..."
+                        task.wait(0.5)
+                    else
+                        local spawnerReached = moveCharacterTo(targetSpawnPosition + Vector3.new(0, 4, 0))
+                        status.Text = spawnerReached and "At Commando Chick spawner • waiting for spawn..." or "Character not ready; retrying..."
+                        if not spawnerReached then task.wait(0.5) end
+
+                        local monster = nil
+                        while isRunning(version) and not monster do
+                            monster = findMonster()
+                            if not monster then task.wait(0.1) end
+                        end
+                        if not isRunning(version) then break end
+
+                        status.Text = "Commando Chick found • waiting 3 seconds..."
+                        local deadline = os.clock() + 3
+                        local vanished = false
+                        while isRunning(version) and os.clock() < deadline do
+                            local monsters = workspace:FindFirstChild("Monsters")
+                            if not monsters or not monster:IsDescendantOf(monsters) or not objectPosition(monster) then
+                                vanished = true
+                                break
+                            end
+                            task.wait(0.1)
+                        end
+                        if not isRunning(version) then break end
+                        if not vanished then
+                            status.Text = "Hovering above Commando Chick • " .. string.format("%g", hoverHeight) .. " studs"
+                            while isRunning(version) do
+                                local monsters = workspace:FindFirstChild("Monsters")
+                                local position = (monsters and monster:IsDescendantOf(monsters)) and objectPosition(monster) or nil
+                                if not position then break end
+                                moveCharacterTo(position + Vector3.new(0, hoverHeight, 0))
+                                task.wait(0.1)
+                            end
+                        end
+                        if isRunning(version) then
+                            status.Text = "Commando Chick despawned • returning to spawner..."
+                            task.wait(0.1)
+                        end
+                    end
+                end
+            end)
+        end
+
+        toggle.Activated:Connect(function()
+            setEnabled(not enabled)
+        end)
+        registerCleanup(function()
+            generation += 1
+            enabled = false
+        end)
+    end
+
     -- Non-overlapping BSS layout. The entire page is ONE vertical scroll area;
     -- the old hard-coded Y coordinates were overlapping after new tools were added.
     local bssY = 154
@@ -6102,6 +6295,8 @@ __EB1478_safeCall("Premium pages and extras", function()
     placeBSS(collectCard, 225, 14)
     placeBSS(petalCard, 181, 14)
     placeBSS(warningStartButton.Parent, 123, 12)
+    local commandoCard = bssPage:FindFirstChild("AFKCommandoChickCard")
+    if commandoCard then placeBSS(commandoCard, 177, 14) end
 
     local explanation = bssPage:FindFirstChild("AutoTPDescription")
     if explanation then
