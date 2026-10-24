@@ -3146,7 +3146,7 @@ __EB1478_safeCall("Premium pages and extras", function()
     bssPage.ScrollBarThickness = 6
     bssPage.ScrollingDirection = Enum.ScrollingDirection.Y
     bssPage.ScrollBarImageColor3 = Color3.fromRGB(107, 171, 245)
-    bssPage.CanvasSize = UDim2.fromOffset(0, 1130)
+    bssPage.CanvasSize = UDim2.fromOffset(0, 1180)
     bssPage.Visible = false
     bssPage.Parent = content
     local optionsPage = makePage("OptionsPage")
@@ -4367,7 +4367,7 @@ __EB1478_safeCall("Premium pages and extras", function()
     end)
 
     __EB1478_safeCall("BSS HiddenStickers page", function()
-    makeHeader(bssPage, "BSS • Teleport Tools", "Full planters, C, PetalPart, WarningDisk, and Stinger.")
+    makeHeader(bssPage, "BSS • Teleport Tools", "Full planters, C, PetalPart, WarningDisk, Stinger and Windy Bee.")
     local bssStatus = makeLabel(bssPage, "BSSStatus", "Checking workspace.HiddenStickers…", UDim2.fromOffset(22, 104), UDim2.new(1, -235, 0, 34), 11, C.muted, false)
     local refreshBSS = makeButton(bssPage, "RefreshBSS", "↻  REFRESH", UDim2.new(1, -145, 0, 103), UDim2.fromOffset(123, 36), true)
 
@@ -4528,6 +4528,75 @@ __EB1478_safeCall("Premium pages and extras", function()
             bssStatus.Text = "Stinger teleport failed. Check F9 console."
             bssStatus.TextColor3 = C.red
             warn("[Error_B1478 BSS] Stinger teleport failed:", err)
+        end
+    end)
+
+    -- Single-click Windy Bee teleport. The monster's name may have a suffix
+    -- such as "Windy Bee (Level 12)", so compare only the leading name.
+    -- Search all descendants because monsters may be nested inside folders.
+    local windyBeeButton = makeButton(bssPage, "TPToWindyBee", "TP TO WINDY BEE",
+        UDim2.fromOffset(20, 763), UDim2.new(1, -40, 0, 38), true)
+    windyBeeButton.Activated:Connect(function()
+        if destroyed then return end
+        local monsters = workspace:FindFirstChild("Monsters")
+        if not monsters then
+            bssStatus.Text = "Workspace.Monsters is not loaded."
+            bssStatus.TextColor3 = C.yellow
+            return
+        end
+        local character = player.Character
+        local root = character and character:FindFirstChild("HumanoidRootPart")
+        local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+        if not root or not humanoid or humanoid.Health <= 0 then
+            bssStatus.Text = "Your character is not ready for teleporting."
+            bssStatus.TextColor3 = C.yellow
+            return
+        end
+
+        local nearestPosition, nearestName
+        local shortestDistance = math.huge
+        for _, candidate in ipairs(monsters:GetDescendants()) do
+            if string.sub(string.lower(candidate.Name), 1, 9) == "windy bee" then
+                local targetPosition
+                if candidate:IsA("BasePart") then
+                    targetPosition = candidate.Position
+                elseif candidate:IsA("Model") then
+                    local part = candidate:FindFirstChildWhichIsA("BasePart", true)
+                    if part then targetPosition = candidate:GetPivot().Position end
+                elseif candidate:IsA("Attachment") then
+                    targetPosition = candidate.WorldPosition
+                else
+                    local part = candidate:FindFirstChildWhichIsA("BasePart", true)
+                    if part then targetPosition = part.Position end
+                end
+                if targetPosition then
+                    local distance = (root.Position - targetPosition).Magnitude
+                    if distance < shortestDistance then
+                        shortestDistance = distance
+                        nearestPosition = targetPosition
+                        nearestName = candidate.Name
+                    end
+                end
+            end
+        end
+        if not nearestPosition then
+            bssStatus.Text = "No loaded Windy Bee found in Workspace.Monsters."
+            bssStatus.TextColor3 = C.yellow
+            return
+        end
+        local ok, err = pcall(function()
+            -- Move the player, NOT the monster, to just above its position.
+            character:PivotTo(CFrame.new(nearestPosition + Vector3.new(0, 4, 0)) * character:GetPivot().Rotation)
+            root.AssemblyLinearVelocity = Vector3.zero
+            root.AssemblyAngularVelocity = Vector3.zero
+        end)
+        if ok then
+            bssStatus.Text = string.format("Teleported to %s (%.0f studs).", nearestName, shortestDistance)
+            bssStatus.TextColor3 = C.green
+        else
+            bssStatus.Text = "Windy Bee teleport failed. Check F9."
+            bssStatus.TextColor3 = C.red
+            warn("[ErrorB1478Menu][WindyBee] " .. tostring(err))
         end
     end)
 
@@ -4719,7 +4788,7 @@ __EB1478_safeCall("Premium pages and extras", function()
     warningStartButton.Parent.Position = UDim2.fromOffset(20, 629)
     makeLabel(bssPage, "AutoTPDescription",
         "C flies at your chosen speed. Max 3 arrivals per C. Range: +/- X/Y/Z. Other BSS teleports unchanged.",
-        UDim2.fromOffset(22, 805), UDim2.new(1, -44, 0, 31), 10, C.muted, false)
+        UDim2.fromOffset(22, 850), UDim2.new(1, -44, 0, 31), 10, C.muted, false)
 
     local warningRadius, collectablesRadius, petalRadius = 100, 150, 150
     local collectFlySpeed = 80 -- studs per second; adjustable while flying
@@ -5272,7 +5341,7 @@ __EB1478_safeCall("Premium pages and extras", function()
 
     local bssList = Instance.new("ScrollingFrame")
     bssList.Name = "HiddenStickersList"
-    bssList.Position = UDim2.fromOffset(20, 844)
+    bssList.Position = UDim2.fromOffset(20, 889)
     bssList.Size = UDim2.new(1, -40, 0, 219)
     bssList.BackgroundColor3 = C.background
     bssList.BorderSizePixel = 0
@@ -6257,6 +6326,308 @@ __EB1478_safeCall("Studio edition UI and Toolkit", function()
     showPage(homePage)
     if refreshOptionsLabels then refreshOptionsLabels() end
     print("[ErrorB1478Menu] Studio edition ready: Toolkit, command search and refined layout created once.")
+end)
+
+--==================================================
+-- SECRET ADMIN ANNOUNCEMENT PANEL (CTRL + SEMICOLON, THEN "roles")
+-- Separate from the sidebar: never displayed as a normal menu tab.
+-- ServerScriptService companion is REQUIRED for secure admin checks + broadcast.
+--==================================================
+__EB1478_safeCall("Secret admin announcements", function()
+    local UIService = game:GetService("UserInputService")
+    local SharedStorage = game:GetService("ReplicatedStorage")
+
+    -- Create once; reusing the same UI every time avoids the menu-rebuild lag.
+    local shade = Instance.new("Frame")
+    shade.Name = "SecretAdminShade"
+    shade.BackgroundColor3 = Color3.fromRGB(6, 9, 17)
+    shade.BackgroundTransparency = 0.16
+    shade.BorderSizePixel = 0
+    shade.Size = UDim2.fromScale(1, 1)
+    shade.Visible = false
+    shade.ZIndex = 200
+    shade.Parent = gui
+
+    local panel = Instance.new("Frame")
+    panel.Name = "SecretAdminPanel"
+    panel.AnchorPoint = Vector2.new(0.5, 0.5)
+    panel.Position = UDim2.fromScale(0.5, 0.5)
+    panel.Size = UDim2.fromOffset(460, 360)
+    panel.BackgroundColor3 = Color3.fromRGB(20, 27, 40)
+    panel.BorderSizePixel = 0
+    panel.ZIndex = 201
+    panel.Parent = shade
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 14)
+    corner.Parent = panel
+    local border = Instance.new("UIStroke")
+    border.Color = Color3.fromRGB(77, 105, 141)
+    border.Thickness = 1
+    border.Parent = panel
+    local constraint = Instance.new("UISizeConstraint")
+    constraint.MaxSize = Vector2.new(460, 360)
+    constraint.MinSize = Vector2.new(300, 260)
+    constraint.Parent = panel
+    local responsive = Instance.new("UIScale")
+    responsive.Name = "AdminResponsiveScale"
+    responsive.Parent = panel
+
+    local function mkLabel(name, value, pos, size, fontSize, color, bold)
+        local result = Instance.new("TextLabel")
+        result.Name = name
+        result.BackgroundTransparency = 1
+        result.Position = pos
+        result.Size = size
+        result.Font = bold and Enum.Font.GothamBold or Enum.Font.Gotham
+        result.TextColor3 = color or Color3.fromRGB(220, 232, 247)
+        result.TextSize = fontSize
+        result.TextWrapped = true
+        result.TextXAlignment = Enum.TextXAlignment.Left
+        result.Text = value
+        result.ZIndex = 202
+        result.Parent = panel
+        return result
+    end
+    local function mkButton(name, value, pos, size, primary)
+        local result = Instance.new("TextButton")
+        result.Name = name
+        result.Position = pos
+        result.Size = size
+        result.BackgroundColor3 = primary and Color3.fromRGB(86, 150, 230) or Color3.fromRGB(44, 57, 78)
+        result.TextColor3 = Color3.fromRGB(245, 249, 255)
+        result.Font = Enum.Font.GothamBold
+        result.TextSize = 12
+        result.Text = value
+        result.AutoButtonColor = true
+        result.BorderSizePixel = 0
+        result.ZIndex = 202
+        result.Parent = panel
+        local rounded = Instance.new("UICorner")
+        rounded.CornerRadius = UDim.new(0, 8)
+        rounded.Parent = result
+        return result
+    end
+    local function mkInput(name, hint, pos, size, multiline)
+        local result = Instance.new("TextBox")
+        result.Name = name
+        result.PlaceholderText = hint
+        result.Position = pos
+        result.Size = size
+        result.BackgroundColor3 = Color3.fromRGB(32, 43, 61)
+        result.TextColor3 = Color3.fromRGB(238, 245, 255)
+        result.PlaceholderColor3 = Color3.fromRGB(149, 166, 187)
+        result.Text = ""
+        result.ClearTextOnFocus = false
+        result.Font = Enum.Font.Gotham
+        result.TextSize = 15
+        result.TextXAlignment = Enum.TextXAlignment.Left
+        result.TextYAlignment = Enum.TextYAlignment.Top
+        result.TextWrapped = multiline == true
+        result.MultiLine = multiline == true
+        result.BorderSizePixel = 0
+        result.ZIndex = 202
+        result.Parent = panel
+        local padding = Instance.new("UIPadding")
+        padding.PaddingTop = UDim.new(0, 12)
+        padding.PaddingLeft = UDim.new(0, 12)
+        padding.PaddingRight = UDim.new(0, 12)
+        padding.Parent = result
+        local rounded = Instance.new("UICorner")
+        rounded.CornerRadius = UDim.new(0, 8)
+        rounded.Parent = result
+        return result
+    end
+
+    local titleLabel = mkLabel("AdminTitle", "SECURE ACCESS", UDim2.fromOffset(20, 17), UDim2.new(1, -82, 0, 36), 21, nil, true)
+    local subtitleLabel = mkLabel("AdminSubtitle", "Enter the access command to continue.", UDim2.fromOffset(20, 57), UDim2.new(1, -40, 0, 46), 12, Color3.fromRGB(153, 174, 199), false)
+    local closeButton = mkButton("AdminClose", "X", UDim2.new(1, -56, 0, 18), UDim2.fromOffset(36, 32), false)
+    local rolesBox = mkInput("SecretCommand", "Type roles", UDim2.fromOffset(20, 122), UDim2.new(1, -40, 0, 49), false)
+    local unlockButton = mkButton("OpenRoles", "OPEN ADMIN PANEL", UDim2.fromOffset(20, 185), UDim2.new(1, -40, 0, 40), true)
+    local messageBox = mkInput("AnnouncementMessage", "Type an announcement for everyone...", UDim2.fromOffset(20, 119), UDim2.new(1, -40, 0, 109), true)
+    local sendButton = mkButton("SendAnnouncement", "BROADCAST ANNOUNCEMENT", UDim2.fromOffset(20, 240), UDim2.new(1, -40, 0, 39), true)
+    local backButton = mkButton("BackToCommand", "BACK", UDim2.fromOffset(20, 289), UDim2.fromOffset(90, 33), false)
+    local status = mkLabel("AdminStatus", "Ctrl + ; opens this access panel.", UDim2.fromOffset(120, 286), UDim2.new(1, -140, 0, 56), 11, Color3.fromRGB(152, 179, 210), false)
+
+    local remoteFolder, checkRemote, sendRemote, feedbackRemote
+    local checkedAdmin = false
+    local panelMode = "command"
+    local busy = false
+    local lastOpenAt = 0
+    local function resolveRemotes()
+        local folder = SharedStorage:FindFirstChild("ErrorB1478AdminSystem")
+        if not folder then return false end
+        local check = folder:FindFirstChild("CanAccess")
+        local send = folder:FindFirstChild("SendAnnouncement")
+        local feedback = folder:FindFirstChild("AnnouncementFeedback")
+        if not (check and check:IsA("RemoteFunction") and send and send:IsA("RemoteEvent")
+            and feedback and feedback:IsA("RemoteEvent")) then return false end
+        remoteFolder, checkRemote, sendRemote, feedbackRemote = folder, check, send, feedback
+        return true
+    end
+    local function setStatus(message, good)
+        status.Text = message
+        status.TextColor3 = good and Color3.fromRGB(122, 222, 173) or Color3.fromRGB(233, 178, 166)
+    end
+    local function setPage(mode)
+        panelMode = mode
+        local composing = mode == "announce"
+        titleLabel.Text = composing and "ADMIN / ANNOUNCEMENTS" or "SECURE ACCESS"
+        subtitleLabel.Text = composing
+            and "Broadcast to every player. All text is filtered by Roblox on the server."
+            or "Enter the access command to continue."
+        rolesBox.Visible = not composing
+        unlockButton.Visible = not composing
+        messageBox.Visible = composing
+        sendButton.Visible = composing
+        backButton.Visible = composing
+        if composing then
+            setStatus("Admin authorised. Enter your announcement.", true)
+        else
+            setStatus("Type roles and press ENTER or OPEN ADMIN PANEL.", true)
+        end
+    end
+    local function closePanel()
+        shade.Visible = false
+        rolesBox:ReleaseFocus()
+        messageBox:ReleaseFocus()
+    end
+    closeButton.Activated:Connect(closePanel)
+    backButton.Activated:Connect(function() setPage("command") end)
+
+    local function tryUnlock()
+        if busy or destroyed then return end
+        local word = string.lower(string.gsub(rolesBox.Text, "%s+", ""))
+        if word ~= "roles" then
+            setStatus("Unknown command. Type roles.", false)
+            return
+        end
+        if not resolveRemotes() then
+            setStatus("Missing server script. Add the supplied ServerScriptService file.", false)
+            return
+        end
+        busy = true
+        setStatus("Checking admin access with the server...", true)
+        task.spawn(function()
+            local ok, allowed = pcall(function() return checkRemote:InvokeServer() end)
+            busy = false
+            if destroyed or not shade.Parent then return end
+            checkedAdmin = ok and allowed == true
+            if checkedAdmin then
+                setPage("announce")
+            else
+                setStatus("Access denied. Your Roblox account is not an authorised admin.", false)
+            end
+        end)
+    end
+    unlockButton.Activated:Connect(tryUnlock)
+    rolesBox.FocusLost:Connect(function(enterPressed)
+        if enterPressed then tryUnlock() end
+    end)
+    sendButton.Activated:Connect(function()
+        if busy or destroyed then return end
+        if not checkedAdmin then
+            setPage("command")
+            setStatus("Verify access again before sending.", false)
+            return
+        end
+        local message = string.gsub(messageBox.Text, "^%s*(.-)%s*$", "%1")
+        if #message == 0 then
+            setStatus("Type an announcement first.", false)
+            return
+        end
+        if #message > 200 then
+            setStatus("Keep the announcement to 200 characters or fewer.", false)
+            return
+        end
+        if not resolveRemotes() then
+            setStatus("Server script is missing.", false)
+            return
+        end
+        sendRemote:FireServer(message)
+        setStatus("Sending to server for moderation...", true)
+    end)
+    if resolveRemotes() then
+        trackServiceConnection(feedbackRemote.OnClientEvent:Connect(function(success, message)
+            if destroyed then return end
+            setStatus(tostring(message), success == true)
+            if success then messageBox.Text = "" end
+        end))
+    else
+        -- Server remotes might appear after this LocalScript starts.
+        trackServiceConnection(SharedStorage.ChildAdded:Connect(function(child)
+            if child.Name ~= "ErrorB1478AdminSystem" then return end
+            task.defer(function()
+                if destroyed then return end
+                if resolveRemotes() then
+                    trackServiceConnection(feedbackRemote.OnClientEvent:Connect(function(success, message)
+                        if not destroyed then
+                            setStatus(tostring(message), success == true)
+                            if success then messageBox.Text = "" end
+                        end
+                    end))
+                end
+            end)
+        end))
+    end
+
+    local function openSecret()
+        if destroyed or busy then return end
+        if shade.Visible then
+            closePanel()
+            return
+        end
+        if os.clock() - lastOpenAt < 0.28 then return end
+        lastOpenAt = os.clock()
+        checkedAdmin = false
+        rolesBox.Text = ""
+        setPage("command")
+        shade.Visible = true
+        task.defer(function()
+            if shade.Visible and not destroyed then rolesBox:CaptureFocus() end
+        end)
+    end
+    trackServiceConnection(UIService.InputBegan:Connect(function(input, processed)
+        if destroyed or input.UserInputType ~= Enum.UserInputType.Keyboard then return end
+        if input.KeyCode == Enum.KeyCode.Escape and shade.Visible then
+            closePanel()
+            return
+        end
+        if processed or UIService:GetFocusedTextBox() ~= nil or keyCaptureTarget then return end
+        local ctrlDown = UIService:IsKeyDown(Enum.KeyCode.LeftControl)
+            or UIService:IsKeyDown(Enum.KeyCode.RightControl)
+        local semicolonDown = UIService:IsKeyDown(Enum.KeyCode.Semicolon)
+        if ctrlDown and (semicolonDown or input.KeyCode == Enum.KeyCode.Semicolon) then
+            openSecret()
+        end
+    end))
+    trackServiceConnection(UIService.InputEnded:Connect(function(input)
+        -- No action on key release: the panel remains open for typing "roles".
+    end))
+    trackServiceConnection(gui:GetPropertyChangedSignal("Parent"):Connect(function()
+        if not gui.Parent then shade.Visible = false end
+    end))
+    registerCleanup(function()
+        checkedAdmin = false
+        closePanel()
+        if shade.Parent then shade:Destroy() end
+    end)
+    local viewportCamera = workspace.CurrentCamera
+    if viewportCamera then
+        trackServiceConnection(viewportCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+            if destroyed then return end
+            local viewport = viewportCamera.ViewportSize
+            responsive.Scale = math.clamp(math.min(viewport.X / 560, viewport.Y / 460), 0.62, 1)
+        end))
+    end
+    do
+        local camera = workspace.CurrentCamera
+        if camera then
+            local viewport = camera.ViewportSize
+            responsive.Scale = math.clamp(math.min(viewport.X / 560, viewport.Y / 460), 0.62, 1)
+        end
+    end
+    setPage("command")
+    print("[ErrorB1478Menu] Secret admin prompt ready: Ctrl + ; then type roles. Access requires a server admin check.")
 end)
 
 --==================================================
