@@ -3144,7 +3144,7 @@ __EB1478_safeCall("Premium pages and extras", function()
     bssPage.ScrollBarThickness = 6
     bssPage.ScrollingDirection = Enum.ScrollingDirection.Y
     bssPage.ScrollBarImageColor3 = Color3.fromRGB(107, 171, 245)
-    bssPage.CanvasSize = UDim2.fromOffset(0, 1000)
+    bssPage.CanvasSize = UDim2.fromOffset(0, 1085)
     bssPage.Visible = false
     bssPage.Parent = content
     local optionsPage = makePage("OptionsPage")
@@ -4365,13 +4365,104 @@ __EB1478_safeCall("Premium pages and extras", function()
     end)
 
     __EB1478_safeCall("BSS HiddenStickers page", function()
-    makeHeader(bssPage, "BSS • Teleport Tools", "Auto TP to nearby C, PetalPart, WarningDisk, and Stinger.")
+    makeHeader(bssPage, "BSS • Teleport Tools", "Full planters, C, PetalPart, WarningDisk, and Stinger.")
     local bssStatus = makeLabel(bssPage, "BSSStatus", "Checking workspace.HiddenStickers…", UDim2.fromOffset(22, 104), UDim2.new(1, -235, 0, 34), 11, C.muted, false)
     local refreshBSS = makeButton(bssPage, "RefreshBSS", "↻  REFRESH", UDim2.new(1, -145, 0, 103), UDim2.fromOffset(123, 36), true)
 
+    -- Searches Workspace.Planters for TextLabels displaying 100.0%, walks up
+    -- the hierarchy until it reaches PlanterBulb, and teleports the player there.
+    -- This is a single-click action, not an automatic teleport loop.
+    local fullPlanterButton = makeButton(bssPage, "TPToFullPlanter", "TP TO FULL PLANTER",
+        UDim2.fromOffset(20, 149), UDim2.new(1, -40, 0, 42), true)
+    fullPlanterButton.TextSize = 14
+    fullPlanterButton.Font = Enum.Font.GothamBold
+
+    local function fullPlanterWorldPosition(bulb)
+        if bulb:IsA("BasePart") then
+            return bulb.Position
+        elseif bulb:IsA("Attachment") then
+            return bulb.WorldPosition
+        elseif bulb:IsA("Model") then
+            local part = bulb:FindFirstChildWhichIsA("BasePart", true)
+            return part and bulb:GetPivot().Position or nil
+        end
+        -- PlanterBulb might be a folder containing its physical part.
+        local part = bulb:FindFirstChildWhichIsA("BasePart", true)
+        return part and part.Position or nil
+    end
+
+    fullPlanterButton.Activated:Connect(function()
+        if destroyed then return end
+        local planters = workspace:FindFirstChild("Planters")
+        if not planters then
+            bssStatus.Text = "No Workspace.Planters folder is currently loaded."
+            bssStatus.TextColor3 = C.yellow
+            return
+        end
+        local character = player.Character
+        local root = character and character:FindFirstChild("HumanoidRootPart")
+        local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+        if not root or not humanoid or humanoid.Health <= 0 then
+            bssStatus.Text = "Your character isn't ready for teleporting."
+            bssStatus.TextColor3 = C.yellow
+            return
+        end
+
+        local nearestPosition, nearestBulb
+        local bestDistance = math.huge
+        local fullCount = 0
+        local seenBulbs = {}
+        -- Descendants includes GUI labels nested in SurfaceGui/BillboardGui.
+        for _, label in ipairs(planters:GetDescendants()) do
+            if label:IsA("TextLabel") and string.find(
+                string.gsub(label.Text, "%s+", ""), "100.0%", 1, true
+            ) then
+                local ancestor = label.Parent
+                while ancestor and ancestor ~= planters do
+                    if ancestor.Name == "PlanterBulb" then break end
+                    ancestor = ancestor.Parent
+                end
+                if ancestor and ancestor ~= planters and not seenBulbs[ancestor] then
+                    seenBulbs[ancestor] = true
+                    local position = fullPlanterWorldPosition(ancestor)
+                    if position then
+                        fullCount = fullCount + 1
+                        local distance = (root.Position - position).Magnitude
+                        if distance < bestDistance then
+                            nearestPosition = position
+                            nearestBulb = ancestor
+                            bestDistance = distance
+                        end
+                    end
+                end
+            end
+        end
+
+        if not nearestPosition then
+            bssStatus.Text = "No full planter (100.0% label + PlanterBulb) found."
+            bssStatus.TextColor3 = C.yellow
+            return
+        end
+        -- Place the player's character slightly above the bulb so it isn't
+        -- spawned inside the planter model. Preserve the avatar's facing.
+        local success, err = pcall(function()
+            character:PivotTo(CFrame.new(nearestPosition + Vector3.new(0, 3, 0)) * character:GetPivot().Rotation)
+            root.AssemblyLinearVelocity = Vector3.zero
+            root.AssemblyAngularVelocity = Vector3.zero
+        end)
+        if success then
+            bssStatus.Text = string.format("TP to full PlanterBulb! (%d full found, %.0f studs)", fullCount, bestDistance)
+            bssStatus.TextColor3 = C.green
+        else
+            bssStatus.Text = "Could not teleport to full planter. See F9."
+            bssStatus.TextColor3 = C.red
+            warn("[ErrorB1478Menu][FullPlanter] " .. tostring(nearestBulb) .. ": " .. tostring(err))
+        end
+    end)
+
     -- BSS Stinger shortcut: resolve the target fresh on each click because
     -- WaitingThorn may spawn/despawn during a Bee Swarm Simulator session.
-    local stingerButton = makeButton(bssPage, "TPToStinger", "TP TO STINGER", UDim2.fromOffset(20, 663), UDim2.new(1, -40, 0, 38), true)
+    local stingerButton = makeButton(bssPage, "TPToStinger", "TP TO STINGER", UDim2.fromOffset(20, 717), UDim2.new(1, -40, 0, 38), true)
     stingerButton.Activated:Connect(function()
         local particles = workspace:FindFirstChild("Particles")
         local wts = particles and particles:FindFirstChild("WTs")
@@ -4503,13 +4594,13 @@ __EB1478_safeCall("Premium pages and extras", function()
     end
 
     local warningRadiusInput, warningStartButton, warningStopButton, warningState, warningStartKeyBox, warningStopKeyBox =
-        makeBSSAutoCard("WarningDisk", "WARNING DISK AUTO TP", 531, 100)
+        makeBSSAutoCard("WarningDisk", "WARNING DISK AUTO TP", 585, 100)
     -- Primary BSS control. Placed directly beneath the BSS status instead of
     -- below the WarningDisk section, and stays accessible on smaller screens.
     local function makeCollectablesToggleCard()
         local card = Instance.new("Frame")
         card.Name = "CollectableCToggleCard"
-        card.Position = UDim2.fromOffset(20, 149)
+        card.Position = UDim2.fromOffset(20, 203)
         card.Size = UDim2.new(1, -40, 0, 181)
         card.BackgroundColor3 = C.panel
         card.BorderSizePixel = 0
@@ -4577,7 +4668,7 @@ __EB1478_safeCall("Premium pages and extras", function()
     -- Clone the visual-only Collectibles card so both controls look consistent.
     local petalCard = collectTeleportButton.Parent:Clone()
     petalCard.Name = "PetalPartToggleCard"
-    petalCard.Position = UDim2.fromOffset(20, 340)
+    petalCard.Position = UDim2.fromOffset(20, 394)
     petalCard.Parent = bssPage
     local petalTitle = petalCard:FindFirstChild("SectionTitle")
     local petalRadiusInput = petalCard:FindFirstChild("CollectableCRadius")
@@ -4597,7 +4688,7 @@ __EB1478_safeCall("Premium pages and extras", function()
     petalState.Text = "OFF  •  Scan PetalPart every 0.1s while enabled."
     makeLabel(bssPage, "AutoTPDescription",
         "C scans every 0.1s while ON. Max 3 TPs per C. Range: +/- X/Y/Z from your character.",
-        UDim2.fromOffset(22, 707), UDim2.new(1, -44, 0, 31), 10, C.muted, false)
+        UDim2.fromOffset(22, 761), UDim2.new(1, -44, 0, 31), 10, C.muted, false)
 
     local warningRadius, collectablesRadius, petalRadius = 100, 150, 150
     local petalOn = false
@@ -5079,7 +5170,7 @@ __EB1478_safeCall("Premium pages and extras", function()
 
     local bssList = Instance.new("ScrollingFrame")
     bssList.Name = "HiddenStickersList"
-    bssList.Position = UDim2.fromOffset(20, 746)
+    bssList.Position = UDim2.fromOffset(20, 800)
     bssList.Size = UDim2.new(1, -40, 0, 219)
     bssList.BackgroundColor3 = C.background
     bssList.BorderSizePixel = 0
