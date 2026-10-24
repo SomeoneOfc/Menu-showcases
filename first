@@ -1,4 +1,5 @@
--- FUN PORTAL GUN: Left click green, right click blue, walk through to cross the map. Optional Universe ID prompts Roblox to join another experience.
+-- CINEMATIC PORTAL GUN: Animated vortex portals, neon lighting, plasma particles, built-in sci-fi sounds, energy beams, screen pulse, detailed blaster Tool and clean removal.
+-- Left-click green, right-click blue, walk into a portal for local travel. Optional Universe ID opens a Roblox confirmation if supported.
 -- BSS C AUTO FLY: Smoothly moves the local character toward the nearest C at a configurable speed (studs/second).
 -- The C scanner uses the player-centered X/Y/Z range; each completed arrival counts toward the 3-visit limit.
 -- Click the C toggle or use its optional shortcut to start/stop flying immediately.
@@ -3938,11 +3939,17 @@ __EB1478_safeCall("Premium pages and extras", function()
         UDim2.fromOffset(10, 1600), UDim2.new(1, -20, 0, 40), true)
     __EB1478_safeCall("Portal Gun", function()
         local TeleportService = game:GetService("TeleportService")
+        local TweenService = game:GetService("TweenService")
+        local Debris = game:GetService("Debris")
+        local GREEN = Color3.fromRGB(75, 255, 151)
+        local BLUE = Color3.fromRGB(62, 184, 255)
         local state = {
             enabled = false, tool = nil, ui = nil, rootFolder = nil,
             portals = {Green = nil, Blue = nil}, links = {},
             travelMode = false, experienceId = nil,
             lastTeleport = 0, armed = true, status = nil, modeButton = nil,
+            soundOn = true, effectsHigh = true, intensity = 0.7,
+            animClock = 0, muzzle = nil, reactor = nil, gunLight = nil,
         }
 
         local function portalMessage(message, color)
@@ -3956,10 +3963,54 @@ __EB1478_safeCall("Premium pages and extras", function()
             table.insert(state.links, connection)
             return connection
         end
+        local function newPart(parent, name, size, cf, color, material, alpha)
+            local part = Instance.new("Part")
+            part.Name = name
+            part.Anchored = true
+            part.Size = size
+            part.CFrame = cf
+            part.Color = color
+            part.Material = material or Enum.Material.Neon
+            part.Transparency = alpha or 0
+            part.CastShadow = false
+            part.CanCollide = false
+            part.CanTouch = false
+            part.CanQuery = false
+            part.Parent = parent
+            return part
+        end
+        local function tween(object, seconds, properties)
+            if not object or not object.Parent then return end
+            local animation = TweenService:Create(object,
+                TweenInfo.new(seconds, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), properties)
+            animation:Play()
+            return animation
+        end
+        -- These are Roblox's built-in sounds: no external / copyrighted voice clips.
+        local function soundAt(parent, kind, pitch, loudness)
+            if not state.soundOn or not parent or not parent.Parent then return end
+            local sound = Instance.new("Sound")
+            sound.Name = "B1478Portal" .. kind
+            sound.SoundId = ({
+                Shoot = "rbxasset://sounds/swoosh.wav",
+                Open = "rbxasset://sounds/electronicpingshort.wav",
+                Travel = "rbxasset://sounds/impact_water.mp3",
+                Equip = "rbxasset://sounds/electronicpingshort.wav",
+                Clear = "rbxasset://sounds/swoosh.wav",
+            })[kind] or "rbxasset://sounds/electronicpingshort.wav"
+            sound.Volume = (loudness or 0.7) * state.intensity
+            sound.PlaybackSpeed = pitch or 1
+            sound.RollOffMaxDistance = 90
+            sound.Parent = parent
+            sound:Play()
+            Debris:AddItem(sound, 4)
+        end
         local function clearPortal(which)
             local record = state.portals[which]
-            if record and record.model then record.model:Destroy() end
             state.portals[which] = nil
+            if record and record.model then
+                pcall(function() record.model:Destroy() end)
+            end
         end
         local function stopPortalGun()
             state.enabled = false
@@ -3969,75 +4020,150 @@ __EB1478_safeCall("Premium pages and extras", function()
             table.clear(state.links)
             clearPortal("Green")
             clearPortal("Blue")
-            if state.rootFolder then state.rootFolder:Destroy() end
-            if state.tool then state.tool:Destroy() end
-            if state.ui then state.ui:Destroy() end
-            state.rootFolder = nil
-            state.tool = nil
-            state.ui = nil
-            state.status = nil
-            state.modeButton = nil
-            state.lastTeleport = 0
+            if state.tool then pcall(function() state.tool:Destroy() end) end
+            if state.rootFolder then pcall(function() state.rootFolder:Destroy() end) end
+            if state.ui then pcall(function() state.ui:Destroy() end) end
+            state.rootFolder, state.tool, state.ui = nil, nil, nil
+            state.muzzle, state.reactor, state.gunLight = nil, nil, nil
+            state.status, state.modeButton = nil, nil
+            state.lastTeleport, state.animClock = 0, 0
             state.armed = true
             portalGunButton.Text = "🟢 PORTAL GUN: GET TOOL"
             portalGunButton.BackgroundColor3 = C.accent
         end
         registerCleanup(stopPortalGun)
 
+        local function screenPulse(color, strength)
+            if not state.ui or not state.ui.Parent then return end
+            local overlay = Instance.new("Frame")
+            overlay.Name = "PortalScreenPulse"
+            overlay.Size = UDim2.fromScale(1, 1)
+            overlay.BackgroundColor3 = color
+            overlay.BackgroundTransparency = 1
+            overlay.BorderSizePixel = 0
+            overlay.ZIndex = 2
+            overlay.Parent = state.ui
+            tween(overlay, 0.09, {BackgroundTransparency = 1 - (strength or 0.22)})
+            task.delay(0.11, function()
+                if overlay.Parent then tween(overlay, 0.36, {BackgroundTransparency = 1}) end
+            end)
+            Debris:AddItem(overlay, 0.7)
+        end
+        local function pulseDisc(parent, point, normal, color)
+            if not parent then return end
+            local flash = newPart(parent, "ExpandingShockwave", Vector3.new(0.10, 0.9, 0.9),
+                CFrame.lookAt(point + normal * 0.35, point + normal * 1.35) * CFrame.Angles(0, math.rad(90), 0),
+                color, Enum.Material.Neon, 0.10)
+            flash.Shape = Enum.PartType.Cylinder
+            tween(flash, 0.4, {Size = Vector3.new(0.10, 7.8, 7.8), Transparency = 1})
+            Debris:AddItem(flash, 0.5)
+        end
         local function createPortal(which, hitPosition, hitNormal)
+            if not state.enabled or not state.rootFolder then return end
             clearPortal(which)
-            if not state.rootFolder then return end
-            local color = which == "Green" and Color3.fromRGB(63, 252, 129)
-                or Color3.fromRGB(43, 185, 255)
+            local color = which == "Green" and GREEN or BLUE
+            local darkColor = which == "Green" and Color3.fromRGB(14, 89, 79) or Color3.fromRGB(22, 65, 139)
             local container = Instance.new("Model")
-            container.Name = "B1478" .. which .. "Portal"
+            container.Name = "B1478" .. which .. "PortalVFX"
             container.Parent = state.rootFolder
-            -- A cylinder's length is along its local X axis; face that axis toward
-            -- the hit normal to place the glowing circle against walls and floors.
-            local surfaceFrame = CFrame.lookAt(hitPosition + hitNormal * 0.22,
-                hitPosition + hitNormal * 1.22) * CFrame.Angles(0, math.rad(90), 0)
-            local rim = Instance.new("Part")
-            rim.Name = "GlowingRim"
-            rim.Shape = Enum.PartType.Cylinder
-            rim.Size = Vector3.new(0.24, 6, 6)
-            rim.CFrame = surfaceFrame
-            rim.Anchored = true
-            rim.CanCollide = false
-            rim.CanTouch = false
-            rim.CanQuery = false
-            rim.Material = Enum.Material.Neon
-            rim.Color = color
-            rim.Parent = container
-            local core = Instance.new("Part")
-            core.Name = "SwirlingCore"
-            core.Shape = Enum.PartType.Cylinder
-            core.Size = Vector3.new(0.29, 5.1, 5.1)
-            core.CFrame = surfaceFrame + hitNormal * 0.04
-            core.Anchored = true
-            core.CanCollide = false
-            core.CanTouch = false
-            core.CanQuery = false
-            core.Material = Enum.Material.ForceField
-            core.Color = color:Lerp(Color3.fromRGB(18, 16, 35), 0.50)
-            core.Transparency = 0.24
-            core.Parent = container
+            local point = hitPosition + hitNormal * 0.24
+            local tangent = hitNormal:Cross(Vector3.yAxis)
+            if tangent.Magnitude < 0.1 then tangent = hitNormal:Cross(Vector3.xAxis) end
+            tangent = tangent.Unit
+            local upward = tangent:Cross(hitNormal).Unit
+            -- Each portal is an animated layered energy disc oriented to the hit surface.
+            local face = CFrame.lookAt(point, point + hitNormal) * CFrame.Angles(0, math.rad(90), 0)
+            local back = newPart(container, "DimensionalAperture", Vector3.new(0.12, 5.15, 5.15),
+                face, darkColor, Enum.Material.ForceField, 0.08)
+            back.Shape = Enum.PartType.Cylinder
+            local energy = newPart(container, "IridescentEnergy", Vector3.new(0.10, 4.76, 4.76),
+                face + hitNormal * 0.055, color:Lerp(darkColor, 0.53), Enum.Material.Neon, 0.66)
+            energy.Shape = Enum.PartType.Cylinder
+            local glass = newPart(container, "DepthMembrane", Vector3.new(0.09, 4.36, 4.36),
+                face + hitNormal * 0.10, color:Lerp(Color3.fromRGB(15, 11, 37), 0.54), Enum.Material.ForceField, 0.48)
+            glass.Shape = Enum.PartType.Cylinder
+            local segments, spirals = {}, {}
+            local segmentCount = state.effectsHigh and 32 or 18
+            for i = 1, segmentCount do
+                local angle = ((i - 1) / segmentCount) * math.pi * 2
+                local direction = tangent * -math.sin(angle) + upward * math.cos(angle)
+                local position = point + tangent * (math.cos(angle) * 2.66) + upward * (math.sin(angle) * 2.66) + hitNormal * 0.15
+                local rim = newPart(container, "NeonRim" .. i,
+                    Vector3.new(0.19, 0.22, 5.37 * math.pi / segmentCount * 1.08),
+                    CFrame.lookAt(position, position + direction, hitNormal), color, Enum.Material.Neon, 1)
+                segments[i] = rim
+                tween(rim, 0.35 + i * 0.007, {Transparency = 0.02})
+            end
+            local spiralCount = state.effectsHigh and 18 or 9
+            for i = 1, spiralCount do
+                local streak = newPart(container, "OrbitingPlasma" .. i,
+                    Vector3.new(0.08, 0.12, 0.52), face, color:Lerp(Color3.new(1, 1, 1), 0.27),
+                    Enum.Material.Neon, 0.2)
+                spirals[i] = streak
+            end
+            -- A glowing halo, moving sparks and a light that reacts to the vortex.
+            local lightingAnchor = newPart(container, "VortexAnchor", Vector3.new(0.2, 0.2, 0.2),
+                CFrame.new(point + hitNormal * 0.25), color, Enum.Material.SmoothPlastic, 1)
             local light = Instance.new("PointLight")
+            light.Name = "PortalLight"
             light.Color = color
-            light.Brightness = 1.9
-            light.Range = 13
-            light.Parent = rim
-            local particles = Instance.new("ParticleEmitter")
-            particles.Name = "PortalSparks"
-            particles.Texture = "rbxasset://textures/particles/sparkles_main.dds"
-            particles.Color = ColorSequence.new(color)
-            particles.LightEmission = 0.85
-            particles.Lifetime = NumberRange.new(0.25, 0.55)
-            particles.Rate = 12
-            particles.Speed = NumberRange.new(0.4, 1.5)
-            particles.SpreadAngle = Vector2.new(180, 180)
-            particles.Parent = rim
-            state.portals[which] = {model = container, point = hitPosition, normal = hitNormal}
-            portalMessage(which .. " portal placed. Green + Blue link locations in this map.", Color3.fromRGB(144, 241, 185))
+            light.Brightness = state.effectsHigh and 2.8 or 1.2
+            light.Range = state.effectsHigh and 19 or 11
+            light.Shadows = false
+            light.Parent = lightingAnchor
+            local attach = Instance.new("Attachment")
+            attach.Name = "PortalParticleOrigin"
+            attach.Parent = lightingAnchor
+            local sparks = Instance.new("ParticleEmitter")
+            sparks.Name = "PortalFireflies"
+            sparks.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+            sparks.Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, color),
+                ColorSequenceKeypoint.new(1, Color3.new(1, 1, 1)),
+            })
+            sparks.LightEmission = 1
+            sparks.Lifetime = NumberRange.new(0.5, 1.25)
+            sparks.Rate = state.effectsHigh and 30 or 7
+            sparks.Speed = NumberRange.new(1.0, 3.5)
+            sparks.SpreadAngle = Vector2.new(180, 180)
+            sparks.Size = NumberSequence.new({
+                NumberSequenceKeypoint.new(0, 0.13),
+                NumberSequenceKeypoint.new(0.4, 0.20),
+                NumberSequenceKeypoint.new(1, 0),
+            })
+            sparks.Transparency = NumberSequence.new({
+                NumberSequenceKeypoint.new(0, 0.15),
+                NumberSequenceKeypoint.new(1, 1),
+            })
+            sparks.Parent = attach
+            sparks:Emit(state.effectsHigh and 50 or 12)
+            state.portals[which] = {
+                model = container, point = hitPosition, normal = hitNormal,
+                base = point, tangent = tangent, upward = upward,
+                core = energy, glass = glass, light = light, spirals = spirals,
+                rim = segments, color = color, started = os.clock(),
+            }
+            pulseDisc(container, hitPosition, hitNormal, color)
+            soundAt(lightingAnchor, "Open", which == "Green" and 0.87 or 1.2, 0.84)
+            screenPulse(color, 0.12)
+            portalMessage(which .. " portal opened. Step into either vortex to travel.", color)
+        end
+
+        local function makeBeam(startPoint, endPoint, color)
+            if not state.rootFolder then return end
+            local delta = endPoint - startPoint
+            if delta.Magnitude < 0.5 then return end
+            local bolt = newPart(state.rootFolder, "PortalGunEnergyBeam",
+                Vector3.new(0.16, 0.16, delta.Magnitude),
+                CFrame.lookAt((startPoint + endPoint) / 2, endPoint), color, Enum.Material.Neon, 0.08)
+            tween(bolt, 0.22, {Size = Vector3.new(0.01, 0.01, delta.Magnitude), Transparency = 1})
+            Debris:AddItem(bolt, 0.28)
+            if state.effectsHigh then
+                local flicker = newPart(state.rootFolder, "PortalGunBeamAura",
+                    Vector3.new(0.42, 0.42, delta.Magnitude), bolt.CFrame, color, Enum.Material.Neon, 0.72)
+                tween(flicker, 0.22, {Size = Vector3.new(0.01, 0.01, delta.Magnitude), Transparency = 1})
+                Debris:AddItem(flicker, 0.28)
+            end
         end
 
         local function aimPortal(which)
@@ -4048,42 +4174,93 @@ __EB1478_safeCall("Premium pages and extras", function()
             local ray = mouse.UnitRay
             local params = RaycastParams.new()
             params.FilterType = Enum.RaycastFilterType.Exclude
-            local excluded = {state.rootFolder, state.tool}
-            if player.Character then table.insert(excluded, player.Character) end
-            params.FilterDescendantsInstances = excluded
+            local ignored = {state.rootFolder, state.tool}
+            if player.Character then table.insert(ignored, player.Character) end
+            params.FilterDescendantsInstances = ignored
             params.IgnoreWater = false
             local hit = workspace:Raycast(ray.Origin, ray.Direction * 900, params)
             if not hit then
-                portalMessage("Aim at a wall, floor, ceiling or object to place a portal.", C.red)
+                soundAt(state.tool:FindFirstChild("Handle"), "Equip", 0.67, 0.2)
+                portalMessage("Aim at a wall, floor, ceiling, or object to fire.", C.red)
                 return
+            end
+            local color = which == "Green" and GREEN or BLUE
+            local source = state.muzzle and state.muzzle.Parent and state.muzzle.WorldPosition or ray.Origin
+            makeBeam(source, hit.Position, color)
+            soundAt(state.tool:FindFirstChild("Handle"), "Shoot", which == "Green" and 1.13 or 0.89, 0.82)
+            if state.reactor and state.reactor.Parent then
+                tween(state.reactor, 0.09, {Color = Color3.new(1, 1, 1)})
+                task.delay(0.11, function()
+                    if state.reactor and state.reactor.Parent then
+                        tween(state.reactor, 0.20, {Color = GREEN})
+                    end
+                end)
             end
             createPortal(which, hit.Position, hit.Normal)
         end
 
         local function portalActive(which, root)
             local record = state.portals[which]
-            return record and (root.Position - record.point).Magnitude < 4.1
-                and (root.Position - record.point):Dot(record.normal) > -1.7
+            if not record then return false end
+            local offset = root.Position - record.point
+            local signedDistance = offset:Dot(record.normal)
+            local radial = offset - record.normal * signedDistance
+            return signedDistance > -0.8 and signedDistance < 4.3 and radial.Magnitude < 2.9
         end
         local function promptTravel()
-            local universeId = state.experienceId
-            if not universeId then
-                portalMessage("Enter a Universe/Experience ID, then click APPLY ID.", C.red)
+            if not state.experienceId then
+                portalMessage("Enter a numeric Universe ID and select APPLY ID.", C.red)
                 return
             end
-            portalMessage("Opening Roblox's join confirmation for experience " .. universeId .. "…")
+            portalMessage("Requesting Roblox's experience join confirmation...")
             task.spawn(function()
-                local success, failure = pcall(function()
-                    TeleportService:PromptExperienceDetailsAsync(player, universeId)
+                local ok, err = pcall(function()
+                    TeleportService:PromptExperienceDetailsAsync(player, state.experienceId)
                 end)
-                if not success and state.enabled then
-                    portalMessage("Roblox could not open that experience: " .. tostring(failure), C.red)
+                if not ok and state.enabled then
+                    portalMessage("Roblox join prompt unavailable: " .. tostring(err), C.red)
                 end
             end)
         end
-
-        local function updatePortals()
+        local function animatePortals(deltaTime)
+            state.animClock += deltaTime
+            -- Throttle expensive CFrame work to about 25 updates a second.
+            if state.animClock < 0.04 then return end
+            state.animClock = 0
+            local t = os.clock()
+            for _, record in pairs(state.portals) do
+                if record and record.model and record.model.Parent then
+                    local elapsed = t - record.started
+                    local pulse = (math.sin(elapsed * 3.5) + 1) * 0.5
+                    record.light.Brightness = (state.effectsHigh and 2.2 or 0.9) + pulse * 1.1
+                    record.core.Transparency = 0.55 + pulse * 0.18
+                    record.glass.Transparency = 0.34 + (1 - pulse) * 0.28
+                    for i, part in ipairs(record.spirals) do
+                        local turn = (i / #record.spirals) * math.pi * 2 + elapsed * 1.95
+                        local dist = 0.55 + (i % 6) / 6 * 1.75
+                        local point = record.base
+                            + record.tangent * (math.cos(turn) * dist)
+                            + record.upward * (math.sin(turn) * dist)
+                            + record.normal * 0.20
+                        local direction = record.tangent * (-math.sin(turn))
+                            + record.upward * math.cos(turn)
+                        part.CFrame = CFrame.lookAt(point, point + direction, record.normal)
+                        part.Transparency = 0.17 + (math.sin(elapsed * 5 + i) + 1) * 0.24
+                    end
+                    for i, part in ipairs(record.rim) do
+                        if i % 4 == 0 then
+                            part.Transparency = 0.03 + pulse * 0.24
+                        end
+                    end
+                end
+            end
+            if state.reactor and state.reactor.Parent and state.gunLight and state.gunLight.Parent then
+                state.gunLight.Brightness = 1.6 + (math.sin(t * 4.7) + 1) * 0.6
+            end
+        end
+        local function updatePortals(dt)
             if not state.enabled or destroyed then return end
+            animatePortals(dt)
             local root = getRoot()
             if not root or not root.Parent then return end
             local nearGreen = portalActive("Green", root)
@@ -4092,30 +4269,35 @@ __EB1478_safeCall("Premium pages and extras", function()
                 state.armed = true
                 return
             end
-            if not state.armed or os.clock() - state.lastTeleport < 1.5 then return end
+            if not state.armed or os.clock() - state.lastTeleport < 1.4 then return end
             if state.travelMode then
-                if not nearGreen then return end
-                state.armed = false
-                state.lastTeleport = os.clock()
-                promptTravel()
+                if nearGreen then
+                    state.armed = false
+                    state.lastTeleport = os.clock()
+                    promptTravel()
+                end
                 return
             end
             local destination = nearGreen and state.portals.Blue or state.portals.Green
             if not destination then return end
-            -- Keep the character outside the exit surface rather than placing
-            -- their body inside a wall. Leave enough space to avoid bounce loops.
-            local exitPoint = destination.point + destination.normal * 4.2
-                + Vector3.new(0, 1.8, 0)
+            local exitPoint = destination.point + destination.normal * 4.1
+                + Vector3.new(0, 1.7, 0)
             state.armed = false
             state.lastTeleport = os.clock()
             local ok, err = pcall(function()
-                local char = getCharacter()
-                if char then char:PivotTo(CFrame.lookAt(exitPoint, exitPoint + destination.normal)) end
+                local character = getCharacter()
+                if character then
+                    local direction = destination.normal
+                    character:PivotTo(CFrame.lookAt(exitPoint, exitPoint + direction))
+                end
             end)
             if ok then
-                portalMessage("Portal jump complete! Walk out and re-enter to use it again.", C.green)
+                soundAt(destination.model:FindFirstChild("VortexAnchor"), "Travel", 1.1, 0.95)
+                screenPulse(destination.color, 0.40)
+                pulseDisc(destination.model, destination.point, destination.normal, destination.color)
+                portalMessage("DIMENSION SHIFT COMPLETE  •  Exit portal reached", destination.color)
             else
-                portalMessage("Portal movement failed: " .. tostring(err), C.red)
+                portalMessage("Portal transfer failed: " .. tostring(err), C.red)
             end
         end
 
@@ -4125,49 +4307,95 @@ __EB1478_safeCall("Premium pages and extras", function()
             local backpack = player:FindFirstChildOfClass("Backpack") or player:WaitForChild("Backpack", 5)
             if not backpack then portalMessage("Backpack not ready.", C.red); return end
             local gun = Instance.new("Tool")
-            gun.Name = "Dimension Portal Gun"
-            gun.ToolTip = "Left click GREEN, right click BLUE; walk through a portal to travel"
-            gun.CanBeDropped = false
+            gun.Name = "DIMENSION BLASTER  •  Portal Gun"
+            gun.ToolTip = "Left click: GREEN  |  Right click: BLUE  |  Walk through either portal"
             gun.RequiresHandle = true
+            gun.CanBeDropped = false
+            gun.Grip = CFrame.new(0, -0.10, -0.15)
             local handle = Instance.new("Part")
             handle.Name = "Handle"
-            handle.Size = Vector3.new(0.6, 0.7, 2.1)
+            handle.Size = Vector3.new(0.62, 0.7, 2.1)
             handle.Material = Enum.Material.Metal
-            handle.Color = Color3.fromRGB(206, 219, 224)
+            handle.Color = Color3.fromRGB(209, 219, 229)
             handle.Massless = true
             handle.CanCollide = false
             handle.CanTouch = false
             handle.CanQuery = false
             handle.Parent = gun
-            for _, detail in ipairs({
-                {"Core", Vector3.new(0.78, 0.73, 0.88), Vector3.new(0, 0, -0.65), Color3.fromRGB(71, 250, 132)},
-                {"Nozzle", Vector3.new(0.43, 0.43, 0.48), Vector3.new(0, 0, -1.26), Color3.fromRGB(25, 202, 105)},
-                {"Battery", Vector3.new(0.7, 0.42, 0.65), Vector3.new(0, 0.49, 0.53), Color3.fromRGB(54, 170, 238)},
-            }) do
+            local function detail(name, size, offset, color, material, shape)
                 local part = Instance.new("Part")
-                part.Name = detail[1]
-                part.Size = detail[2]
-                part.Material = Enum.Material.Neon
-                part.Color = detail[4]
+                part.Name = name
+                part.Size = size
+                part.Color = color
+                part.Material = material or Enum.Material.Metal
+                if shape then part.Shape = shape end
                 part.Massless = true
-                part.CanCollide = false
-                part.CanTouch = false
-                part.CanQuery = false
-                part.CFrame = handle.CFrame * CFrame.new(detail[3])
+                part.CanCollide, part.CanTouch, part.CanQuery = false, false, false
+                part.CastShadow = false
+                part.CFrame = handle.CFrame * CFrame.new(offset)
                 part.Parent = gun
                 local weld = Instance.new("WeldConstraint")
-                weld.Part0 = handle
-                weld.Part1 = part
-                weld.Parent = handle
+                weld.Part0, weld.Part1 = handle, part
+                weld.Parent = part
+                return part
             end
-            state.tool = gun
+            detail("DarkHousing", Vector3.new(0.76, 0.77, 1.55), Vector3.new(0, 0.06, 0.05),
+                Color3.fromRGB(30, 43, 57), Enum.Material.Metal)
+            detail("GripPlating", Vector3.new(0.48, 0.48, 0.73), Vector3.new(0, -0.46, 0.53),
+                Color3.fromRGB(47, 61, 68), Enum.Material.DiamondPlate)
+            local reactor = detail("PulsingReactor", Vector3.new(0.84, 0.84, 0.86),
+                Vector3.new(0, 0.15, -0.42), GREEN, Enum.Material.Neon, Enum.PartType.Ball)
+            detail("ReactorLens", Vector3.new(0.97, 0.97, 0.18), Vector3.new(0, 0.15, -0.84),
+                Color3.fromRGB(166, 255, 228), Enum.Material.Glass, Enum.PartType.Cylinder)
+            detail("MuzzleEmitter", Vector3.new(0.43, 0.43, 0.52), Vector3.new(0, 0.1, -1.29),
+                Color3.fromRGB(103, 251, 208), Enum.Material.Neon, Enum.PartType.Ball)
+            detail("EnergyBattery", Vector3.new(0.62, 0.35, 0.61), Vector3.new(0, 0.58, 0.52),
+                BLUE, Enum.Material.Neon)
+            for index, side in ipairs({-1, 1}) do
+                detail("StabilizerProng" .. index, Vector3.new(0.18, 0.18, 1.32),
+                    Vector3.new(side * 0.41, 0.12, -1.02), Color3.fromRGB(224, 242, 241), Enum.Material.Metal)
+                detail("ProngTip" .. index, Vector3.new(0.23, 0.23, 0.18),
+                    Vector3.new(side * 0.41, 0.12, -1.73), GREEN, Enum.Material.Neon)
+                detail("CoolingVane" .. index, Vector3.new(0.11, 0.55, 0.8),
+                    Vector3.new(side * 0.39, 0.2, 0.4), Color3.fromRGB(40, 142, 178), Enum.Material.Metal)
+            end
+            for i = 1, 4 do
+                detail("ReactorGlyph" .. i, Vector3.new(0.67, 0.06, 0.09),
+                    Vector3.new(0, 0.52 + i * 0.055, -0.6 + i * 0.17),
+                    i % 2 == 0 and GREEN or BLUE, Enum.Material.Neon)
+            end
+            local light = Instance.new("PointLight")
+            light.Name = "ReactorGlow"
+            light.Color = GREEN
+            light.Brightness = 1.8
+            light.Range = 10
+            light.Parent = reactor
+            local muzzle = Instance.new("Attachment")
+            muzzle.Name = "PortalMuzzle"
+            muzzle.Position = Vector3.new(0, 0.1, -1.52)
+            muzzle.Parent = handle
+            local muzzleParticles = Instance.new("ParticleEmitter")
+            muzzleParticles.Name = "MuzzleSparks"
+            muzzleParticles.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+            muzzleParticles.Color = ColorSequence.new(GREEN)
+            muzzleParticles.LightEmission = 1
+            muzzleParticles.Lifetime = NumberRange.new(0.10, 0.25)
+            muzzleParticles.Rate = 0
+            muzzleParticles.Speed = NumberRange.new(1.5, 5)
+            muzzleParticles.Size = NumberSequence.new(0.16)
+            muzzleParticles.Parent = muzzle
+            state.tool, state.muzzle, state.reactor, state.gunLight = gun, muzzle, reactor, light
             gun.Parent = backpack
             portalConnect(gun.Activated:Connect(function()
+                muzzleParticles:Emit(state.effectsHigh and 24 or 5)
                 aimPortal("Green")
             end))
-            local hum = getHumanoid()
-            if hum then pcall(function() hum:EquipTool(gun) end) end
-            portalMessage("Portal Gun equipped. Left-click GREEN; right-click BLUE.", C.green)
+            portalConnect(gun.Equipped:Connect(function()
+                soundAt(handle, "Equip", 1.34, 0.42)
+            end))
+            local humanoid = getHumanoid()
+            if humanoid then pcall(function() humanoid:EquipTool(gun) end) end
+            portalMessage("BLASTER EQUIPPED  •  LMB GREEN  /  RMB BLUE", GREEN)
         end
 
         local function makeGunPanel()
@@ -4179,128 +4407,174 @@ __EB1478_safeCall("Premium pages and extras", function()
             screen.Parent = playerGui
             state.ui = screen
             local frame = Instance.new("Frame")
-            frame.Name = "PortalControls"
+            frame.Name = "DimensionBlasterDashboard"
             frame.AnchorPoint = Vector2.new(1, 1)
-            frame.Position = UDim2.new(1, -14, 1, -14)
-            frame.Size = UDim2.fromOffset(316, 244)
+            frame.Position = UDim2.new(1, -16, 1, -16)
+            frame.Size = UDim2.fromOffset(344, 318)
+            frame.BackgroundColor3 = Color3.fromRGB(15, 22, 34)
             frame.BorderSizePixel = 0
-            frame.BackgroundColor3 = Color3.fromRGB(23, 28, 39)
             frame.Parent = screen
-            local radius = Instance.new("UICorner")
-            radius.CornerRadius = UDim.new(0, 10)
-            radius.Parent = frame
-            local edge = Instance.new("UIStroke")
-            edge.Color = Color3.fromRGB(61, 188, 135)
-            edge.Thickness = 1
-            edge.Parent = frame
-            local function textLabel(name, content, y, h, size, color)
+            local round = Instance.new("UICorner")
+            round.CornerRadius = UDim.new(0, 14)
+            round.Parent = frame
+            local stroke = Instance.new("UIStroke")
+            stroke.Color = GREEN
+            stroke.Transparency = 0.15
+            stroke.Thickness = 1.5
+            stroke.Parent = frame
+            local gradient = Instance.new("UIGradient")
+            gradient.Color = ColorSequence.new(Color3.fromRGB(18, 30, 41), Color3.fromRGB(8, 15, 27))
+            gradient.Rotation = 90
+            gradient.Parent = frame
+            local accent = Instance.new("Frame")
+            accent.Size = UDim2.new(1, -20, 0, 3)
+            accent.Position = UDim2.fromOffset(10, 8)
+            accent.BorderSizePixel = 0
+            accent.BackgroundColor3 = GREEN
+            accent.Parent = frame
+            local accentCorner = Instance.new("UICorner")
+            accentCorner.CornerRadius = UDim.new(1, 0)
+            accentCorner.Parent = accent
+            local function textLabel(name, textValue, y, h, size, color, bold)
                 local label = Instance.new("TextLabel")
                 label.Name = name
                 label.BackgroundTransparency = 1
-                label.Position = UDim2.fromOffset(12, y)
-                label.Size = UDim2.new(1, -24, 0, h)
-                label.TextColor3 = color or Color3.fromRGB(220, 233, 241)
-                label.Font = Enum.Font.Gotham
+                label.Position = UDim2.fromOffset(14, y)
+                label.Size = UDim2.new(1, -28, 0, h)
+                label.Text = textValue
+                label.TextColor3 = color or Color3.fromRGB(209, 224, 235)
+                label.Font = bold and Enum.Font.GothamBold or Enum.Font.Gotham
                 label.TextSize = size or 12
-                label.TextXAlignment = Enum.TextXAlignment.Left
                 label.TextWrapped = true
-                label.Text = content
+                label.TextXAlignment = Enum.TextXAlignment.Left
                 label.Parent = frame
                 return label
             end
-            local function panelButton(name, caption, y, width, x)
+            local function panelButton(name, caption, x, y, width, color)
                 local button = Instance.new("TextButton")
                 button.Name = name
-                button.Position = UDim2.fromOffset(x or 12, y)
-                button.Size = UDim2.fromOffset(width or 292, 30)
+                button.Position = UDim2.fromOffset(x, y)
+                button.Size = UDim2.fromOffset(width, 29)
+                button.BorderSizePixel = 0
+                button.BackgroundColor3 = color or Color3.fromRGB(38, 87, 82)
+                button.TextColor3 = Color3.fromRGB(232, 255, 250)
                 button.Font = Enum.Font.GothamBold
                 button.TextSize = 11
                 button.Text = caption
-                button.TextColor3 = Color3.fromRGB(239, 252, 244)
-                button.BackgroundColor3 = Color3.fromRGB(40, 121, 93)
-                button.BorderSizePixel = 0
+                button.AutoButtonColor = true
                 button.Parent = frame
                 local corner = Instance.new("UICorner")
-                corner.CornerRadius = UDim.new(0, 6)
+                corner.CornerRadius = UDim.new(0, 7)
                 corner.Parent = button
                 return button
             end
-            textLabel("Title", "DIMENSION PORTAL GUN", 8, 24, 15, Color3.fromRGB(122, 255, 167)).Font = Enum.Font.GothamBold
-            textLabel("HowTo", "Left click = green    |    Right click = blue\nWalk into a portal to exit the other one.", 37, 35, 11)
-            state.status = textLabel("Status", "Point the gun at any solid surface.", 70, 30, 11)
-            panelButton("Reset", "CLEAR BOTH PORTALS", 105, 139, 12).Activated:Connect(function()
+            textLabel("Title", "DIMENSION  /  PORTAL BLASTER", 17, 24, 15, GREEN, true)
+            textLabel("Subtitle", "PORTAL LINK • GREEN / BLUE", 43, 17, 10, Color3.fromRGB(113, 207, 207))
+            textLabel("Controls", "LEFT CLICK   Green vortex      RIGHT CLICK   Blue vortex", 65, 28, 11)
+            state.status = textLabel("Status", "Charge ready. Equip the Tool to fire.", 97, 35, 11,
+                Color3.fromRGB(202, 222, 234))
+            local clear = panelButton("ClearPortals", "CLEAR PORTALS", 14, 139, 151, Color3.fromRGB(56, 65, 85))
+            clear.Activated:Connect(function()
+                soundAt(state.tool and state.tool:FindFirstChild("Handle"), "Clear", 0.82, 0.35)
                 clearPortal("Green")
                 clearPortal("Blue")
                 state.armed = true
-                portalMessage("Both portals cleared.")
+                portalMessage("Both portals cleared. Fire to place new ones.")
             end)
-            state.modeButton = panelButton("Mode", "DESTINATION: MAP", 105, 139, 165)
+            state.modeButton = panelButton("DestinationMode", "TRAVEL: MAP", 177, 139, 153)
             state.modeButton.Activated:Connect(function()
                 state.travelMode = not state.travelMode
-                state.modeButton.Text = state.travelMode and "DESTINATION: GAME" or "DESTINATION: MAP"
-                portalMessage(state.travelMode and "Green portal opens the Roblox experience join prompt." or
-                    "Green and blue portals are now linked inside this map.")
+                state.modeButton.Text = state.travelMode and "TRAVEL: GAME" or "TRAVEL: MAP"
+                portalMessage(state.travelMode and "Enter a Universe ID to request travel." or
+                    "Green and blue portals linked within the map.")
             end)
-            textLabel("ExperienceHint", "Other game: enter its UNIVERSE / EXPERIENCE ID", 143, 17, 10)
+            local sfxButton = panelButton("SoundToggle", "SFX: ON", 14, 176, 102)
+            sfxButton.Activated:Connect(function()
+                state.soundOn = not state.soundOn
+                sfxButton.Text = state.soundOn and "SFX: ON" or "SFX: OFF"
+                sfxButton.BackgroundColor3 = state.soundOn and Color3.fromRGB(38, 87, 82) or Color3.fromRGB(58, 65, 76)
+                if state.soundOn then soundAt(state.tool and state.tool:FindFirstChild("Handle"), "Equip", 1.25, 0.4) end
+            end)
+            local qualityButton = panelButton("VfxQuality", "VFX: HIGH", 123, 176, 102)
+            qualityButton.Activated:Connect(function()
+                state.effectsHigh = not state.effectsHigh
+                qualityButton.Text = state.effectsHigh and "VFX: HIGH" or "VFX: LITE"
+                portalMessage("Visual setting applied to newly placed portals.")
+            end)
+            local volumeButton = panelButton("Volume", "VOL: 70%", 233, 176, 97)
+            volumeButton.Activated:Connect(function()
+                state.intensity = state.intensity >= 1 and 0 or math.min(1, state.intensity + 0.1)
+                volumeButton.Text = "VOL: " .. math.floor(state.intensity * 100 + 0.5) .. "%"
+            end)
+            textLabel("UniverseHint", "OTHER EXPERIENCE   •   optional Universe ID", 213, 18, 10,
+                Color3.fromRGB(139, 169, 185))
             local idBox = Instance.new("TextBox")
-            idBox.Name = "ExperienceUniverseId"
-            idBox.PlaceholderText = "Universe ID (not Place ID)"
-            idBox.Text = ""
+            idBox.Name = "UniverseIdInput"
+            idBox.PlaceholderText = "Universe ID"
             idBox.ClearTextOnFocus = false
-            idBox.Position = UDim2.fromOffset(12, 165)
-            idBox.Size = UDim2.fromOffset(184, 30)
-            idBox.BackgroundColor3 = Color3.fromRGB(34, 44, 58)
-            idBox.TextColor3 = Color3.fromRGB(240, 255, 245)
-            idBox.PlaceholderColor3 = Color3.fromRGB(143, 163, 172)
-            idBox.TextSize = 11
+            idBox.Text = ""
+            idBox.Position = UDim2.fromOffset(14, 237)
+            idBox.Size = UDim2.fromOffset(207, 28)
+            idBox.BackgroundColor3 = Color3.fromRGB(28, 40, 55)
+            idBox.TextColor3 = Color3.fromRGB(234, 255, 251)
+            idBox.PlaceholderColor3 = Color3.fromRGB(139, 165, 185)
             idBox.Font = Enum.Font.Gotham
+            idBox.TextSize = 12
             idBox.Parent = frame
-            local boxCorner = Instance.new("UICorner")
-            boxCorner.CornerRadius = UDim.new(0, 6)
-            boxCorner.Parent = idBox
-            local apply = panelButton("ApplyExperience", "APPLY ID", 165, 100, 203)
+            local idCorner = Instance.new("UICorner")
+            idCorner.CornerRadius = UDim.new(0, 6)
+            idCorner.Parent = idBox
+            local apply = panelButton("ApplyUniverse", "APPLY ID", 233, 237, 97)
             apply.Activated:Connect(function()
-                local candidate = tonumber((idBox.Text or ""):match("^%s*(%d+)%s*$"))
-                if not candidate or candidate < 1 or candidate ~= math.floor(candidate) then
+                local value = tonumber((idBox.Text or ""):match("^%s*(%d+)%s*$"))
+                if not value or value < 1 or value ~= math.floor(value) then
                     portalMessage("Enter a valid numeric Universe ID.", C.red)
                     return
                 end
-                state.experienceId = candidate
-                portalMessage("Destination set. Switch to GAME to use the green portal.", C.green)
+                state.experienceId = value
+                portalMessage("Destination stored. Switch to TRAVEL: GAME.", GREEN)
             end)
-            local join = panelButton("TravelExperience", "OPEN ROBLOX JOIN PROMPT", 202, 292, 12)
-            join.Activated:Connect(promptTravel)
+            panelButton("JoinExperience", "OPEN ROBLOX EXPERIENCE CONFIRMATION", 14, 276, 316,
+                Color3.fromRGB(29, 97, 81)).Activated:Connect(promptTravel)
         end
 
         portalGunButton.Activated:Connect(function()
             if state.enabled then
                 stopPortalGun()
-                setFunStatus("Portal Gun removed. All portal visuals cleared.", C.green)
+                setFunStatus("Portal Gun removed: Tool, particles, portals and UI cleaned up.", C.green)
                 return
             end
             state.enabled = true
-            state.rootFolder = Instance.new("Folder")
-            state.rootFolder.Name = "B1478PortalGunLocalEffects"
-            state.rootFolder.Parent = workspace
-            state.travelMode = false
-            makeGunPanel()
-            makeGunTool()
-            portalConnect(UserInputService.InputBegan:Connect(function(input, processed)
-                if processed or not state.enabled or UserInputService:GetFocusedTextBox() then return end
-                if input.UserInputType == Enum.UserInputType.MouseButton2 then
-                    aimPortal("Blue")
-                end
-            end))
-            portalConnect(RunService.Heartbeat:Connect(updatePortals))
-            portalConnect(player.CharacterAdded:Connect(function()
-                -- Regrant after respawn without creating another menu or UI.
-                task.delay(0.5, function()
-                    if state.enabled and not destroyed then makeGunTool() end
-                end)
-            end))
+            local ok, err = pcall(function()
+                state.rootFolder = Instance.new("Folder")
+                state.rootFolder.Name = "B1478PortalGunLocalEffects"
+                state.rootFolder.Parent = workspace
+                state.travelMode = false
+                makeGunPanel()
+                makeGunTool()
+                portalConnect(UserInputService.InputBegan:Connect(function(input, processed)
+                    if not state.enabled or UserInputService:GetFocusedTextBox() then return end
+                    -- The default Roblox camera can consume RMB; still allow firing when the Tool is equipped.
+                    if input.UserInputType == Enum.UserInputType.MouseButton2 then
+                        aimPortal("Blue")
+                    end
+                end))
+                portalConnect(RunService.Heartbeat:Connect(updatePortals))
+                portalConnect(player.CharacterAdded:Connect(function()
+                    task.delay(0.5, function()
+                        if state.enabled and not destroyed then makeGunTool() end
+                    end)
+                end))
+            end)
+            if not ok then
+                warn("[B1478 Portal Gun] " .. tostring(err))
+                stopPortalGun()
+                setFunStatus("Portal Gun could not load: see F9 Client Output.", C.red)
+                return
+            end
             portalGunButton.Text = "🟢 PORTAL GUN: REMOVE TOOL"
             portalGunButton.BackgroundColor3 = C.green
-            setFunStatus("Portal Gun ready! Equip it from your hotbar to place portals.", C.green)
+            setFunStatus("CINEMATIC PORTAL GUN ready! Equip Tool • LMB GREEN • RMB BLUE", C.green)
         end)
     end)
 
