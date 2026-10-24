@@ -4756,6 +4756,10 @@ __EB1478_safeCall("Premium pages and extras", function()
     petalKeyBox.Text = "NONE"
     petalApplyButton.Name = "PetalPartApplyKey"
     petalState.Name = "PetalPartToggleStatus"
+    -- The original card's status began BELOW its bottom edge (Y=185).
+    -- Keep it inside the card so it cannot overlap WarningDisk.
+    petalState.Position = UDim2.fromOffset(13, 141)
+    petalState.Size = UDim2.new(1, -26, 0, 31)
     petalState.Text = "OFF  •  Scan PetalPart every 0.1s while enabled."
 
     -- Flight speed is exclusive to Collectibles C. The PetalPart clone keeps
@@ -5432,6 +5436,48 @@ __EB1478_safeCall("Premium pages and extras", function()
     refreshBSS.Activated:Connect(refreshBSSObjects)
     refreshBSSObjects()
 
+    -- Non-overlapping BSS layout. The entire page is ONE vertical scroll area;
+    -- the old hard-coded Y coordinates were overlapping after new tools were added.
+    local bssY = 154
+    local function placeBSS(guiObject, height, gap)
+        guiObject.Position = UDim2.fromOffset(20, bssY)
+        guiObject.Size = UDim2.new(1, -40, 0, height)
+        bssY += height + (gap or 12)
+    end
+    bssPage.ScrollingEnabled = true
+    bssPage.ScrollingDirection = Enum.ScrollingDirection.Y
+    bssPage.ScrollBarThickness = 7
+    bssPage.AutomaticCanvasSize = Enum.AutomaticSize.None
+    bssPage.ClipsDescendants = true
+    bssPage.ElasticBehavior = Enum.ElasticBehavior.WhenScrollable
+
+    -- Most-used automation tools first.
+    placeBSS(collectCard, 225, 14)
+    placeBSS(petalCard, 181, 14)
+    placeBSS(warningStartButton.Parent, 123, 12)
+
+    local explanation = bssPage:FindFirstChild("AutoTPDescription")
+    if explanation then
+        explanation.Position = UDim2.fromOffset(22, bssY)
+        explanation.Size = UDim2.new(1, -44, 0, 38)
+        explanation.TextWrapped = true
+        bssY += 49
+    end
+    local oneClickHeading = makeLabel(bssPage, "BSSQuickTPTitle",
+        "QUICK TELEPORTS  /  ONE CLICK",
+        UDim2.fromOffset(22, bssY), UDim2.new(1, -44, 0, 25), 12, C.text, true)
+    bssY += 34
+    placeBSS(fullPlanterButton, 42, 11)
+    placeBSS(stingerButton, 39, 11)
+    placeBSS(windyBeeButton, 39, 16)
+
+    makeLabel(bssPage, "BSSHiddenStickersHeading", "HIDDEN STICKERS  /  TELEPORT LIST",
+        UDim2.fromOffset(22, bssY), UDim2.new(1, -44, 0, 26), 12, C.text, true)
+    bssY += 33
+    placeBSS(bssList, 240, 21)
+    bssPage.CanvasSize = UDim2.fromOffset(0, bssY)
+    bssPage.CanvasPosition = Vector2.new(0, 0)
+
     end)
 
     __EB1478_safeCall("Premium menu styling and dragging", function()
@@ -5849,7 +5895,13 @@ __EB1478_safeCall("Studio edition UI and Toolkit", function()
             mouseLockEnabled = true
             mouseLockRenderConnection = RunService.RenderStepped:Connect(function()
                 if destroyed then return end
-                local desired = menuOpen and Enum.MouseBehavior.Default or Enum.MouseBehavior.LockCenter
+                -- The secret admin window is a separate ScreenGui. Unlock
+                -- the mouse for its buttons even when the menu is off-screen.
+                local adminGui = playerGui:FindFirstChild("ErrorB1478SecretAdmin")
+                local adminShade = adminGui and adminGui:FindFirstChild("SecretAdminShade")
+                local adminOpen = adminShade and adminShade.Visible
+                local desired = (menuOpen or adminOpen) and Enum.MouseBehavior.Default
+                    or Enum.MouseBehavior.LockCenter
                 if UserInputService.MouseBehavior ~= desired then
                     UserInputService.MouseBehavior = desired
                 end
@@ -6329,7 +6381,7 @@ __EB1478_safeCall("Studio edition UI and Toolkit", function()
 end)
 
 --==================================================
--- SECRET ADMIN ANNOUNCEMENT PANEL (CTRL + SEMICOLON, THEN "roles")
+-- SECRET ADMIN ANNOUNCEMENT PANEL (; KEY, THEN "roles")
 -- Separate from the sidebar: never displayed as a normal menu tab.
 -- ServerScriptService companion is REQUIRED for secure admin checks + broadcast.
 --==================================================
@@ -6337,7 +6389,16 @@ __EB1478_safeCall("Secret admin announcements", function()
     local UIService = game:GetService("UserInputService")
     local SharedStorage = game:GetService("ReplicatedStorage")
 
-    -- Create once; reusing the same UI every time avoids the menu-rebuild lag.
+    -- A separate ScreenGui ensures the admin access panel works while the
+    -- main menu has moved off-screen. This is made ONCE, not on each keypress.
+    local adminScreen = Instance.new("ScreenGui")
+    adminScreen.Name = "ErrorB1478SecretAdmin"
+    adminScreen.ResetOnSpawn = false
+    adminScreen.IgnoreGuiInset = true
+    adminScreen.DisplayOrder = 950
+    adminScreen.ZIndexBehavior = Enum.ZIndexBehavior.Global
+    adminScreen.Parent = playerGui
+
     local shade = Instance.new("Frame")
     shade.Name = "SecretAdminShade"
     shade.BackgroundColor3 = Color3.fromRGB(6, 9, 17)
@@ -6346,7 +6407,8 @@ __EB1478_safeCall("Secret admin announcements", function()
     shade.Size = UDim2.fromScale(1, 1)
     shade.Visible = false
     shade.ZIndex = 200
-    shade.Parent = gui
+    shade.Parent = adminScreen
+    shade.Active = true
 
     local panel = Instance.new("Frame")
     panel.Name = "SecretAdminPanel"
@@ -6446,7 +6508,7 @@ __EB1478_safeCall("Secret admin announcements", function()
     local messageBox = mkInput("AnnouncementMessage", "Type an announcement for everyone...", UDim2.fromOffset(20, 119), UDim2.new(1, -40, 0, 109), true)
     local sendButton = mkButton("SendAnnouncement", "BROADCAST ANNOUNCEMENT", UDim2.fromOffset(20, 240), UDim2.new(1, -40, 0, 39), true)
     local backButton = mkButton("BackToCommand", "BACK", UDim2.fromOffset(20, 289), UDim2.fromOffset(90, 33), false)
-    local status = mkLabel("AdminStatus", "Ctrl + ; opens this access panel.", UDim2.fromOffset(120, 286), UDim2.new(1, -140, 0, 56), 11, Color3.fromRGB(152, 179, 210), false)
+    local status = mkLabel("AdminStatus", "Press ; to open this panel.", UDim2.fromOffset(120, 286), UDim2.new(1, -140, 0, 56), 11, Color3.fromRGB(152, 179, 210), false)
 
     local remoteFolder, checkRemote, sendRemote, feedbackRemote
     local checkedAdmin = false
@@ -6592,24 +6654,19 @@ __EB1478_safeCall("Secret admin announcements", function()
             closePanel()
             return
         end
-        if processed or UIService:GetFocusedTextBox() ~= nil or keyCaptureTarget then return end
-        local ctrlDown = UIService:IsKeyDown(Enum.KeyCode.LeftControl)
-            or UIService:IsKeyDown(Enum.KeyCode.RightControl)
-        local semicolonDown = UIService:IsKeyDown(Enum.KeyCode.Semicolon)
-        if ctrlDown and (semicolonDown or input.KeyCode == Enum.KeyCode.Semicolon) then
+        -- Press Semicolon (;) directly, no CTRL modifier necessary. A game may
+        -- mark punctuation as processed; the focused textbox guard is what
+        -- prevents the hotkey firing during chat or when entering a keybind.
+        if input.KeyCode == Enum.KeyCode.Semicolon
+            and not keyCaptureTarget
+            and UIService:GetFocusedTextBox() == nil then
             openSecret()
         end
-    end))
-    trackServiceConnection(UIService.InputEnded:Connect(function(input)
-        -- No action on key release: the panel remains open for typing "roles".
-    end))
-    trackServiceConnection(gui:GetPropertyChangedSignal("Parent"):Connect(function()
-        if not gui.Parent then shade.Visible = false end
     end))
     registerCleanup(function()
         checkedAdmin = false
         closePanel()
-        if shade.Parent then shade:Destroy() end
+        if adminScreen.Parent then adminScreen:Destroy() end
     end)
     local viewportCamera = workspace.CurrentCamera
     if viewportCamera then
@@ -6627,7 +6684,7 @@ __EB1478_safeCall("Secret admin announcements", function()
         end
     end
     setPage("command")
-    print("[ErrorB1478Menu] Secret admin prompt ready: Ctrl + ; then type roles. Access requires a server admin check.")
+    print("[ErrorB1478Menu] Secret admin prompt ready: press ; then type roles. Announcements require the server script.")
 end)
 
 --==================================================
