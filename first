@@ -6382,8 +6382,10 @@ end)
 
 --==================================================
 -- SECRET LOCAL ANNOUNCEMENT PANEL (; KEY, THEN "roles")
--- LOCAL ONLY: no ServerScriptService and no RemoteEvents.
--- This cannot grant secure admin permissions or broadcast across players.
+-- SECRET PANEL is client-local. GitHub announcements are independently relayed
+-- by an optional Workspace server Script via a read-only RemoteEvent.
+-- The GitHub announcements are shown to everyone in the current server.
+ -- The local compose box still only displays announcements to this client.
 --==================================================
 __EB1478_safeCall("Local admin announcement preview", function()
     local UIService = game:GetService("UserInputService")
@@ -6564,6 +6566,46 @@ __EB1478_safeCall("Local admin announcement preview", function()
     local panelMode = "command"
     local lastOpenAt = 0
     local bannerSerial = 0
+
+    -- Reuse a single announcement banner for both local tests and GitHub messages.
+    -- New announcements replace old ones; their expiry tasks cannot close newer messages.
+    local function displayAnnouncement(sender, message, seconds, fromGithub)
+        if destroyed or not banner.Parent then return end
+        if type(sender) ~= "string" or type(message) ~= "string" then return end
+        sender = string.sub(sender, 1, 65)
+        message = string.sub(message, 1, 500)
+        if message == "" then return end
+        local duration = math.clamp(tonumber(seconds) or 9, 1, 120)
+        bannerSerial += 1
+        local serial = bannerSerial
+        bannerHeader.Text = (fromGithub and "GITHUB ANNOUNCEMENT  •  " or "LOCAL ANNOUNCEMENT  •  ") .. sender
+        bannerMessage.Text = message
+        banner.Visible = true
+        task.delay(duration, function()
+            if not destroyed and banner.Parent and serial == bannerSerial then
+                banner.Visible = false
+            end
+        end)
+    end
+
+    -- HttpService:GetAsync cannot run in a normal Roblox LocalScript.
+    -- The optional Script under Workspace polls GitHub once per second and sends
+    -- checked name/text/duration to all clients through this single RemoteEvent.
+    task.spawn(function()
+        local event = ReplicatedStorage:WaitForChild("ErrorB1478GithubAnnouncement", 12)
+        if destroyed then return end
+        if event and event:IsA("RemoteEvent") then
+            trackServiceConnection(event.OnClientEvent:Connect(function(sender, message, seconds)
+                displayAnnouncement(sender, message, seconds, true)
+            end))
+            -- Ask for the currently active post in case it arrived before
+            -- the menu UI finished loading and subscribed to this event.
+            event:FireServer("Ready")
+            print("[ErrorB1478Menu] GitHub announcements connected.")
+        else
+            warn("[ErrorB1478Menu] GitHub announcements unavailable: Workspace poller not installed. The rest of the menu still works.")
+        end
+    end)
     local function setStatus(message, good)
         status.Text = message
         status.TextColor3 = good and Color3.fromRGB(122, 222, 173) or Color3.fromRGB(233, 178, 166)
@@ -6625,17 +6667,9 @@ __EB1478_safeCall("Local admin announcement preview", function()
             setStatus("Keep announcements to 200 characters or fewer.", false)
             return
         end
-        bannerSerial += 1
-        local thisBanner = bannerSerial
-        bannerMessage.Text = message
-        banner.Visible = true
+        displayAnnouncement(player.Name, message, 9, false)
         messageBox.Text = ""
         closePanel()
-        task.delay(9, function()
-            if not destroyed and thisBanner == bannerSerial and banner.Parent then
-                banner.Visible = false
-            end
-        end)
     end)
 
     local function openSecret()
@@ -6682,7 +6716,7 @@ __EB1478_safeCall("Local admin announcement preview", function()
     end
     updateAdminScale()
     setPage("command")
-    print("[ErrorB1478Menu] Local-only admin preview ready: press ; then type roles. No server script required; only this player sees announcements.")
+    print("[ErrorB1478Menu] Admin preview ready (; then roles). Local compose is private; GitHub announcements need Workspace poller to reach all players.")
 end)
 
 --==================================================
