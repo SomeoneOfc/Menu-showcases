@@ -1,3 +1,4 @@
+-- FUN PORTAL GUN: Left click green, right click blue, walk through to cross the map. Optional Universe ID prompts Roblox to join another experience.
 -- BSS C AUTO FLY: Smoothly moves the local character toward the nearest C at a configurable speed (studs/second).
 -- The C scanner uses the player-centered X/Y/Z range; each completed arrival counts toward the 3-visit limit.
 -- Click the C toggle or use its optional shortcut to start/stop flying immediately.
@@ -3931,6 +3932,378 @@ __EB1478_safeCall("Premium pages and extras", function()
         if rainbowTrailAttachment then pcall(function() rainbowTrailAttachment:Destroy() end) end
     end)
 
+    -- Portal Gun: local world portals + Roblox-confirmed travel to another experience.
+    -- Kept in a separate protected scope so an unavailable API won't break Fun navigation.
+    local portalGunButton = makeButton(funScroll, "PortalGunToggle", "🟢 PORTAL GUN: GET TOOL",
+        UDim2.fromOffset(10, 1600), UDim2.new(1, -20, 0, 40), true)
+    __EB1478_safeCall("Portal Gun", function()
+        local TeleportService = game:GetService("TeleportService")
+        local state = {
+            enabled = false, tool = nil, ui = nil, rootFolder = nil,
+            portals = {Green = nil, Blue = nil}, links = {},
+            travelMode = false, experienceId = nil,
+            lastTeleport = 0, armed = true, status = nil, modeButton = nil,
+        }
+
+        local function portalMessage(message, color)
+            setFunStatus(message, color or C.muted)
+            if state.status and state.status.Parent then
+                state.status.Text = message
+                state.status.TextColor3 = color or Color3.fromRGB(206, 219, 234)
+            end
+        end
+        local function portalConnect(connection)
+            table.insert(state.links, connection)
+            return connection
+        end
+        local function clearPortal(which)
+            local record = state.portals[which]
+            if record and record.model then record.model:Destroy() end
+            state.portals[which] = nil
+        end
+        local function stopPortalGun()
+            state.enabled = false
+            for _, connection in ipairs(state.links) do
+                pcall(function() connection:Disconnect() end)
+            end
+            table.clear(state.links)
+            clearPortal("Green")
+            clearPortal("Blue")
+            if state.rootFolder then state.rootFolder:Destroy() end
+            if state.tool then state.tool:Destroy() end
+            if state.ui then state.ui:Destroy() end
+            state.rootFolder = nil
+            state.tool = nil
+            state.ui = nil
+            state.status = nil
+            state.modeButton = nil
+            state.lastTeleport = 0
+            state.armed = true
+            portalGunButton.Text = "🟢 PORTAL GUN: GET TOOL"
+            portalGunButton.BackgroundColor3 = C.accent
+        end
+        registerCleanup(stopPortalGun)
+
+        local function createPortal(which, hitPosition, hitNormal)
+            clearPortal(which)
+            if not state.rootFolder then return end
+            local color = which == "Green" and Color3.fromRGB(63, 252, 129)
+                or Color3.fromRGB(43, 185, 255)
+            local container = Instance.new("Model")
+            container.Name = "B1478" .. which .. "Portal"
+            container.Parent = state.rootFolder
+            -- A cylinder's length is along its local X axis; face that axis toward
+            -- the hit normal to place the glowing circle against walls and floors.
+            local surfaceFrame = CFrame.lookAt(hitPosition + hitNormal * 0.22,
+                hitPosition + hitNormal * 1.22) * CFrame.Angles(0, math.rad(90), 0)
+            local rim = Instance.new("Part")
+            rim.Name = "GlowingRim"
+            rim.Shape = Enum.PartType.Cylinder
+            rim.Size = Vector3.new(0.24, 6, 6)
+            rim.CFrame = surfaceFrame
+            rim.Anchored = true
+            rim.CanCollide = false
+            rim.CanTouch = false
+            rim.CanQuery = false
+            rim.Material = Enum.Material.Neon
+            rim.Color = color
+            rim.Parent = container
+            local core = Instance.new("Part")
+            core.Name = "SwirlingCore"
+            core.Shape = Enum.PartType.Cylinder
+            core.Size = Vector3.new(0.29, 5.1, 5.1)
+            core.CFrame = surfaceFrame + hitNormal * 0.04
+            core.Anchored = true
+            core.CanCollide = false
+            core.CanTouch = false
+            core.CanQuery = false
+            core.Material = Enum.Material.ForceField
+            core.Color = color:Lerp(Color3.fromRGB(18, 16, 35), 0.50)
+            core.Transparency = 0.24
+            core.Parent = container
+            local light = Instance.new("PointLight")
+            light.Color = color
+            light.Brightness = 1.9
+            light.Range = 13
+            light.Parent = rim
+            local particles = Instance.new("ParticleEmitter")
+            particles.Name = "PortalSparks"
+            particles.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+            particles.Color = ColorSequence.new(color)
+            particles.LightEmission = 0.85
+            particles.Lifetime = NumberRange.new(0.25, 0.55)
+            particles.Rate = 12
+            particles.Speed = NumberRange.new(0.4, 1.5)
+            particles.SpreadAngle = Vector2.new(180, 180)
+            particles.Parent = rim
+            state.portals[which] = {model = container, point = hitPosition, normal = hitNormal}
+            portalMessage(which .. " portal placed. Green + Blue link locations in this map.", Color3.fromRGB(144, 241, 185))
+        end
+
+        local function aimPortal(which)
+            if not state.enabled or not state.tool then return end
+            if state.tool.Parent ~= player.Character then return end
+            if UserInputService:GetFocusedTextBox() then return end
+            local mouse = player:GetMouse()
+            local ray = mouse.UnitRay
+            local params = RaycastParams.new()
+            params.FilterType = Enum.RaycastFilterType.Exclude
+            local excluded = {state.rootFolder, state.tool}
+            if player.Character then table.insert(excluded, player.Character) end
+            params.FilterDescendantsInstances = excluded
+            params.IgnoreWater = false
+            local hit = workspace:Raycast(ray.Origin, ray.Direction * 900, params)
+            if not hit then
+                portalMessage("Aim at a wall, floor, ceiling or object to place a portal.", C.red)
+                return
+            end
+            createPortal(which, hit.Position, hit.Normal)
+        end
+
+        local function portalActive(which, root)
+            local record = state.portals[which]
+            return record and (root.Position - record.point).Magnitude < 4.1
+                and (root.Position - record.point):Dot(record.normal) > -1.7
+        end
+        local function promptTravel()
+            local universeId = state.experienceId
+            if not universeId then
+                portalMessage("Enter a Universe/Experience ID, then click APPLY ID.", C.red)
+                return
+            end
+            portalMessage("Opening Roblox's join confirmation for experience " .. universeId .. "…")
+            task.spawn(function()
+                local success, failure = pcall(function()
+                    TeleportService:PromptExperienceDetailsAsync(player, universeId)
+                end)
+                if not success and state.enabled then
+                    portalMessage("Roblox could not open that experience: " .. tostring(failure), C.red)
+                end
+            end)
+        end
+
+        local function updatePortals()
+            if not state.enabled or destroyed then return end
+            local root = getRoot()
+            if not root or not root.Parent then return end
+            local nearGreen = portalActive("Green", root)
+            local nearBlue = portalActive("Blue", root)
+            if not nearGreen and not nearBlue then
+                state.armed = true
+                return
+            end
+            if not state.armed or os.clock() - state.lastTeleport < 1.5 then return end
+            if state.travelMode then
+                if not nearGreen then return end
+                state.armed = false
+                state.lastTeleport = os.clock()
+                promptTravel()
+                return
+            end
+            local destination = nearGreen and state.portals.Blue or state.portals.Green
+            if not destination then return end
+            -- Keep the character outside the exit surface rather than placing
+            -- their body inside a wall. Leave enough space to avoid bounce loops.
+            local exitPoint = destination.point + destination.normal * 4.2
+                + Vector3.new(0, 1.8, 0)
+            state.armed = false
+            state.lastTeleport = os.clock()
+            local ok, err = pcall(function()
+                local char = getCharacter()
+                if char then char:PivotTo(CFrame.lookAt(exitPoint, exitPoint + destination.normal)) end
+            end)
+            if ok then
+                portalMessage("Portal jump complete! Walk out and re-enter to use it again.", C.green)
+            else
+                portalMessage("Portal movement failed: " .. tostring(err), C.red)
+            end
+        end
+
+        local function makeGunTool()
+            if not state.enabled then return end
+            if state.tool and state.tool.Parent then return end
+            local backpack = player:FindFirstChildOfClass("Backpack") or player:WaitForChild("Backpack", 5)
+            if not backpack then portalMessage("Backpack not ready.", C.red); return end
+            local gun = Instance.new("Tool")
+            gun.Name = "Dimension Portal Gun"
+            gun.ToolTip = "Left click GREEN, right click BLUE; walk through a portal to travel"
+            gun.CanBeDropped = false
+            gun.RequiresHandle = true
+            local handle = Instance.new("Part")
+            handle.Name = "Handle"
+            handle.Size = Vector3.new(0.6, 0.7, 2.1)
+            handle.Material = Enum.Material.Metal
+            handle.Color = Color3.fromRGB(206, 219, 224)
+            handle.Massless = true
+            handle.CanCollide = false
+            handle.CanTouch = false
+            handle.CanQuery = false
+            handle.Parent = gun
+            for _, detail in ipairs({
+                {"Core", Vector3.new(0.78, 0.73, 0.88), Vector3.new(0, 0, -0.65), Color3.fromRGB(71, 250, 132)},
+                {"Nozzle", Vector3.new(0.43, 0.43, 0.48), Vector3.new(0, 0, -1.26), Color3.fromRGB(25, 202, 105)},
+                {"Battery", Vector3.new(0.7, 0.42, 0.65), Vector3.new(0, 0.49, 0.53), Color3.fromRGB(54, 170, 238)},
+            }) do
+                local part = Instance.new("Part")
+                part.Name = detail[1]
+                part.Size = detail[2]
+                part.Material = Enum.Material.Neon
+                part.Color = detail[4]
+                part.Massless = true
+                part.CanCollide = false
+                part.CanTouch = false
+                part.CanQuery = false
+                part.CFrame = handle.CFrame * CFrame.new(detail[3])
+                part.Parent = gun
+                local weld = Instance.new("WeldConstraint")
+                weld.Part0 = handle
+                weld.Part1 = part
+                weld.Parent = handle
+            end
+            state.tool = gun
+            gun.Parent = backpack
+            portalConnect(gun.Activated:Connect(function()
+                aimPortal("Green")
+            end))
+            local hum = getHumanoid()
+            if hum then pcall(function() hum:EquipTool(gun) end) end
+            portalMessage("Portal Gun equipped. Left-click GREEN; right-click BLUE.", C.green)
+        end
+
+        local function makeGunPanel()
+            local screen = Instance.new("ScreenGui")
+            screen.Name = "B1478PortalGunControls"
+            screen.IgnoreGuiInset = false
+            screen.ResetOnSpawn = false
+            screen.DisplayOrder = 20
+            screen.Parent = playerGui
+            state.ui = screen
+            local frame = Instance.new("Frame")
+            frame.Name = "PortalControls"
+            frame.AnchorPoint = Vector2.new(1, 1)
+            frame.Position = UDim2.new(1, -14, 1, -14)
+            frame.Size = UDim2.fromOffset(316, 244)
+            frame.BorderSizePixel = 0
+            frame.BackgroundColor3 = Color3.fromRGB(23, 28, 39)
+            frame.Parent = screen
+            local radius = Instance.new("UICorner")
+            radius.CornerRadius = UDim.new(0, 10)
+            radius.Parent = frame
+            local edge = Instance.new("UIStroke")
+            edge.Color = Color3.fromRGB(61, 188, 135)
+            edge.Thickness = 1
+            edge.Parent = frame
+            local function textLabel(name, content, y, h, size, color)
+                local label = Instance.new("TextLabel")
+                label.Name = name
+                label.BackgroundTransparency = 1
+                label.Position = UDim2.fromOffset(12, y)
+                label.Size = UDim2.new(1, -24, 0, h)
+                label.TextColor3 = color or Color3.fromRGB(220, 233, 241)
+                label.Font = Enum.Font.Gotham
+                label.TextSize = size or 12
+                label.TextXAlignment = Enum.TextXAlignment.Left
+                label.TextWrapped = true
+                label.Text = content
+                label.Parent = frame
+                return label
+            end
+            local function panelButton(name, caption, y, width, x)
+                local button = Instance.new("TextButton")
+                button.Name = name
+                button.Position = UDim2.fromOffset(x or 12, y)
+                button.Size = UDim2.fromOffset(width or 292, 30)
+                button.Font = Enum.Font.GothamBold
+                button.TextSize = 11
+                button.Text = caption
+                button.TextColor3 = Color3.fromRGB(239, 252, 244)
+                button.BackgroundColor3 = Color3.fromRGB(40, 121, 93)
+                button.BorderSizePixel = 0
+                button.Parent = frame
+                local corner = Instance.new("UICorner")
+                corner.CornerRadius = UDim.new(0, 6)
+                corner.Parent = button
+                return button
+            end
+            textLabel("Title", "DIMENSION PORTAL GUN", 8, 24, 15, Color3.fromRGB(122, 255, 167)).Font = Enum.Font.GothamBold
+            textLabel("HowTo", "Left click = green    |    Right click = blue\nWalk into a portal to exit the other one.", 37, 35, 11)
+            state.status = textLabel("Status", "Point the gun at any solid surface.", 70, 30, 11)
+            panelButton("Reset", "CLEAR BOTH PORTALS", 105, 139, 12).Activated:Connect(function()
+                clearPortal("Green")
+                clearPortal("Blue")
+                state.armed = true
+                portalMessage("Both portals cleared.")
+            end)
+            state.modeButton = panelButton("Mode", "DESTINATION: MAP", 105, 139, 165)
+            state.modeButton.Activated:Connect(function()
+                state.travelMode = not state.travelMode
+                state.modeButton.Text = state.travelMode and "DESTINATION: GAME" or "DESTINATION: MAP"
+                portalMessage(state.travelMode and "Green portal opens the Roblox experience join prompt." or
+                    "Green and blue portals are now linked inside this map.")
+            end)
+            textLabel("ExperienceHint", "Other game: enter its UNIVERSE / EXPERIENCE ID", 143, 17, 10)
+            local idBox = Instance.new("TextBox")
+            idBox.Name = "ExperienceUniverseId"
+            idBox.PlaceholderText = "Universe ID (not Place ID)"
+            idBox.Text = ""
+            idBox.ClearTextOnFocus = false
+            idBox.Position = UDim2.fromOffset(12, 165)
+            idBox.Size = UDim2.fromOffset(184, 30)
+            idBox.BackgroundColor3 = Color3.fromRGB(34, 44, 58)
+            idBox.TextColor3 = Color3.fromRGB(240, 255, 245)
+            idBox.PlaceholderColor3 = Color3.fromRGB(143, 163, 172)
+            idBox.TextSize = 11
+            idBox.Font = Enum.Font.Gotham
+            idBox.Parent = frame
+            local boxCorner = Instance.new("UICorner")
+            boxCorner.CornerRadius = UDim.new(0, 6)
+            boxCorner.Parent = idBox
+            local apply = panelButton("ApplyExperience", "APPLY ID", 165, 100, 203)
+            apply.Activated:Connect(function()
+                local candidate = tonumber((idBox.Text or ""):match("^%s*(%d+)%s*$"))
+                if not candidate or candidate < 1 or candidate ~= math.floor(candidate) then
+                    portalMessage("Enter a valid numeric Universe ID.", C.red)
+                    return
+                end
+                state.experienceId = candidate
+                portalMessage("Destination set. Switch to GAME to use the green portal.", C.green)
+            end)
+            local join = panelButton("TravelExperience", "OPEN ROBLOX JOIN PROMPT", 202, 292, 12)
+            join.Activated:Connect(promptTravel)
+        end
+
+        portalGunButton.Activated:Connect(function()
+            if state.enabled then
+                stopPortalGun()
+                setFunStatus("Portal Gun removed. All portal visuals cleared.", C.green)
+                return
+            end
+            state.enabled = true
+            state.rootFolder = Instance.new("Folder")
+            state.rootFolder.Name = "B1478PortalGunLocalEffects"
+            state.rootFolder.Parent = workspace
+            state.travelMode = false
+            makeGunPanel()
+            makeGunTool()
+            portalConnect(UserInputService.InputBegan:Connect(function(input, processed)
+                if processed or not state.enabled or UserInputService:GetFocusedTextBox() then return end
+                if input.UserInputType == Enum.UserInputType.MouseButton2 then
+                    aimPortal("Blue")
+                end
+            end))
+            portalConnect(RunService.Heartbeat:Connect(updatePortals))
+            portalConnect(player.CharacterAdded:Connect(function()
+                -- Regrant after respawn without creating another menu or UI.
+                task.delay(0.5, function()
+                    if state.enabled and not destroyed then makeGunTool() end
+                end)
+            end))
+            portalGunButton.Text = "🟢 PORTAL GUN: REMOVE TOOL"
+            portalGunButton.BackgroundColor3 = C.green
+            setFunStatus("Portal Gun ready! Equip it from your hotbar to place portals.", C.green)
+        end)
+    end)
+
     -- Pagination: six fun controls per page, with bottom navigation arrows.
     -- Existing click handlers stay attached when the buttons are reparented.
     local allFunButtons = {
@@ -3940,7 +4313,7 @@ __EB1478_safeCall("Premium pages and extras", function()
         heartAuraButton, starAuraButton, snowBurstButton, rainbowBurstButton, moonJumpButton,
         speedBoostButton, lowGravityButton, bigHeadButton, tinyModeButton, cameraWobbleButton,
         cameraRollButton, screenFlashButton, randomBodyButton, footstepSparksButton,
-        magicTrailButton, fireflyAuraButton, superBounceButton
+        magicTrailButton, fireflyAuraButton, superBounceButton, portalGunButton
     }
     local controlsPerPage = 6
     local pageCount = math.ceil(#allFunButtons / controlsPerPage)
@@ -3991,7 +4364,7 @@ __EB1478_safeCall("Premium pages and extras", function()
         if currentFunPage < pageCount then showFunPage(currentFunPage + 1) end
     end)
     showFunPage(1)
-    setFunStatus("Fun Zone: 33 features across " .. pageCount .. " pages. Use the arrows below.", C.green)
+    setFunStatus("Fun Zone: " .. #allFunButtons .. " features across " .. pageCount .. " pages. Portal Gun is on the last page.", C.green)
 
     end)
 
@@ -6382,10 +6755,8 @@ end)
 
 --==================================================
 -- SECRET LOCAL ANNOUNCEMENT PANEL (; KEY, THEN "roles")
--- SECRET PANEL is client-local. GitHub announcements are independently relayed
--- by an optional Workspace server Script via a read-only RemoteEvent.
--- The GitHub announcements are shown to everyone in the current server.
- -- The local compose box still only displays announcements to this client.
+-- LOCAL ONLY: no ServerScriptService and no RemoteEvents.
+-- This cannot grant secure admin permissions or broadcast across players.
 --==================================================
 __EB1478_safeCall("Local admin announcement preview", function()
     local UIService = game:GetService("UserInputService")
@@ -6566,46 +6937,6 @@ __EB1478_safeCall("Local admin announcement preview", function()
     local panelMode = "command"
     local lastOpenAt = 0
     local bannerSerial = 0
-
-    -- Reuse a single announcement banner for both local tests and GitHub messages.
-    -- New announcements replace old ones; their expiry tasks cannot close newer messages.
-    local function displayAnnouncement(sender, message, seconds, fromGithub)
-        if destroyed or not banner.Parent then return end
-        if type(sender) ~= "string" or type(message) ~= "string" then return end
-        sender = string.sub(sender, 1, 65)
-        message = string.sub(message, 1, 500)
-        if message == "" then return end
-        local duration = math.clamp(tonumber(seconds) or 9, 1, 120)
-        bannerSerial += 1
-        local serial = bannerSerial
-        bannerHeader.Text = (fromGithub and "GITHUB ANNOUNCEMENT  •  " or "LOCAL ANNOUNCEMENT  •  ") .. sender
-        bannerMessage.Text = message
-        banner.Visible = true
-        task.delay(duration, function()
-            if not destroyed and banner.Parent and serial == bannerSerial then
-                banner.Visible = false
-            end
-        end)
-    end
-
-    -- HttpService:GetAsync cannot run in a normal Roblox LocalScript.
-    -- The optional Script under Workspace polls GitHub once per second and sends
-    -- checked name/text/duration to all clients through this single RemoteEvent.
-    task.spawn(function()
-        local event = ReplicatedStorage:WaitForChild("ErrorB1478GithubAnnouncement", 12)
-        if destroyed then return end
-        if event and event:IsA("RemoteEvent") then
-            trackServiceConnection(event.OnClientEvent:Connect(function(sender, message, seconds)
-                displayAnnouncement(sender, message, seconds, true)
-            end))
-            -- Ask for the currently active post in case it arrived before
-            -- the menu UI finished loading and subscribed to this event.
-            event:FireServer("Ready")
-            print("[ErrorB1478Menu] GitHub announcements connected.")
-        else
-            warn("[ErrorB1478Menu] GitHub announcements unavailable: Workspace poller not installed. The rest of the menu still works.")
-        end
-    end)
     local function setStatus(message, good)
         status.Text = message
         status.TextColor3 = good and Color3.fromRGB(122, 222, 173) or Color3.fromRGB(233, 178, 166)
@@ -6667,9 +6998,17 @@ __EB1478_safeCall("Local admin announcement preview", function()
             setStatus("Keep announcements to 200 characters or fewer.", false)
             return
         end
-        displayAnnouncement(player.Name, message, 9, false)
+        bannerSerial += 1
+        local thisBanner = bannerSerial
+        bannerMessage.Text = message
+        banner.Visible = true
         messageBox.Text = ""
         closePanel()
+        task.delay(9, function()
+            if not destroyed and thisBanner == bannerSerial and banner.Parent then
+                banner.Visible = false
+            end
+        end)
     end)
 
     local function openSecret()
@@ -6716,7 +7055,7 @@ __EB1478_safeCall("Local admin announcement preview", function()
     end
     updateAdminScale()
     setPage("command")
-    print("[ErrorB1478Menu] Admin preview ready (; then roles). Local compose is private; GitHub announcements need Workspace poller to reach all players.")
+    print("[ErrorB1478Menu] Local-only admin preview ready: press ; then type roles. No server script required; only this player sees announcements.")
 end)
 
 --==================================================
