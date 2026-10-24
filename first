@@ -1,7 +1,9 @@
--- BSS C AUTO TP: Toggle ON/OFF; checks all C inside the player-centered X/Y/Z box range every 0.1 seconds; custom optional shortcut.
+-- BSS C AUTO FLY: Smoothly moves the local character toward the nearest C at a configurable speed (studs/second).
+-- The C scanner uses the player-centered X/Y/Z range; each completed arrival counts toward the 3-visit limit.
+-- Click the C toggle or use its optional shortcut to start/stop flying immediately.
 -- Each exact C is visited at most THREE times. A strong object record + stable position fingerprint block revisiting even if the object streams back in at the same location.
 -- WarningDisk auto TP retains its existing START/STOP controls and optional shortcuts.
--- BSS C BOX RANGE: Checks all C in Workspace.Collectibles (fallback Collectables), comparing X/Y/Z offsets independently.
+-- BSS C BOX RANGE: Finds C flight targets in Workspace.Collectibles (fallback Collectables), comparing X/Y/Z offsets independently.
 -- BSS CONTROLS UPDATE: WarningDisk START/STOP remains; Collectibles C has one ON/OFF button and editable keybind.
 -- BSS AUTO-TP PLAYER FIX: Moves the local player character to C/WarningDisk target positions without the old +4-stud height offset.
 -- ERROR_B1478 2036 STARTUP RELIABILITY BUILD
@@ -3144,7 +3146,7 @@ __EB1478_safeCall("Premium pages and extras", function()
     bssPage.ScrollBarThickness = 6
     bssPage.ScrollingDirection = Enum.ScrollingDirection.Y
     bssPage.ScrollBarImageColor3 = Color3.fromRGB(107, 171, 245)
-    bssPage.CanvasSize = UDim2.fromOffset(0, 1085)
+    bssPage.CanvasSize = UDim2.fromOffset(0, 1130)
     bssPage.Visible = false
     bssPage.Parent = content
     local optionsPage = makePage("OptionsPage")
@@ -4608,7 +4610,7 @@ __EB1478_safeCall("Premium pages and extras", function()
         addCorner(card, 12)
         addOutline(card, C.accent, 0.20)
 
-        makeLabel(card, "SectionTitle", "COLLECTIBLES  /  AUTO TP TO C",
+        makeLabel(card, "SectionTitle", "COLLECTIBLES  /  AUTO FLY TO C",
             UDim2.fromOffset(13, 8), UDim2.new(1, -197, 0, 28), 13, C.text, true)
         makeLabel(card, "RangeLabel", "RANGE",
             UDim2.new(1, -183, 0, 9), UDim2.fromOffset(55, 26), 10, C.muted, true)
@@ -4631,7 +4633,7 @@ __EB1478_safeCall("Premium pages and extras", function()
         makeLabel(card, "StudsUnit", "ST", UDim2.new(1, -39, 0, 9),
             UDim2.fromOffset(28, 26), 10, C.muted, true)
 
-        local toggleButton = makeButton(card, "CollectableCToggle", "AUTO TP TO C   •   OFF",
+        local toggleButton = makeButton(card, "CollectableCToggle", "AUTO FLY TO C   •   OFF",
             UDim2.fromOffset(13, 46), UDim2.new(1, -26, 0, 42), true)
         toggleButton.TextSize = 15
         toggleButton.Font = Enum.Font.GothamBold
@@ -4657,8 +4659,8 @@ __EB1478_safeCall("Premium pages and extras", function()
             UDim2.fromOffset(251, 99), UDim2.fromOffset(116, 32), false)
         applyButton.TextSize = 11
         local state = makeLabel(card, "CollectableCToggleStatus",
-            "OFF  •  Click the button to start. Set a key and click APPLY KEY.",
-            UDim2.fromOffset(13, 142), UDim2.new(1, -26, 0, 29), 11, C.muted, false)
+            "OFF  •  Fly to nearby C objects; up to 3 arrivals per C.",
+            UDim2.fromOffset(13, 185), UDim2.new(1, -26, 0, 32), 11, C.muted, false)
         return radius, toggleButton, state, keyBox, applyButton
     end
     local collectablesRadiusInput, collectTeleportButton, collectState, collectToggleKeyBox, collectApplyButton =
@@ -4686,11 +4688,41 @@ __EB1478_safeCall("Premium pages and extras", function()
     petalApplyButton.Name = "PetalPartApplyKey"
     petalState.Name = "PetalPartToggleStatus"
     petalState.Text = "OFF  •  Scan PetalPart every 0.1s while enabled."
+
+    -- Flight speed is exclusive to Collectibles C. The PetalPart clone keeps
+    -- its original layout, so its existing toggle/keybind still work.
+    local collectCard = collectTeleportButton.Parent
+    collectCard.Size = UDim2.new(1, -40, 0, 225)
+    makeLabel(collectCard, "CollectableCSpeedLabel", "FLY SPEED (STUDS/SEC)",
+        UDim2.fromOffset(14, 142), UDim2.fromOffset(164, 28), 11, C.muted, true)
+    local collectFlySpeedBox = Instance.new("TextBox")
+    collectFlySpeedBox.Name = "CollectableCFlySpeed"
+    collectFlySpeedBox.Position = UDim2.fromOffset(178, 140)
+    collectFlySpeedBox.Size = UDim2.fromOffset(98, 32)
+    collectFlySpeedBox.BackgroundColor3 = C.panel2
+    collectFlySpeedBox.BorderSizePixel = 0
+    collectFlySpeedBox.ClearTextOnFocus = false
+    collectFlySpeedBox.Text = "80"
+    collectFlySpeedBox.PlaceholderText = "5 - 500"
+    collectFlySpeedBox.TextColor3 = C.text
+    collectFlySpeedBox.PlaceholderColor3 = C.muted
+    collectFlySpeedBox.TextSize = 12
+    collectFlySpeedBox.Font = Enum.Font.GothamSemibold
+    collectFlySpeedBox.Parent = collectCard
+    addCorner(collectFlySpeedBox, 7)
+    addOutline(collectFlySpeedBox, C.border, 0.25)
+    makeLabel(collectCard, "CollectableCSpeedTip", "Edit anytime",
+        UDim2.fromOffset(287, 142), UDim2.fromOffset(110, 28), 10, C.muted, false)
+
+    -- Make room for the taller C card; all BSS sections remain scrollable.
+    petalCard.Position = UDim2.fromOffset(20, 438)
+    warningStartButton.Parent.Position = UDim2.fromOffset(20, 629)
     makeLabel(bssPage, "AutoTPDescription",
-        "C scans every 0.1s while ON. Max 3 TPs per C. Range: +/- X/Y/Z from your character.",
-        UDim2.fromOffset(22, 761), UDim2.new(1, -44, 0, 31), 10, C.muted, false)
+        "C flies at your chosen speed. Max 3 arrivals per C. Range: +/- X/Y/Z. Other BSS teleports unchanged.",
+        UDim2.fromOffset(22, 805), UDim2.new(1, -44, 0, 31), 10, C.muted, false)
 
     local warningRadius, collectablesRadius, petalRadius = 100, 150, 150
+    local collectFlySpeed = 80 -- studs per second; adjustable while flying
     local petalOn = false
     local petalVersion = 0
     local warningOn = false
@@ -4740,6 +4772,15 @@ __EB1478_safeCall("Premium pages and extras", function()
     collectablesRadiusInput.FocusLost:Connect(function()
         collectablesRadius = updateRadius(collectablesRadiusInput, collectablesRadius)
     end)
+    local function updateCollectFlySpeed()
+        local entered = tonumber(collectFlySpeedBox.Text)
+        if entered and entered == entered and entered > 0 then
+            collectFlySpeed = math.clamp(math.floor(entered + 0.5), 5, 500)
+        end
+        collectFlySpeedBox.Text = tostring(collectFlySpeed)
+        return collectFlySpeed
+    end
+    collectFlySpeedBox.FocusLost:Connect(updateCollectFlySpeed)
     petalRadiusInput.FocusLost:Connect(function()
         petalRadius = updateRadius(petalRadiusInput, petalRadius)
     end)
@@ -5016,68 +5057,129 @@ __EB1478_safeCall("Premium pages and extras", function()
         end)
     end
 
-    -- Every 0.1s while enabled, scan every loaded C in the configured X/Y/Z
-    -- cube centered on the LOCAL player's current position; teleport to the
-    -- closest in-range C. Version invalidation stops old loops immediately.
+    -- C AUTO FLY: A single heartbeat-driven flight loop moves the character
+    -- smoothly toward the nearest C. Target scans happen at most every 0.1s.
+    -- The 3-visit limit increments only when the player REACHES the object,
+    -- never once per rendered frame or merely by choosing a target.
     local function setCollectEnabled(enabled)
         collectVersion = collectVersion + 1
         collectOn = enabled and not destroyed
-        collectTeleportButton.Text = collectOn and "AUTO TP TO C   •   ON" or "AUTO TP TO C   •   OFF"
+        collectTeleportButton.Text = collectOn and "AUTO FLY TO C   •   ON" or "AUTO FLY TO C   •   OFF"
         collectTeleportButton.BackgroundColor3 = collectOn and C.green or C.accent
-        collectState.Text = collectOn and "ON  •  Scanning every 0.1 seconds." or "OFF  •  Click the button or press your toggle key."
+        collectState.Text = collectOn and "ON  •  Flying toward nearby C objects." or "OFF  •  Click button or use your toggle key."
         collectState.TextColor3 = collectOn and C.green or C.muted
         if not collectOn then
-            bssStatus.Text = "Collectibles C auto TP stopped."
+            bssStatus.Text = "Collectibles C auto fly stopped."
             bssStatus.TextColor3 = C.muted
             return
         end
+
         collectablesRadius = updateRadius(collectablesRadiusInput, collectablesRadius)
+        collectFlySpeed = updateCollectFlySpeed()
         local thisVersion = collectVersion
-        bssStatus.Text = "Collectibles C auto TP enabled: +/- " .. collectablesRadius .. " studs on each axis."
+        bssStatus.Text = "Collectibles auto fly ON • " .. collectFlySpeed .. " studs/sec • box range +/- " .. collectablesRadius
         bssStatus.TextColor3 = C.green
+
         task.spawn(function()
+            local currentTarget = nil
+            local nextScanTime = 0
+            local lastStatusTime = 0
             while not destroyed and collectOn and thisVersion == collectVersion do
+                -- Using Heartbeat means each step is proportional to elapsed time,
+                -- rather than jumping the full distance at 0.1-second intervals.
+                local dt = RunService.Heartbeat:Wait()
+                if destroyed or not collectOn or thisVersion ~= collectVersion then break end
+
                 local ok, err = pcall(function()
                     local character, root, username = getBSSLocalCharacter()
                     if not character then
-                        collectState.Text = "Waiting for " .. username .. "'s character..."
+                        currentTarget = nil
+                        if os.clock() >= lastStatusTime + 0.5 then
+                            collectState.Text = "ON  •  Waiting for " .. username .. "'s character..."
+                            lastStatusTime = os.clock()
+                        end
                         return
                     end
-                    -- Radius changes are picked up immediately if the user edits the box.
-                    local requestedRadius = tonumber(collectablesRadiusInput.Text)
-                    if requestedRadius and requestedRadius == requestedRadius then
-                        collectablesRadius = math.clamp(math.floor(requestedRadius + 0.5), 5, 10000)
+
+                    -- Read speed/range edits without requiring the toggle to restart.
+                    local speedNumber = tonumber(collectFlySpeedBox.Text)
+                    if speedNumber and speedNumber == speedNumber and speedNumber > 0 then
+                        collectFlySpeed = math.clamp(speedNumber, 5, 500)
                     end
-                    local target, position, distance, foundCount, positionedCount, inRangeCount, folderName, exhaustedCount =
-                        findNearestCollectableInBox(root.Position, collectablesRadius)
-                    -- Prevent a late in-flight scan from teleporting after STOP.
-                    if destroyed or not collectOn or thisVersion ~= collectVersion then return end
-                    if not folderName then
-                        collectState.Text = "Missing Workspace.Collectibles / Collectables"
-                        collectState.TextColor3 = C.yellow
-                    elseif not target or not position then
-                        if inRangeCount > 0 and exhaustedCount == inRangeCount then
-                            collectState.Text = string.format("RUNNING • All %d in-range C reached %d/%d TPs", exhaustedCount, maxTeleportsPerC, maxTeleportsPerC)
-                            collectState.TextColor3 = C.green
-                        else
-                            collectState.Text = string.format("RUNNING • %d C found, %d positioned, %d in box, %d finished", foundCount, positionedCount, inRangeCount, exhaustedCount)
+                    local rangeNumber = tonumber(collectablesRadiusInput.Text)
+                    if rangeNumber and rangeNumber == rangeNumber then
+                        collectablesRadius = math.clamp(math.floor(rangeNumber + 0.5), 5, 10000)
+                    end
+
+                    if currentTarget and (not currentTarget.Parent
+                        or not currentTarget:IsDescendantOf(workspace)
+                        or not getBSSPosition(currentTarget)) then
+                        currentTarget = nil
+                    end
+
+                    local now = os.clock()
+                    if not currentTarget and now >= nextScanTime then
+                        nextScanTime = now + 0.1
+                        local target, position, _, found, positioned, inRange, folder, exhausted =
+                            findNearestCollectableInBox(root.Position, collectablesRadius)
+                        if not folder then
+                            collectState.Text = "ON  •  Missing Workspace.Collectibles / Collectables"
                             collectState.TextColor3 = C.yellow
+                        elseif target and position then
+                            currentTarget = target
+                        elseif now - lastStatusTime > 0.4 then
+                            if inRange > 0 and exhausted == inRange then
+                                collectState.Text = string.format("ON  •  All %d in-range C objects visited 3 times", exhausted)
+                                collectState.TextColor3 = C.green
+                            else
+                                collectState.Text = string.format("ON  •  %d C found; %d positioned; %d in range", found, positioned, inRange)
+                                collectState.TextColor3 = C.yellow
+                            end
+                            lastStatusTime = now
                         end
-                    elseif moveToBSSPosition(position) then
-                        local count = cTeleportCount(target, position, true)
-                        collectState.Text = string.format("RUNNING • %s: C TP %d/%d (%.1f studs) • skipped forever at 3/3", username, count, maxTeleportsPerC, distance)
+                    end
+                    if not currentTarget then return end
+
+                    local position = getBSSPosition(currentTarget)
+                    if not position then
+                        currentTarget = nil
+                        return
+                    end
+                    -- Exact destination for collection: the C object's world position.
+                    local delta = position - root.Position
+                    local remaining = delta.Magnitude
+                    local travelDistance = collectFlySpeed * math.clamp(dt, 0, 0.1)
+                    if remaining > 0.01 then
+                        local step = math.min(remaining, travelDistance)
+                        character:PivotTo(CFrame.new(root.Position + delta.Unit * step) * character:GetPivot().Rotation)
+                        root.AssemblyLinearVelocity = Vector3.zero
+                        root.AssemblyAngularVelocity = Vector3.zero
+                    end
+
+                    -- Count ONE completed arrival per selected C. Never count
+                    -- per animation frame or before reaching the target.
+                    if remaining <= travelDistance + 0.01 then
+                        local count = cTeleportCount(currentTarget, position, true)
+                        collectState.Text = string.format("ON  •  %s reached C %d/%d at %g studs/sec", username, count, maxTeleportsPerC, collectFlySpeed)
                         collectState.TextColor3 = C.green
-                    else
-                        collectState.Text = "RUNNING • Character could not teleport"
-                        collectState.TextColor3 = C.yellow
+                        currentTarget = nil
+                        nextScanTime = os.clock() + 0.1
+                        lastStatusTime = os.clock()
+                    elseif now - lastStatusTime >= 0.3 then
+                        collectState.Text = string.format("ON  •  Flying %.0f studs to C at %g studs/sec", remaining, collectFlySpeed)
+                        collectState.TextColor3 = C.green
+                        lastStatusTime = now
                     end
                 end)
                 if not ok then
-                    warn("[ErrorB1478Menu][Collectibles C Auto TP] " .. tostring(err))
-                    collectState.Text = "SCAN ERROR • Check F9"
-                    collectState.TextColor3 = C.red
+                    currentTarget = nil
+                    warn("[ErrorB1478Menu][Collectibles C Auto Fly] " .. tostring(err))
+                    if collectOn and thisVersion == collectVersion and not destroyed then
+                        collectState.Text = "FLIGHT ERROR  •  Check F9"
+                        collectState.TextColor3 = C.red
+                    end
+                    task.wait(0.1)
                 end
-                task.wait(0.1)
             end
         end)
     end
@@ -5170,7 +5272,7 @@ __EB1478_safeCall("Premium pages and extras", function()
 
     local bssList = Instance.new("ScrollingFrame")
     bssList.Name = "HiddenStickersList"
-    bssList.Position = UDim2.fromOffset(20, 800)
+    bssList.Position = UDim2.fromOffset(20, 844)
     bssList.Size = UDim2.new(1, -40, 0, 219)
     bssList.BackgroundColor3 = C.background
     bssList.BorderSizePixel = 0
