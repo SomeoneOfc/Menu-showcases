@@ -3144,7 +3144,7 @@ __EB1478_safeCall("Premium pages and extras", function()
     bssPage.ScrollBarThickness = 6
     bssPage.ScrollingDirection = Enum.ScrollingDirection.Y
     bssPage.ScrollBarImageColor3 = Color3.fromRGB(107, 171, 245)
-    bssPage.CanvasSize = UDim2.fromOffset(0, 805)
+    bssPage.CanvasSize = UDim2.fromOffset(0, 1000)
     bssPage.Visible = false
     bssPage.Parent = content
     local optionsPage = makePage("OptionsPage")
@@ -4365,13 +4365,13 @@ __EB1478_safeCall("Premium pages and extras", function()
     end)
 
     __EB1478_safeCall("BSS HiddenStickers page", function()
-    makeHeader(bssPage, "BSS • Teleport Tools", "Auto TP to nearby C, WarningDisk, Stinger, and HiddenStickers.")
+    makeHeader(bssPage, "BSS • Teleport Tools", "Auto TP to nearby C, PetalPart, WarningDisk, and Stinger.")
     local bssStatus = makeLabel(bssPage, "BSSStatus", "Checking workspace.HiddenStickers…", UDim2.fromOffset(22, 104), UDim2.new(1, -235, 0, 34), 11, C.muted, false)
     local refreshBSS = makeButton(bssPage, "RefreshBSS", "↻  REFRESH", UDim2.new(1, -145, 0, 103), UDim2.fromOffset(123, 36), true)
 
     -- BSS Stinger shortcut: resolve the target fresh on each click because
     -- WaitingThorn may spawn/despawn during a Bee Swarm Simulator session.
-    local stingerButton = makeButton(bssPage, "TPToStinger", "TP TO STINGER", UDim2.fromOffset(20, 473), UDim2.new(1, -40, 0, 38), true)
+    local stingerButton = makeButton(bssPage, "TPToStinger", "TP TO STINGER", UDim2.fromOffset(20, 663), UDim2.new(1, -40, 0, 38), true)
     stingerButton.Activated:Connect(function()
         local particles = workspace:FindFirstChild("Particles")
         local wts = particles and particles:FindFirstChild("WTs")
@@ -4503,7 +4503,7 @@ __EB1478_safeCall("Premium pages and extras", function()
     end
 
     local warningRadiusInput, warningStartButton, warningStopButton, warningState, warningStartKeyBox, warningStopKeyBox =
-        makeBSSAutoCard("WarningDisk", "WARNING DISK AUTO TP", 340, 100)
+        makeBSSAutoCard("WarningDisk", "WARNING DISK AUTO TP", 531, 100)
     -- Primary BSS control. Placed directly beneath the BSS status instead of
     -- below the WarningDisk section, and stays accessible on smaller screens.
     local function makeCollectablesToggleCard()
@@ -4572,11 +4572,36 @@ __EB1478_safeCall("Premium pages and extras", function()
     end
     local collectablesRadiusInput, collectTeleportButton, collectState, collectToggleKeyBox, collectApplyButton =
         makeCollectablesToggleCard()
+
+    -- PETALPART AUTO TP: a second visible toggle with its own range and keybind.
+    -- Clone the visual-only Collectibles card so both controls look consistent.
+    local petalCard = collectTeleportButton.Parent:Clone()
+    petalCard.Name = "PetalPartToggleCard"
+    petalCard.Position = UDim2.fromOffset(20, 340)
+    petalCard.Parent = bssPage
+    local petalTitle = petalCard:FindFirstChild("SectionTitle")
+    local petalRadiusInput = petalCard:FindFirstChild("CollectableCRadius")
+    local petalToggleButton = petalCard:FindFirstChild("CollectableCToggle")
+    local petalKeyBox = petalCard:FindFirstChild("CollectableCToggleKeybind")
+    local petalApplyButton = petalCard:FindFirstChild("CollectableCApplyKey")
+    local petalState = petalCard:FindFirstChild("CollectableCToggleStatus")
+    petalTitle.Text = "PETALPART  /  AUTO TP"
+    petalRadiusInput.Name = "PetalPartRadius"
+    petalRadiusInput.Text = "150"
+    petalToggleButton.Name = "PetalPartToggle"
+    petalToggleButton.Text = "AUTO TP TO PETAL   •   OFF"
+    petalKeyBox.Name = "PetalPartToggleKeybind"
+    petalKeyBox.Text = "NONE"
+    petalApplyButton.Name = "PetalPartApplyKey"
+    petalState.Name = "PetalPartToggleStatus"
+    petalState.Text = "OFF  •  Scan PetalPart every 0.1s while enabled."
     makeLabel(bssPage, "AutoTPDescription",
         "C scans every 0.1s while ON. Max 3 TPs per C. Range: +/- X/Y/Z from your character.",
-        UDim2.fromOffset(22, 517), UDim2.new(1, -44, 0, 31), 10, C.muted, false)
+        UDim2.fromOffset(22, 707), UDim2.new(1, -44, 0, 31), 10, C.muted, false)
 
-    local warningRadius, collectablesRadius = 100, 150
+    local warningRadius, collectablesRadius, petalRadius = 100, 150, 150
+    local petalOn = false
+    local petalVersion = 0
     local warningOn = false
     local warningVersion = 0
     local collectOn = false
@@ -4624,12 +4649,16 @@ __EB1478_safeCall("Premium pages and extras", function()
     collectablesRadiusInput.FocusLost:Connect(function()
         collectablesRadius = updateRadius(collectablesRadiusInput, collectablesRadius)
     end)
+    petalRadiusInput.FocusLost:Connect(function()
+        petalRadius = updateRadius(petalRadiusInput, petalRadius)
+    end)
 
     local bssKeybinds = {}
     local bssKeyInputs = {
         warningStart = warningStartKeyBox,
         warningStop = warningStopKeyBox,
         collectToggle = collectToggleKeyBox,
+        petalToggle = petalKeyBox,
     }
     local function keyToText(key)
         if not key then return "NONE" end
@@ -4706,6 +4735,12 @@ __EB1478_safeCall("Premium pages and extras", function()
             collectToggleKeyBox:ReleaseFocus()
         end
     end)
+    petalApplyButton.Activated:Connect(function()
+        applyBSSKeybind("petalToggle", petalKeyBox)
+        if UserInputService:GetFocusedTextBox() == petalKeyBox then
+            petalKeyBox:ReleaseFocus()
+        end
+    end)
 
     local function getBSSPosition(object)
         if not object then return nil end
@@ -4751,6 +4786,34 @@ __EB1478_safeCall("Premium pages and extras", function()
             end
         end
         return nearest, nearestPosition
+    end
+
+    -- Find the closest loaded Workspace.Particles.PetalPart in a player-centered
+    -- X/Y/Z range box (matching the Collectibles C range behaviour).
+    -- Supports multiple PetalPart instances nested inside folders or models.
+    local function findNearestPetal(origin, radius)
+        local particles = workspace:FindFirstChild("Particles")
+        if not particles then return nil, nil, nil, 0 end
+        local nearest, nearestPosition, nearestDistance = nil, nil, math.huge
+        local matched = 0
+        for _, object in ipairs(particles:GetDescendants()) do
+            if object.Name == "PetalPart" then
+                matched = matched + 1
+                local position = getBSSPosition(object)
+                if position then
+                    local offset = position - origin
+                    if math.abs(offset.X) <= radius
+                        and math.abs(offset.Y) <= radius
+                        and math.abs(offset.Z) <= radius then
+                        local distance = offset.Magnitude
+                        if distance < nearestDistance then
+                            nearest, nearestPosition, nearestDistance = object, position, distance
+                        end
+                    end
+                end
+            end
+        end
+        return nearest, nearestPosition, nearestDistance, matched
     end
 
     -- Search the box centered on the local player's HumanoidRootPart.
@@ -4928,9 +4991,66 @@ __EB1478_safeCall("Premium pages and extras", function()
         end)
     end
 
+    -- PetalPart has its own toggle loop and range, independent of Collectibles C.
+    -- Always teleport the LOCAL PLAYER character, never move the PetalPart itself.
+    local function setPetalEnabled(enabled)
+        petalVersion = petalVersion + 1
+        petalOn = enabled and not destroyed
+        petalToggleButton.Text = petalOn and "AUTO TP TO PETAL   •   ON" or "AUTO TP TO PETAL   •   OFF"
+        petalToggleButton.BackgroundColor3 = petalOn and C.green or C.accent
+        petalState.Text = petalOn and "ON  •  Scanning every 0.1 seconds." or "OFF  •  Toggle or use your assigned key."
+        petalState.TextColor3 = petalOn and C.green or C.muted
+        if not petalOn then
+            bssStatus.Text = "PetalPart auto TP stopped."
+            bssStatus.TextColor3 = C.muted
+            return
+        end
+        petalRadius = updateRadius(petalRadiusInput, petalRadius)
+        local thisVersion = petalVersion
+        bssStatus.Text = "PetalPart auto TP enabled: +/- " .. petalRadius .. " studs on each axis."
+        bssStatus.TextColor3 = C.green
+        task.spawn(function()
+            while not destroyed and petalOn and thisVersion == petalVersion do
+                local ok, err = pcall(function()
+                    local character, root = getBSSLocalCharacter()
+                    if not character then
+                        petalState.Text = "ON  •  Waiting for your character..."
+                        return
+                    end
+                    local requestedRadius = tonumber(petalRadiusInput.Text)
+                    if requestedRadius and requestedRadius == requestedRadius then
+                        petalRadius = math.clamp(math.floor(requestedRadius + 0.5), 5, 10000)
+                    end
+                    local target, position, distance, found = findNearestPetal(root.Position, petalRadius)
+                    if destroyed or not petalOn or thisVersion ~= petalVersion then return end
+                    if not workspace:FindFirstChild("Particles") then
+                        petalState.Text = "ON  •  Workspace.Particles not found."
+                        petalState.TextColor3 = C.yellow
+                    elseif not target then
+                        petalState.Text = string.format("ON  •  %d PetalPart found; none in range.", found)
+                        petalState.TextColor3 = C.yellow
+                    elseif moveToBSSPosition(position) then
+                        petalState.Text = string.format("ON  •  PetalPart TP (%.1f studs)", distance)
+                        petalState.TextColor3 = C.green
+                    else
+                        petalState.Text = "ON  •  Character could not teleport."
+                        petalState.TextColor3 = C.yellow
+                    end
+                end)
+                if not ok then
+                    warn("[ErrorB1478Menu][PetalPart Auto TP] " .. tostring(err))
+                    petalState.Text = "SCAN ERROR  •  Check F9"
+                    petalState.TextColor3 = C.red
+                end
+                task.wait(0.1)
+            end
+        end)
+    end
+
     warningStartButton.Activated:Connect(function() setWarningEnabled(true) end)
     warningStopButton.Activated:Connect(function() setWarningEnabled(false) end)
     collectTeleportButton.Activated:Connect(function() setCollectEnabled(not collectOn) end)
+    petalToggleButton.Activated:Connect(function() setPetalEnabled(not petalOn) end)
 
     -- Keyboard shortcuts only work when gameplay has keyboard focus, and
     -- they are disconnected by DESTROY ALL or automatic menu replacement.
@@ -4944,6 +5064,8 @@ __EB1478_safeCall("Premium pages and extras", function()
             setWarningEnabled(false)
         elseif bssKeybinds.collectToggle and input.KeyCode == bssKeybinds.collectToggle then
             setCollectEnabled(not collectOn)
+        elseif bssKeybinds.petalToggle and input.KeyCode == bssKeybinds.petalToggle then
+            setPetalEnabled(not petalOn)
         end
     end))
     registerCleanup(function()
@@ -4951,11 +5073,13 @@ __EB1478_safeCall("Premium pages and extras", function()
         warningOn = false
         collectVersion = collectVersion + 1
         collectOn = false
+        petalVersion = petalVersion + 1
+        petalOn = false
     end)
 
     local bssList = Instance.new("ScrollingFrame")
     bssList.Name = "HiddenStickersList"
-    bssList.Position = UDim2.fromOffset(20, 556)
+    bssList.Position = UDim2.fromOffset(20, 746)
     bssList.Size = UDim2.new(1, -40, 0, 219)
     bssList.BackgroundColor3 = C.background
     bssList.BorderSizePixel = 0
