@@ -1,3 +1,4 @@
+-- BSS MODES: Collectibles C and PetalPart each have TELEPORT / FLY / WALK selectors and adjustable speeds.
 -- BSS AUTO DIG: New integrated ON/OFF button fires ReplicatedStorage.Events.ToolCollect while enabled. No extra GUI, no clipboard action.
 -- FIXED COMMANDO: The optional AFK Commando Chick feature runs in an isolated protected section.
 -- CINEMATIC PORTAL GUN: Animated vortex portals, neon lighting, plasma particles, built-in sci-fi sounds, energy beams, screen pulse, detailed blaster Tool and clean removal.
@@ -5411,11 +5412,10 @@ __EB1478_safeCall("Premium pages and extras", function()
     petalState.Size = UDim2.new(1, -26, 0, 31)
     petalState.Text = "OFF  •  Scan PetalPart every 0.1s while enabled."
 
-    -- Flight speed is exclusive to Collectibles C. The PetalPart clone keeps
-    -- its original layout, so its existing toggle/keybind still work.
+    -- Both C and PetalPart now support Teleport / Fly / Walk movement modes.
     local collectCard = collectTeleportButton.Parent
-    collectCard.Size = UDim2.new(1, -40, 0, 225)
-    makeLabel(collectCard, "CollectableCSpeedLabel", "FLY SPEED (STUDS/SEC)",
+    collectCard.Size = UDim2.new(1, -40, 0, 287)
+    makeLabel(collectCard, "CollectableCSpeedLabel", "MOVE SPEED (STUDS/SEC)",
         UDim2.fromOffset(14, 142), UDim2.fromOffset(164, 28), 11, C.muted, true)
     local collectFlySpeedBox = Instance.new("TextBox")
     collectFlySpeedBox.Name = "CollectableCFlySpeed"
@@ -5436,15 +5436,69 @@ __EB1478_safeCall("Premium pages and extras", function()
     makeLabel(collectCard, "CollectableCSpeedTip", "Edit anytime",
         UDim2.fromOffset(287, 142), UDim2.fromOffset(110, 28), 10, C.muted, false)
 
-    -- Make room for the taller C card; all BSS sections remain scrollable.
-    petalCard.Position = UDim2.fromOffset(20, 438)
-    warningStartButton.Parent.Position = UDim2.fromOffset(20, 629)
+    -- Create a matching speed control for PetalPart, too. These fields affect
+    -- Fly and Walk; Teleport ignores speed and moves immediately.
+    petalCard.Size = UDim2.new(1, -40, 0, 287)
+    local petalSpeedLabel = collectCard:FindFirstChild("CollectableCSpeedLabel"):Clone()
+    petalSpeedLabel.Name = "PetalSpeedLabel"
+    petalSpeedLabel.Parent = petalCard
+    local petalSpeedBox = collectFlySpeedBox:Clone()
+    petalSpeedBox.Name = "PetalMoveSpeed"
+    petalSpeedBox.Text = "80"
+    petalSpeedBox.Parent = petalCard
+    local petalSpeedTip = collectCard:FindFirstChild("CollectableCSpeedTip"):Clone()
+    petalSpeedTip.Name = "PetalSpeedTip"
+    petalSpeedTip.Parent = petalCard
+
+    -- Each card has its own mode row. The buttons are real radio-like toggles:
+    -- one mode selected at a time. An active movement loop is restarted on
+    -- mode change so old Fly/Walk movement cannot carry on in the background.
+    local movementModes = {C = "Fly", Petal = "Teleport"}
+    local modeButtonGroups = {}
+    local modeChangeHandler
+    local function addBSSModeRow(card, kind)
+        makeLabel(card, kind .. "ModeLabel", "MOVE MODE",
+            UDim2.fromOffset(13, 178), UDim2.fromOffset(105, 25), 10, C.muted, true)
+        local buttons = {}
+        for i, mode in ipairs({"Teleport", "Fly", "Walk"}) do
+            local button = makeButton(card, kind .. mode .. "Mode", mode:upper(),
+                UDim2.new((i - 1) / 3, 12 - (i - 1) * 4, 0, 203),
+                UDim2.new(1/3, -20, 0, 34), false)
+            button.TextSize = 11
+            buttons[mode] = button
+            button.Activated:Connect(function()
+                if destroyed or movementModes[kind] == mode then return end
+                movementModes[kind] = mode
+                for buttonMode, modeButton in pairs(buttons) do
+                    modeButton.BackgroundColor3 = buttonMode == mode and C.accent or C.panel2
+                    modeButton.TextColor3 = buttonMode == mode and C.text or C.muted
+                end
+                if modeChangeHandler then modeChangeHandler(kind) end
+            end)
+        end
+        modeButtonGroups[kind] = buttons
+        buttons[movementModes[kind]].BackgroundColor3 = C.accent
+        buttons[movementModes[kind]].TextColor3 = C.text
+    end
+    addBSSModeRow(collectCard, "C")
+    addBSSModeRow(petalCard, "Petal")
+    collectState.Position = UDim2.fromOffset(13, 244)
+    collectState.Size = UDim2.new(1, -26, 0, 34)
+    collectState.TextWrapped = true
+    petalState.Position = UDim2.fromOffset(13, 244)
+    petalState.Size = UDim2.new(1, -26, 0, 34)
+    petalState.TextWrapped = true
+
+    -- Keep these cards positioned by the scrolling-page layout below.
+    petalCard.Position = UDim2.fromOffset(20, 500)
+    warningStartButton.Parent.Position = UDim2.fromOffset(20, 800)
     makeLabel(bssPage, "AutoTPDescription",
-        "C flies at your chosen speed. Max 3 arrivals per C. Range: +/- X/Y/Z. Other BSS teleports unchanged.",
+        "C and PetalPart: TELEPORT, FLY or WALK. Edit speed and +/- X/Y/Z range. C: max 3 arrivals per object.",
         UDim2.fromOffset(22, 850), UDim2.new(1, -44, 0, 31), 10, C.muted, false)
 
     local warningRadius, collectablesRadius, petalRadius = 100, 150, 150
-    local collectFlySpeed = 80 -- studs per second; adjustable while flying
+    local collectFlySpeed = 80 -- Fly and Walk speed; Teleport ignores speed
+    local petalMoveSpeed = 80
     local petalOn = false
     local petalVersion = 0
     local warningOn = false
@@ -5503,6 +5557,15 @@ __EB1478_safeCall("Premium pages and extras", function()
         return collectFlySpeed
     end
     collectFlySpeedBox.FocusLost:Connect(updateCollectFlySpeed)
+    local function updatePetalSpeed()
+        local entered = tonumber(petalSpeedBox.Text)
+        if entered and entered == entered and entered > 0 then
+            petalMoveSpeed = math.clamp(math.floor(entered + 0.5), 5, 500)
+        end
+        petalSpeedBox.Text = tostring(petalMoveSpeed)
+        return petalMoveSpeed
+    end
+    petalSpeedBox.FocusLost:Connect(updatePetalSpeed)
     petalRadiusInput.FocusLost:Connect(function()
         petalRadius = updateRadius(petalRadiusInput, petalRadius)
     end)
@@ -5779,79 +5842,127 @@ __EB1478_safeCall("Premium pages and extras", function()
         end)
     end
 
-    -- C AUTO FLY: A single heartbeat-driven flight loop moves the character
-    -- smoothly toward the nearest C. Target scans happen at most every 0.1s.
-    -- The 3-visit limit increments only when the player REACHES the object,
-    -- never once per rendered frame or merely by choosing a target.
+    -- Shared WalkSpeed restoration. WALK uses Humanoid:MoveTo instead of
+    -- teleporting or moving parts; restoration happens on OFF, mode changes,
+    -- script replacement and DESTROY ALL. Both automatic tools may own it.
+    local walkSpeedBaseline = nil
+    local walkSpeedHumanoid = nil
+    local walkOwners = {}
+    local function releaseBSSWalk(owner)
+        walkOwners[owner] = nil
+        if not next(walkOwners) then
+            if walkSpeedHumanoid and walkSpeedHumanoid.Parent and walkSpeedBaseline then
+                pcall(function() walkSpeedHumanoid.WalkSpeed = walkSpeedBaseline end)
+            end
+            walkSpeedHumanoid, walkSpeedBaseline = nil, nil
+        end
+    end
+    local function applyBSSWalk(owner, humanoid, speed)
+        if walkSpeedHumanoid ~= humanoid then
+            if walkSpeedHumanoid and walkSpeedHumanoid.Parent and walkSpeedBaseline then
+                pcall(function() walkSpeedHumanoid.WalkSpeed = walkSpeedBaseline end)
+            end
+            walkSpeedHumanoid, walkSpeedBaseline = humanoid, humanoid.WalkSpeed
+        end
+        walkOwners[owner] = true
+        humanoid.WalkSpeed = speed
+    end
+    local function makeModeLabel(kind)
+        return movementModes[kind] == "Teleport" and "TP" or string.upper(movementModes[kind])
+    end
+    local function moveBSSByMode(character, root, humanoid, position, mode, speed, deltaTime, walkInfo)
+        local delta = position - root.Position
+        local remaining = delta.Magnitude
+        if mode == "Teleport" then
+            return moveToBSSPosition(position), remaining
+        elseif mode == "Fly" then
+            if remaining > 0.01 then
+                local step = math.min(remaining, speed * math.clamp(deltaTime, 0, 0.1))
+                character:PivotTo(CFrame.new(root.Position + delta.Unit * step) * character:GetPivot().Rotation)
+                root.AssemblyLinearVelocity = Vector3.zero
+                root.AssemblyAngularVelocity = Vector3.zero
+            end
+            return remaining <= math.max(0.01, speed * math.clamp(deltaTime, 0, 0.1)), remaining
+        else
+            -- MoveTo uses ordinary humanoid walking: it will not fly or jump
+            -- through walls. If the destination cannot be reached, the target
+            -- is not counted as visited.
+            applyBSSWalk(walkInfo.owner, humanoid, speed)
+            if remaining > 3 and os.clock() >= walkInfo.nextMove then
+                humanoid:MoveTo(position)
+                walkInfo.nextMove = os.clock() + 0.6
+            end
+            return remaining <= 3, remaining
+        end
+    end
+
+    -- C scanner always checks every loaded C and respects the 3-arrival cap.
+    -- Target scans are throttled to 0.1s; Fly/Walk movement uses Heartbeat.
     local function setCollectEnabled(enabled)
-        collectVersion = collectVersion + 1
+        collectVersion += 1
         collectOn = enabled and not destroyed
-        collectTeleportButton.Text = collectOn and "AUTO FLY TO C   •   ON" or "AUTO FLY TO C   •   OFF"
+        releaseBSSWalk("C")
+        collectTeleportButton.Text = "AUTO " .. makeModeLabel("C") .. " TO C   •   " .. (collectOn and "ON" or "OFF")
         collectTeleportButton.BackgroundColor3 = collectOn and C.green or C.accent
-        collectState.Text = collectOn and "ON  •  Flying toward nearby C objects." or "OFF  •  Click button or use your toggle key."
+        collectState.Text = collectOn and ("ON  •  " .. movementModes.C .. " toward nearby C objects.")
+            or "OFF  •  Select TELEPORT, FLY, or WALK; toggle to start."
         collectState.TextColor3 = collectOn and C.green or C.muted
         if not collectOn then
-            bssStatus.Text = "Collectibles C auto fly stopped."
+            bssStatus.Text = "Collectibles C automation stopped."
             bssStatus.TextColor3 = C.muted
             return
         end
-
         collectablesRadius = updateRadius(collectablesRadiusInput, collectablesRadius)
         collectFlySpeed = updateCollectFlySpeed()
         local thisVersion = collectVersion
-        bssStatus.Text = "Collectibles auto fly ON • " .. collectFlySpeed .. " studs/sec • box range +/- " .. collectablesRadius
+        bssStatus.Text = "Collectibles " .. movementModes.C .. " ON • +/- " .. collectablesRadius .. " studs."
         bssStatus.TextColor3 = C.green
-
         task.spawn(function()
             local currentTarget = nil
-            local nextScanTime = 0
-            local lastStatusTime = 0
+            local nextScanTime, lastStatusTime = 0, 0
+            local walkInfo = {owner = "C", nextMove = 0}
             while not destroyed and collectOn and thisVersion == collectVersion do
-                -- Using Heartbeat means each step is proportional to elapsed time,
-                -- rather than jumping the full distance at 0.1-second intervals.
                 local dt = RunService.Heartbeat:Wait()
                 if destroyed or not collectOn or thisVersion ~= collectVersion then break end
-
                 local ok, err = pcall(function()
                     local character, root, username = getBSSLocalCharacter()
                     if not character then
                         currentTarget = nil
-                        if os.clock() >= lastStatusTime + 0.5 then
+                        if os.clock() - lastStatusTime >= 0.5 then
                             collectState.Text = "ON  •  Waiting for " .. username .. "'s character..."
                             lastStatusTime = os.clock()
                         end
                         return
                     end
-
-                    -- Read speed/range edits without requiring the toggle to restart.
-                    local speedNumber = tonumber(collectFlySpeedBox.Text)
-                    if speedNumber and speedNumber == speedNumber and speedNumber > 0 then
-                        collectFlySpeed = math.clamp(speedNumber, 5, 500)
+                    local humanoid = character:FindFirstChildOfClass("Humanoid")
+                    if not humanoid then return end
+                    local value = tonumber(collectFlySpeedBox.Text)
+                    if value and value == value and value > 0 then
+                        collectFlySpeed = math.clamp(value, 5, 500)
                     end
-                    local rangeNumber = tonumber(collectablesRadiusInput.Text)
-                    if rangeNumber and rangeNumber == rangeNumber then
-                        collectablesRadius = math.clamp(math.floor(rangeNumber + 0.5), 5, 10000)
+                    value = tonumber(collectablesRadiusInput.Text)
+                    if value and value == value then
+                        collectablesRadius = math.clamp(math.floor(value + 0.5), 5, 10000)
                     end
-
                     if currentTarget and (not currentTarget.Parent
                         or not currentTarget:IsDescendantOf(workspace)
                         or not getBSSPosition(currentTarget)) then
                         currentTarget = nil
                     end
-
                     local now = os.clock()
                     if not currentTarget and now >= nextScanTime then
                         nextScanTime = now + 0.1
-                        local target, position, _, found, positioned, inRange, folder, exhausted =
+                        local target, _, _, found, positioned, inRange, folder, exhausted =
                             findNearestCollectableInBox(root.Position, collectablesRadius)
                         if not folder then
                             collectState.Text = "ON  •  Missing Workspace.Collectibles / Collectables"
                             collectState.TextColor3 = C.yellow
-                        elseif target and position then
+                        elseif target then
                             currentTarget = target
+                            walkInfo.nextMove = 0
                         elseif now - lastStatusTime > 0.4 then
                             if inRange > 0 and exhausted == inRange then
-                                collectState.Text = string.format("ON  •  All %d in-range C objects visited 3 times", exhausted)
+                                collectState.Text = string.format("ON  •  All %d nearby C objects visited 3 times", exhausted)
                                 collectState.TextColor3 = C.green
                             else
                                 collectState.Text = string.format("ON  •  %d C found; %d positioned; %d in range", found, positioned, inRange)
@@ -5861,106 +5972,155 @@ __EB1478_safeCall("Premium pages and extras", function()
                         end
                     end
                     if not currentTarget then return end
-
                     local position = getBSSPosition(currentTarget)
-                    if not position then
-                        currentTarget = nil
-                        return
-                    end
-                    -- Exact destination for collection: the C object's world position.
-                    local delta = position - root.Position
-                    local remaining = delta.Magnitude
-                    local travelDistance = collectFlySpeed * math.clamp(dt, 0, 0.1)
-                    if remaining > 0.01 then
-                        local step = math.min(remaining, travelDistance)
-                        character:PivotTo(CFrame.new(root.Position + delta.Unit * step) * character:GetPivot().Rotation)
-                        root.AssemblyLinearVelocity = Vector3.zero
-                        root.AssemblyAngularVelocity = Vector3.zero
-                    end
-
-                    -- Count ONE completed arrival per selected C. Never count
-                    -- per animation frame or before reaching the target.
-                    if remaining <= travelDistance + 0.01 then
+                    if not position then currentTarget = nil return end
+                    local arrived, remaining = moveBSSByMode(character, root, humanoid,
+                        position, movementModes.C, collectFlySpeed, dt, walkInfo)
+                    if arrived then
                         local count = cTeleportCount(currentTarget, position, true)
-                        collectState.Text = string.format("ON  •  %s reached C %d/%d at %g studs/sec", username, count, maxTeleportsPerC, collectFlySpeed)
+                        collectState.Text = string.format("ON  •  %s reached C %d/%d (%s)",
+                            username, count, maxTeleportsPerC, makeModeLabel("C"))
                         collectState.TextColor3 = C.green
                         currentTarget = nil
                         nextScanTime = os.clock() + 0.1
                         lastStatusTime = os.clock()
-                    elseif now - lastStatusTime >= 0.3 then
-                        collectState.Text = string.format("ON  •  Flying %.0f studs to C at %g studs/sec", remaining, collectFlySpeed)
+                    elseif now - lastStatusTime >= 0.4 then
+                        collectState.Text = string.format("ON  •  %s %.0f studs to C at %g studs/sec",
+                            movementModes.C, remaining, collectFlySpeed)
                         collectState.TextColor3 = C.green
                         lastStatusTime = now
                     end
                 end)
                 if not ok then
                     currentTarget = nil
-                    warn("[ErrorB1478Menu][Collectibles C Auto Fly] " .. tostring(err))
-                    if collectOn and thisVersion == collectVersion and not destroyed then
-                        collectState.Text = "FLIGHT ERROR  •  Check F9"
+                    warn("[ErrorB1478Menu][Collectibles C " .. movementModes.C .. "] " .. tostring(err))
+                    if not destroyed and collectOn and thisVersion == collectVersion then
+                        collectState.Text = "MOVEMENT ERROR  •  Check F9"
                         collectState.TextColor3 = C.red
                     end
                     task.wait(0.1)
                 end
             end
+            if thisVersion == collectVersion then releaseBSSWalk("C") end
         end)
     end
 
-    -- PetalPart has its own toggle loop and range, independent of Collectibles C.
-    -- Always teleport the LOCAL PLAYER character, never move the PetalPart itself.
+    -- PetalPart independently supports the same three movement modes.
     local function setPetalEnabled(enabled)
-        petalVersion = petalVersion + 1
+        petalVersion += 1
         petalOn = enabled and not destroyed
-        petalToggleButton.Text = petalOn and "AUTO TP TO PETAL   •   ON" or "AUTO TP TO PETAL   •   OFF"
+        releaseBSSWalk("Petal")
+        petalToggleButton.Text = "AUTO " .. makeModeLabel("Petal") .. " TO PETAL   •   " .. (petalOn and "ON" or "OFF")
         petalToggleButton.BackgroundColor3 = petalOn and C.green or C.accent
-        petalState.Text = petalOn and "ON  •  Scanning every 0.1 seconds." or "OFF  •  Toggle or use your assigned key."
+        petalState.Text = petalOn and ("ON  •  " .. movementModes.Petal .. " toward PetalPart objects.")
+            or "OFF  •  Select TELEPORT, FLY, or WALK; toggle to start."
         petalState.TextColor3 = petalOn and C.green or C.muted
         if not petalOn then
-            bssStatus.Text = "PetalPart auto TP stopped."
+            bssStatus.Text = "PetalPart movement stopped."
             bssStatus.TextColor3 = C.muted
             return
         end
         petalRadius = updateRadius(petalRadiusInput, petalRadius)
+        petalMoveSpeed = updatePetalSpeed()
         local thisVersion = petalVersion
-        bssStatus.Text = "PetalPart auto TP enabled: +/- " .. petalRadius .. " studs on each axis."
+        bssStatus.Text = "PetalPart " .. movementModes.Petal .. " ON • +/- " .. petalRadius .. " studs."
         bssStatus.TextColor3 = C.green
         task.spawn(function()
+            local currentTarget = nil
+            local nextScanTime, lastStatusTime = 0, 0
+            local walkInfo = {owner = "Petal", nextMove = 0}
             while not destroyed and petalOn and thisVersion == petalVersion do
+                local dt = RunService.Heartbeat:Wait()
+                if destroyed or not petalOn or thisVersion ~= petalVersion then break end
                 local ok, err = pcall(function()
                     local character, root = getBSSLocalCharacter()
                     if not character then
-                        petalState.Text = "ON  •  Waiting for your character..."
+                        currentTarget = nil
+                        if os.clock() - lastStatusTime > 0.5 then
+                            petalState.Text = "ON  •  Waiting for your character..."
+                            lastStatusTime = os.clock()
+                        end
                         return
                     end
-                    local requestedRadius = tonumber(petalRadiusInput.Text)
-                    if requestedRadius and requestedRadius == requestedRadius then
-                        petalRadius = math.clamp(math.floor(requestedRadius + 0.5), 5, 10000)
+                    local humanoid = character:FindFirstChildOfClass("Humanoid")
+                    if not humanoid then return end
+                    local value = tonumber(petalSpeedBox.Text)
+                    if value and value == value and value > 0 then
+                        petalMoveSpeed = math.clamp(value, 5, 500)
                     end
-                    local target, position, distance, found = findNearestPetal(root.Position, petalRadius)
-                    if destroyed or not petalOn or thisVersion ~= petalVersion then return end
-                    if not workspace:FindFirstChild("Particles") then
-                        petalState.Text = "ON  •  Workspace.Particles not found."
-                        petalState.TextColor3 = C.yellow
-                    elseif not target then
-                        petalState.Text = string.format("ON  •  %d PetalPart found; none in range.", found)
-                        petalState.TextColor3 = C.yellow
-                    elseif moveToBSSPosition(position) then
-                        petalState.Text = string.format("ON  •  PetalPart TP (%.1f studs)", distance)
+                    value = tonumber(petalRadiusInput.Text)
+                    if value and value == value then
+                        petalRadius = math.clamp(math.floor(value + 0.5), 5, 10000)
+                    end
+                    local now = os.clock()
+                    if currentTarget and (not currentTarget.Parent
+                        or not currentTarget:IsDescendantOf(workspace)
+                        or not getBSSPosition(currentTarget)) then
+                        currentTarget = nil
+                    end
+                    if not currentTarget and now >= nextScanTime then
+                        nextScanTime = now + 0.1
+                        local target, _, _, found = findNearestPetal(root.Position, petalRadius)
+                        if not workspace:FindFirstChild("Particles") then
+                            petalState.Text = "ON  •  Workspace.Particles not found."
+                            petalState.TextColor3 = C.yellow
+                        elseif target then
+                            currentTarget = target
+                            walkInfo.nextMove = 0
+                        elseif now - lastStatusTime >= 0.4 then
+                            petalState.Text = string.format("ON  •  %d PetalPart found; none in range", found)
+                            petalState.TextColor3 = C.yellow
+                            lastStatusTime = now
+                        end
+                    end
+                    if not currentTarget then return end
+                    local position = getBSSPosition(currentTarget)
+                    if not position then currentTarget = nil return end
+                    local arrived, remaining = moveBSSByMode(character, root, humanoid,
+                        position, movementModes.Petal, petalMoveSpeed, dt, walkInfo)
+                    if arrived then
+                        petalState.Text = string.format("ON  •  PetalPart reached (%s)", makeModeLabel("Petal"))
                         petalState.TextColor3 = C.green
-                    else
-                        petalState.Text = "ON  •  Character could not teleport."
-                        petalState.TextColor3 = C.yellow
+                        currentTarget = nil
+                        nextScanTime = os.clock() + 0.1
+                        lastStatusTime = os.clock()
+                    elseif now - lastStatusTime >= 0.4 then
+                        petalState.Text = string.format("ON  •  %s %.0f studs to Petal at %g studs/sec",
+                            movementModes.Petal, remaining, petalMoveSpeed)
+                        petalState.TextColor3 = C.green
+                        lastStatusTime = now
                     end
                 end)
                 if not ok then
-                    warn("[ErrorB1478Menu][PetalPart Auto TP] " .. tostring(err))
-                    petalState.Text = "SCAN ERROR  •  Check F9"
-                    petalState.TextColor3 = C.red
+                    currentTarget = nil
+                    warn("[ErrorB1478Menu][PetalPart " .. movementModes.Petal .. "] " .. tostring(err))
+                    if not destroyed and petalOn and thisVersion == petalVersion then
+                        petalState.Text = "MOVEMENT ERROR  •  Check F9"
+                        petalState.TextColor3 = C.red
+                    end
+                    task.wait(0.1)
                 end
-                task.wait(0.1)
             end
+            if thisVersion == petalVersion then releaseBSSWalk("Petal") end
         end)
     end
+
+    -- Changes apply immediately, even while the selected automation is ON.
+    modeChangeHandler = function(kind)
+        if kind == "C" then
+            local wasOn = collectOn
+            setCollectEnabled(false)
+            collectTeleportButton.Text = "AUTO " .. makeModeLabel("C") .. " TO C   •   OFF"
+            if wasOn then setCollectEnabled(true) end
+        else
+            local wasOn = petalOn
+            setPetalEnabled(false)
+            petalToggleButton.Text = "AUTO " .. makeModeLabel("Petal") .. " TO PETAL   •   OFF"
+            if wasOn then setPetalEnabled(true) end
+        end
+    end
+    collectTeleportButton.Text = "AUTO FLY TO C   •   OFF"
+    petalToggleButton.Text = "AUTO TP TO PETAL   •   OFF"
 
     warningStartButton.Activated:Connect(function() setWarningEnabled(true) end)
     warningStopButton.Activated:Connect(function() setWarningEnabled(false) end)
@@ -5990,6 +6150,8 @@ __EB1478_safeCall("Premium pages and extras", function()
         collectOn = false
         petalVersion = petalVersion + 1
         petalOn = false
+        releaseBSSWalk("C")
+        releaseBSSWalk("Petal")
     end)
 
     local bssList = Instance.new("ScrollingFrame")
@@ -6101,8 +6263,8 @@ __EB1478_safeCall("Premium pages and extras", function()
     bssPage.ElasticBehavior = Enum.ElasticBehavior.WhenScrollable
 
     -- Most-used automation tools first.
-    placeBSS(collectCard, 225, 14)
-    placeBSS(petalCard, 181, 14)
+    placeBSS(collectCard, 287, 14)
+    placeBSS(petalCard, 287, 14)
     placeBSS(warningStartButton.Parent, 123, 12)
 
     local explanation = bssPage:FindFirstChild("AutoTPDescription")
