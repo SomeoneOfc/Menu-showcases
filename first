@@ -1,3 +1,4 @@
+-- BSS AUTO DIG: New integrated ON/OFF button fires ReplicatedStorage.Events.ToolCollect while enabled. No extra GUI, no clipboard action.
 -- FIXED COMMANDO: The optional AFK Commando Chick feature runs in an isolated protected section.
 -- CINEMATIC PORTAL GUN: Animated vortex portals, neon lighting, plasma particles, built-in sci-fi sounds, energy beams, screen pulse, detailed blaster Tool and clean removal.
 -- Left-click green, right-click blue, walk into a portal for local travel. Optional Universe ID opens a Roblox confirmation if supported.
@@ -6339,6 +6340,104 @@ __EB1478_safeCall("Premium pages and extras", function()
             active = false
             generation += 1
             unlockRoot()
+        end)
+    end)
+
+    -- BSS AUTO DIG: integrated toggle, no second ScreenGui or floating panel.
+    -- The original clipboard/Discord action is deliberately not included.
+    -- This optional section is isolated so unavailable game-specific remotes
+    -- cannot prevent the rest of the menu from loading.
+    __EB1478_safeCall("BSS Auto Dig", function()
+        local card = Instance.new("Frame")
+        card.Name = "BSSAutoDigCard"
+        card.BackgroundColor3 = C.panel
+        card.BorderSizePixel = 0
+        card.Size = UDim2.new(1, -40, 0, 136)
+        card.Position = UDim2.fromOffset(20, math.max(154, bssPage.CanvasSize.Y.Offset + 12))
+        card.Parent = bssPage
+        addCorner(card, 12)
+        addOutline(card, C.border, 0.3)
+        bssPage.CanvasSize = UDim2.fromOffset(0, card.Position.Y.Offset + 150)
+
+        makeLabel(card, "AutoDigTitle", "AUTO DIG  /  TOOL COLLECT",
+            UDim2.fromOffset(13, 7), UDim2.new(1, -26, 0, 24), 12, C.text, true)
+        local button = makeButton(card, "AutoDigToggle", "AUTO DIG  •  OFF",
+            UDim2.fromOffset(13, 36), UDim2.new(1, -26, 0, 41), true)
+        button.TextSize = 13
+        local status = makeLabel(card, "AutoDigStatus",
+            "OFF  •  Uses ReplicatedStorage.Events.ToolCollect.",
+            UDim2.fromOffset(13, 85), UDim2.new(1, -26, 0, 38), 11, C.muted, false)
+        status.TextWrapped = true
+
+        local active = false
+        local digConnection = nil
+        local digEvent = nil
+
+        local function updateStatus(message, color)
+            if destroyed or not card.Parent then return end
+            status.Text = message
+            status.TextColor3 = color or C.muted
+        end
+
+        local function stopDig(message, color)
+            active = false
+            if digConnection then
+                digConnection:Disconnect()
+                digConnection = nil
+            end
+            digEvent = nil
+            if not destroyed and button.Parent then
+                button.Text = "AUTO DIG  •  OFF"
+            end
+            if message then updateStatus(message, color) end
+        end
+
+        local function startDig()
+            if destroyed or active then return end
+            -- FindFirstChild is nonblocking: do not freeze menu startup or button clicks.
+            local eventsFolder = ReplicatedStorage:FindFirstChild("Events")
+            local remote = eventsFolder and eventsFolder:FindFirstChild("ToolCollect")
+            if not remote or not remote:IsA("RemoteEvent") then
+                stopDig("ToolCollect RemoteEvent not found in ReplicatedStorage.Events.", C.red)
+                warn("[ErrorB1478Menu][Auto Dig] Missing ReplicatedStorage.Events.ToolCollect RemoteEvent")
+                return
+            end
+
+            digEvent = remote
+            active = true
+            button.Text = "AUTO DIG  •  ON"
+            updateStatus("ON  •  Collecting automatically while enabled.", C.green)
+
+            -- Match the provided auto-dig behaviour: no extra menu, no manual swing.
+            -- Use one event fire per rendered frame, as in the supplied script.
+            digConnection = RunService.RenderStepped:Connect(function()
+                if destroyed or not active then
+                    stopDig()
+                    return
+                end
+                if not digEvent or not digEvent:IsDescendantOf(ReplicatedStorage) then
+                    stopDig("ToolCollect was removed. Auto Dig stopped.", C.yellow)
+                    return
+                end
+                local ok, err = pcall(function()
+                    digEvent:FireServer()
+                end)
+                if not ok then
+                    warn("[ErrorB1478Menu][Auto Dig] " .. tostring(err))
+                    stopDig("Auto Dig stopped after a remote error. See F9.", C.red)
+                end
+            end)
+        end
+
+        button.Activated:Connect(function()
+            if active then
+                stopDig("OFF  •  Automatic collecting stopped.", C.muted)
+            else
+                startDig()
+            end
+        end)
+        registerCleanup(function()
+            stopDig()
         end)
     end)
 
