@@ -1,3 +1,4 @@
+-- VEHICLE MOVEMENT UPDATE: Fly and Noclip also follow the vehicle you are seated in; restores vehicle collisions when disabled or exiting.
 -- BSS MODES: Collectibles C and PetalPart each have TELEPORT / FLY / WALK selectors and adjustable speeds.
 -- BSS AUTO DIG: New integrated ON/OFF button fires ReplicatedStorage.Events.ToolCollect while enabled. No extra GUI, no clipboard action.
 -- FIXED COMMANDO: The optional AFK Commando Chick feature runs in an isolated protected section.
@@ -284,6 +285,8 @@ local noclipDescendantConnection = nil
 local noclipEnforceConnection = nil
 local noclipOriginalCanCollide = {}
 local noclipCharacter = nil
+-- Tracks vehicle body parts separately, so leaving the car restores its collisions.
+local noclipVehicleState = {model = nil, original = {}, descendantConnection = nil}
 local infiniteJump = false
 
 local currentFlySpeed = 70
@@ -302,6 +305,8 @@ local savedJumpHeight = 7.2
 
 local bodyVelocity = nil
 local bodyGyro = nil
+-- A single flight controller follows either the avatar root or the seated vehicle.
+local vehicleFlightState = {target = nil, originalAutoRotate = nil, inVehicle = false}
 
 local connections = {}
 
@@ -348,6 +353,57 @@ end
 local function getCharacter()
     return player.Character
 end
+
+-- Locate the car that the *local player* is actually sitting in. VehicleSeat
+-- drivers and passengers in a Seat inside a model with a VehicleSeat are both
+-- supported. Do not accidentally apply flight/noclip to arbitrary benches.
+local getSeatedVehicle = (function()
+    local previousSeat, previousRoot, previousModel
+    return function()
+        local h = getHumanoid()
+        local seat = h and h.SeatPart
+        if not seat or not seat.Parent or not seat:IsA("BasePart") then
+            return nil, nil
+        end
+        if not (seat:IsA("VehicleSeat") or seat:IsA("Seat")) then
+            return nil, nil
+        end
+        if seat.Occupant and seat.Occupant ~= h then
+            return nil, nil
+        end
+        if previousSeat == seat and previousRoot and previousRoot.Parent
+            and previousModel and previousModel.Parent then
+            return previousRoot, previousModel
+        end
+
+        local root = seat.AssemblyRootPart or seat
+        if player.Character and root:IsDescendantOf(player.Character) then
+            root = seat
+        end
+        local model
+        local ancestor = seat.Parent
+        while ancestor and ancestor ~= workspace do
+            if ancestor:IsA("Model") then
+                if seat:IsA("VehicleSeat") then
+                    if not model then model = ancestor end
+                    -- Include the vehicle shell when the seat is nested in a
+                    -- chassis submodel but the physics root sits outside it.
+                    if root:IsDescendantOf(ancestor) then
+                        model = ancestor
+                        break
+                    end
+                elseif ancestor:FindFirstChildWhichIsA("VehicleSeat", true) then
+                    model = ancestor
+                    break
+                end
+            end
+            ancestor = ancestor.Parent
+        end
+        if not model or model == player.Character then return nil, nil end
+        previousSeat, previousRoot, previousModel = seat, root, model
+        return root, model
+    end
+end)()
 
 --==================================================
 -- GUI
@@ -845,8 +901,8 @@ movementInfo.Size = UDim2.fromOffset(450, 100)
 movementInfo.Position = UDim2.fromOffset(20, 340)
 movementInfo.BackgroundTransparency = 1
 movementInfo.Text =
-    "F = Fly\n" ..
-    "N = Noclip\n" ..
+    "F = Fly (also works when seated in a car)\n" ..
+    "N = Noclip (character + vehicle)\n" ..
     "J = Infinite Jump\n" ..
     "G = Open / minimize menu"
 movementInfo.TextColor3 =
@@ -902,72 +958,130 @@ end
 -- FLY
 --==================================================
 
-local function startFly()
-    if destroyed or flying then
+-- Reattach the same flight controller whenever the player gets into/out of a
+-- car. A BodyVelocity on the character root cannot fly a seated vehicle.
+local function refreshFlyTarget()
+    if not flying or destroyed then return end
+    local vehicleRoot = getSeatedVehicle()
+    local target = vehicleRoot or getRoot()
+    if not target or not target.Parent then return end
+    if vehicleFlightState.target == target and bodyVelocity and bodyGyro then
         return
     end
 
-    local root = getRoot()
+    if bodyVelocity then bodyVelocity:Destroy() end
+    if bodyGyro then bodyGyro:Destroy() end
+    bodyVelocity, bodyGyro = nil, nil
 
-    if not root then
-        return
-    end
-
-    flying = true
+    local vehicleMode = vehicleRoot ~= nil
+    vehicleFlightState.target = target
+    vehicleFlightState.inVehicle = vehicleMode
 
     bodyVelocity = Instance.new("BodyVelocity")
     bodyVelocity.Name = "MenuFlyVelocity"
-    bodyVelocity.MaxForce =
-        Vector3.new(100000, 100000, 100000)
     bodyVelocity.Velocity = Vector3.zero
-    bodyVelocity.Parent = root
+    if vehicleMode then
+        -- A vehicle assembly is much heavier than a character.
+        local mass = math.max(target.AssemblyMass, 1)
+        bodyVelocity.MaxForce = Vector3.new(1, 1, 1) * math.max(300000, mass * 20000)
+        bodyVelocity.P = math.max(2500, mass * 700)
+    else
+        bodyVelocity.MaxForce = Vector3.new(100000, 100000, 100000)
+    end
+    bodyVelocity.Parent = target
 
     bodyGyro = Instance.new("BodyGyro")
     bodyGyro.Name = "MenuFlyGyro"
-    bodyGyro.MaxTorque =
-        Vector3.new(100000, 100000, 100000)
-    bodyGyro.P = 10000
-    bodyGyro.CFrame = root.CFrame
-    bodyGyro.Parent = root
+    bodyGyro.CFrame = target.CFrame
+    if vehicleMode then
+        local mass = math.max(target.AssemblyMass, 1)
+        bodyGyro.MaxTorque = Vector3.new(1, 1, 1) * math.max(300000, mass * 20000)
+        bodyGyro.P = math.max(12000, mass * 900)
+        bodyGyro.D = math.max(600, mass * 65)
+    else
+        bodyGyro.MaxTorque = Vector3.new(100000, 100000, 100000)
+        bodyGyro.P = 10000
+    end
+    bodyGyro.Parent = target
+end
 
+local function startFly()
+    if destroyed or flying then return end
+    if not getRoot() and not getSeatedVehicle() then return end
+    flying = true
     local h = getHumanoid()
-
     if h then
+        vehicleFlightState.originalAutoRotate = h.AutoRotate
         h.AutoRotate = false
     end
-
+    refreshFlyTarget()
     setFlyButtonState()
 end
 
 local function stopFly()
     flying = false
-
-    if bodyVelocity then
-        bodyVelocity:Destroy()
-        bodyVelocity = nil
-    end
-
-    if bodyGyro then
-        bodyGyro:Destroy()
-        bodyGyro = nil
-    end
+    if bodyVelocity then bodyVelocity:Destroy() end
+    if bodyGyro then bodyGyro:Destroy() end
+    bodyVelocity, bodyGyro = nil, nil
+    vehicleFlightState.target = nil
+    vehicleFlightState.inVehicle = false
 
     local h = getHumanoid()
-
-    if h then
-        h.AutoRotate = true
+    if h and vehicleFlightState.originalAutoRotate ~= nil then
+        h.AutoRotate = vehicleFlightState.originalAutoRotate
     end
-
+    vehicleFlightState.originalAutoRotate = nil
     setFlyButtonState()
 end
 
 --==================================================
--- NOCLIP
+-- NOCLIP (CHARACTER + SEATED VEHICLE)
 --==================================================
+
+local function restoreVehicleCollision()
+    if noclipVehicleState.descendantConnection then
+        noclipVehicleState.descendantConnection:Disconnect()
+        noclipVehicleState.descendantConnection = nil
+    end
+    for part, original in pairs(noclipVehicleState.original) do
+        if part and part.Parent and part:IsA("BasePart") then
+            part.CanCollide = original
+        end
+    end
+    table.clear(noclipVehicleState.original)
+    noclipVehicleState.model = nil
+end
+
+local function syncVehicleCollision()
+    local _, vehicleModel = getSeatedVehicle()
+    if vehicleModel ~= noclipVehicleState.model then
+        restoreVehicleCollision()
+        noclipVehicleState.model = vehicleModel
+        if vehicleModel then
+            noclipVehicleState.descendantConnection = vehicleModel.DescendantAdded:Connect(function(part)
+                if noclip and not destroyed and part:IsA("BasePart") then
+                    if noclipVehicleState.original[part] == nil then
+                        noclipVehicleState.original[part] = part.CanCollide
+                    end
+                    part.CanCollide = false
+                end
+            end)
+        end
+    end
+    if vehicleModel then
+        for _, part in ipairs(vehicleModel:GetDescendants()) do
+            if part:IsA("BasePart") then
+                if noclipVehicleState.original[part] == nil then
+                    noclipVehicleState.original[part] = part.CanCollide
+                end
+                if part.CanCollide then part.CanCollide = false end
+            end
+        end
+    end
+end
 
 local function setNoclip(enabled)
     noclip = enabled
-
     if noclipDescendantConnection then
         noclipDescendantConnection:Disconnect()
         noclipDescendantConnection = nil
@@ -978,55 +1092,62 @@ local function setNoclip(enabled)
     end
 
     local character = getCharacter()
-    if not character then
-        setNoclipButtonState()
-        return
-    end
-
-    if noclipCharacter ~= character then
-        noclipOriginalCanCollide = {}
+    -- Always restore the previous character's collision state on respawn.
+    if character ~= noclipCharacter then
+        for part, original in pairs(noclipOriginalCanCollide) do
+            if part and part.Parent and part:IsA("BasePart") then
+                part.CanCollide = original
+            end
+        end
+        table.clear(noclipOriginalCanCollide)
         noclipCharacter = character
     end
 
-    local function disablePartCollision(object)
-        if object:IsA("BasePart") then
-            if noclipOriginalCanCollide[object] == nil then
-                noclipOriginalCanCollide[object] = object.CanCollide
+    local function disablePartCollision(part)
+        if part:IsA("BasePart") then
+            if noclipOriginalCanCollide[part] == nil then
+                noclipOriginalCanCollide[part] = part.CanCollide
             end
-            object.CanCollide = false
+            if part.CanCollide then part.CanCollide = false end
         end
     end
 
     if enabled then
-        for _, object in ipairs(character:GetDescendants()) do
-            disablePartCollision(object)
-        end
-
-        noclipDescendantConnection = character.DescendantAdded:Connect(function(object)
-            if noclip and not destroyed then
-                disablePartCollision(object)
+        if character then
+            for _, part in ipairs(character:GetDescendants()) do
+                disablePartCollision(part)
             end
-        end)
-
+            noclipDescendantConnection = character.DescendantAdded:Connect(function(part)
+                if noclip and not destroyed then
+                    disablePartCollision(part)
+                end
+            end)
+        end
+        syncVehicleCollision()
+        local lastCheck = 0
         noclipEnforceConnection = trackServiceConnection(RunService.Stepped:Connect(function()
             if destroyed or not noclip then return end
+            local now = os.clock()
+            if now - lastCheck < 0.08 then return end
+            lastCheck = now
+            -- Restore old car collisions when leaving/changing vehicles.
+            syncVehicleCollision()
             local activeCharacter = getCharacter()
-            if activeCharacter ~= character then return end
-            for _, object in ipairs(character:GetDescendants()) do
-                if object:IsA("BasePart") and object.CanCollide then
-                    disablePartCollision(object)
+            if activeCharacter and activeCharacter == noclipCharacter then
+                for _, part in ipairs(activeCharacter:GetDescendants()) do
+                    if part:IsA("BasePart") then disablePartCollision(part) end
                 end
             end
         end))
     else
-        for object, originalValue in pairs(noclipOriginalCanCollide) do
-            if object and object.Parent and object:IsA("BasePart") then
-                object.CanCollide = originalValue
+        restoreVehicleCollision()
+        for part, original in pairs(noclipOriginalCanCollide) do
+            if part and part.Parent and part:IsA("BasePart") then
+                part.CanCollide = original
             end
         end
-        noclipOriginalCanCollide = {}
+        table.clear(noclipOriginalCanCollide)
     end
-
     setNoclipButtonState()
 end
 
@@ -1195,16 +1316,14 @@ local flyConnection =
                 return
             end
 
-            if not bodyVelocity then
-                return
-            end
+            -- Seamlessly swap between character flight and vehicle flight.
+            -- This also handles entering a car while Fly is already enabled.
+            refreshFlyTarget()
+            if not bodyVelocity then return end
 
-            local root = getRoot()
+            local root = vehicleFlightState.target
             local camera = workspace.CurrentCamera
-
-            if not root or not camera then
-                return
-            end
+            if not root or not root.Parent or not camera then return end
 
             local direction =
                 Vector3.zero
@@ -1261,8 +1380,16 @@ local flyConnection =
                 direction
 
             if bodyGyro then
-                bodyGyro.CFrame =
-                    camera.CFrame
+                if vehicleFlightState.inVehicle then
+                    -- Level the car, but let the camera choose its heading.
+                    local forward = camera.CFrame.LookVector
+                    local flat = Vector3.new(forward.X, 0, forward.Z)
+                    if flat.Magnitude > 0.01 then
+                        bodyGyro.CFrame = CFrame.lookAt(root.Position, root.Position + flat.Unit)
+                    end
+                else
+                    bodyGyro.CFrame = camera.CFrame
+                end
             end
         end
     ))
