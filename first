@@ -1,3 +1,4 @@
+-- FIX: Fly speed can now be changed with Enter, clicking away, Apply, +10/-10, and Reset. Works on foot and while seated.
 -- VEHICLE MOVEMENT UPDATE: Fly and Noclip also follow the vehicle you are seated in; restores vehicle collisions when disabled or exiting.
 -- BSS MODES: Collectibles C and PetalPart each have TELEPORT / FLY / WALK selectors and adjustable speeds.
 -- BSS AUTO DIG: New integrated ON/OFF button fires ReplicatedStorage.Events.ToolCollect while enabled. No extra GUI, no clipboard action.
@@ -1240,28 +1241,75 @@ setSpeedButton.MouseButton1Click:Connect(
     end
 )
 
-setFlySpeedButton.MouseButton1Click:Connect(
-    function()
-        local value =
-            tonumber(flySpeedBox.Text)
+-- Fly-speed input: apply on Enter, clicking away, the Apply button, or
+-- the +/- quick buttons. The flight RenderStepped loop uses currentFlySpeed
+-- for both seated vehicles and normal character flight, so changes are live.
+do
+    flySpeedBox.Name = "FlySpeedInput"
+    flySpeedBox.PlaceholderText = "Fly speed (10-500)"
+    flySpeedBox.ClearTextOnFocus = false
 
-        if not value then
-            flySpeedBox.Text =
-                tostring(currentFlySpeed)
-            return
+    local inputCaption = Instance.new("TextLabel")
+    inputCaption.Name = "FlySpeedCaption"
+    inputCaption.BackgroundTransparency = 1
+    inputCaption.Position = UDim2.fromOffset(330, 146)
+    inputCaption.Size = UDim2.fromOffset(140, 17)
+    inputCaption.TextXAlignment = Enum.TextXAlignment.Left
+    inputCaption.Font = Enum.Font.GothamSemibold
+    inputCaption.TextSize = 11
+    inputCaption.TextColor3 = Color3.fromRGB(150, 178, 230)
+    inputCaption.Text = "FLY SPEED (STUDS/S)"
+    inputCaption.Parent = movementPage
+
+    local slower = createMovementButton("- 10 SPEED", 20, 283, 140)
+    slower.Name = "FlySpeedDecrease"
+    local faster = createMovementButton("+ 10 SPEED", 175, 283, 140)
+    faster.Name = "FlySpeedIncrease"
+    local resetSpeed = createMovementButton("RESET SPEED", 330, 283, 140)
+    resetSpeed.Name = "FlySpeedReset"
+
+    local status = Instance.new("TextLabel")
+    status.Name = "FlySpeedCurrentStatus"
+    status.Position = UDim2.fromOffset(22, 329)
+    status.Size = UDim2.new(1, -44, 0, 22)
+    status.BackgroundTransparency = 1
+    status.TextXAlignment = Enum.TextXAlignment.Left
+    status.Font = Enum.Font.GothamSemibold
+    status.TextSize = 12
+    status.TextColor3 = Color3.fromRGB(120, 218, 160)
+    status.Parent = movementPage
+
+    local function applyFlySpeed(value)
+        local number = tonumber(tostring(value):match("^%s*(.-)%s*$"))
+        if number and number == number and number > -math.huge and number < math.huge then
+            currentFlySpeed = math.clamp(math.floor(number + 0.5), 10, 500)
         end
-
-        currentFlySpeed =
-            math.clamp(
-                value,
-                10,
-                500
-            )
-
-        flySpeedBox.Text =
-            tostring(currentFlySpeed)
+        -- Always correct invalid input and show the actual applied value.
+        flySpeedBox.Text = tostring(currentFlySpeed)
+        status.Text = "ACTIVE FLY SPEED: " .. currentFlySpeed .. " studs/s  |  on foot + in vehicles"
+        setFlySpeedButton.Text = "APPLY FLY SPEED"
     end
-)
+
+    setFlySpeedButton.Activated:Connect(function()
+        applyFlySpeed(flySpeedBox.Text)
+    end)
+    flySpeedBox.FocusLost:Connect(function()
+        applyFlySpeed(flySpeedBox.Text)
+    end)
+    slower.Activated:Connect(function()
+        -- Prefer the typed number, even if Apply has not been clicked yet.
+        local typed = tonumber(flySpeedBox.Text)
+        applyFlySpeed((typed or currentFlySpeed) - 10)
+    end)
+    faster.Activated:Connect(function()
+        local typed = tonumber(flySpeedBox.Text)
+        applyFlySpeed((typed or currentFlySpeed) + 10)
+    end)
+    resetSpeed.Activated:Connect(function()
+        applyFlySpeed(70)
+    end)
+    applyFlySpeed(currentFlySpeed)
+end
 
 setJumpButton.MouseButton1Click:Connect(
     function()
@@ -6946,7 +6994,7 @@ __EB1478_safeCall("Studio edition UI and Toolkit", function()
     movementInfo.Text = "KEYBOARD SHORTCUTS\nF  —  Fly     N  —  Noclip     J  —  Infinite jump\nG  —  Hide/show     P  —  Save menu position\nCtrl + K  —  Find a tool"
     movementInfo.TextColor3 = COLORS.muted
     movementInfo.TextSize = 12
-    movementInfo.Position = UDim2.fromOffset(22, 350)
+    movementInfo.Position = UDim2.fromOffset(22, 373)
     movementInfo.Size = UDim2.new(1, -44, 0, 118)
     movementInfo.TextYAlignment = Enum.TextYAlignment.Top
 
