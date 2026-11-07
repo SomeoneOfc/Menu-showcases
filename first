@@ -6796,12 +6796,12 @@ __EB1478_safeCall("Premium pages and extras", function()
         card.Name = "BSSPuffshroomHuntCard"
         card.BackgroundColor3 = C.panel
         card.BorderSizePixel = 0
-        card.Size = UDim2.new(1, -40, 0, 274)
+        card.Size = UDim2.new(1, -40, 0, 332)
         card.Position = UDim2.fromOffset(20, math.max(154, bssPage.CanvasSize.Y.Offset + 12))
         card.Parent = bssPage
         addCorner(card, 12)
         addOutline(card, C.border, 0.3)
-        bssPage.CanvasSize = UDim2.fromOffset(0, card.Position.Y.Offset + 290)
+        bssPage.CanvasSize = UDim2.fromOffset(0, card.Position.Y.Offset + 348)
 
         makeLabel(card, "PuffTitle", "PUFFSHROOM HUNT  /  AUTO C COLLECT",
             UDim2.fromOffset(13, 8), UDim2.new(1, -26, 0, 25), 12, C.text, true)
@@ -6853,20 +6853,112 @@ __EB1478_safeCall("Premium pages and extras", function()
         end
         local rangeBox = numericBox("PuffHuntRange", 300, 0.035)
         local speedBox = numericBox("PuffHuntSpeed", 80, 0.53)
+        -- Puffshroom keybind controls live inside this existing scrolling BSS card.
+        -- NONE disables the shortcut; the on-screen toggle always stays available.
+        makeLabel(card, "PuffKeyLabel", "TOGGLE KEYBIND", 
+            UDim2.fromOffset(14, 220), UDim2.new(1, -26, 0, 18), 10, C.muted, true)
+        local keyBox = Instance.new("TextBox")
+        keyBox.Name = "PuffshroomToggleKeybind"
+        keyBox.Position = UDim2.fromOffset(13, 240)
+        keyBox.Size = UDim2.new(0.48, -15, 0, 31)
+        keyBox.BackgroundColor3 = C.panel2
+        keyBox.BorderSizePixel = 0
+        keyBox.ClearTextOnFocus = false
+        keyBox.Text = "NONE"
+        keyBox.PlaceholderText = "F8, Z, NONE..."
+        keyBox.Font = Enum.Font.GothamSemibold
+        keyBox.TextSize = 12
+        keyBox.TextColor3 = C.text
+        keyBox.PlaceholderColor3 = C.muted
+        keyBox.Parent = card
+        addCorner(keyBox, 7)
+        addOutline(keyBox, C.border, 0.25)
+        local applyKeyButton = makeButton(card, "PuffApplyKey", "APPLY KEY",
+            UDim2.new(0.49, 0, 0, 240), UDim2.new(0.29, -5, 0, 31), false)
+        applyKeyButton.TextSize = 11
+        local clearKeyButton = makeButton(card, "PuffClearKey", "NONE",
+            UDim2.new(0.79, 0, 0, 240), UDim2.new(0.21, -12, 0, 31), false)
+        clearKeyButton.TextSize = 11
         makeLabel(card, "PuffCollectionWindow", "AFTER PUFF DESPAWNS: COLLECT C FOR 10 SECONDS",
-            UDim2.fromOffset(13, 219), UDim2.new(1, -26, 0, 19), 10, C.muted, true)
+            UDim2.fromOffset(13, 276), UDim2.new(1, -26, 0, 19), 10, C.muted, true)
         local status = makeLabel(card, "PuffHuntStatus", "OFF  •  Choose a movement mode, then start.",
-            UDim2.fromOffset(13, 240), UDim2.new(1, -26, 0, 27), 11, C.muted, false)
+            UDim2.fromOffset(13, 297), UDim2.new(1, -26, 0, 29), 11, C.muted, false)
         status.TextWrapped = true
 
         local running = false
         local version = 0
         local currentWalk = nil
+        local toggleKey = nil
         local function statusText(message, color)
             if destroyed or not card.Parent then return end
             status.Text = message
             status.TextColor3 = color or C.muted
         end
+        local function keyDisplay(key)
+            if not key then return "NONE" end
+            if key == Enum.KeyCode.Quote then return "'" end
+            if key == Enum.KeyCode.BackSlash then return "\\" end
+            return key.Name
+        end
+        local function parseKey(text)
+            local name = tostring(text or ""):match("^%s*(.-)%s*$")
+            local upper = name:upper()
+            if upper == "NONE" or upper == "" then return nil, true end
+            if name == "'" then return Enum.KeyCode.Quote, true end
+            if name == "\\" then return Enum.KeyCode.BackSlash, true end
+            if upper == "ESC" then upper = "ESCAPE" end
+            for _, key in ipairs(Enum.KeyCode:GetEnumItems()) do
+                if key ~= Enum.KeyCode.Unknown and key.Name:upper() == upper then
+                    return key, true
+                end
+            end
+            return nil, false
+        end
+        local function applyKey()
+            if destroyed then return end
+            local key, valid = parseKey(keyBox.Text)
+            if not valid then
+                statusText("Unknown key. Try F8, Z, X or NONE.", C.yellow)
+                keyBox.Text = keyDisplay(toggleKey)
+                return
+            end
+            -- Avoid conflicting with the menu's existing core shortcuts.
+            local reserved = {menuToggleKey, flyToggleKey, noclipToggleKey,
+                jumpToggleKey, espToggleKey, positionSaveKey,
+                teleportHoldKey, destroyAllKey, mouseLockKey,
+                monochromeKey, commandSearchKey}
+            for _, used in pairs(reserved) do
+                if key and used == key then
+                    statusText("Key already used by the menu. Choose another.", C.yellow)
+                    keyBox.Text = keyDisplay(toggleKey)
+                    return
+                end
+            end
+            -- Other BSS cards own their key inputs; don't silently double bind.
+            if key then
+                for _, other in ipairs(bssPage:GetDescendants()) do
+                    if other ~= keyBox and other:IsA("TextBox")
+                        and (other.Name:find("Keybind") or other.Name:find("KeyBox")) then
+                        local otherKey = parseKey(other.Text)
+                        if otherKey and otherKey == key then
+                            statusText("This key is already assigned in BSS.", C.yellow)
+                            keyBox.Text = keyDisplay(toggleKey)
+                            return
+                        end
+                    end
+                end
+            end
+            toggleKey = key
+            keyBox.Text = keyDisplay(toggleKey)
+            statusText("Puffshroom toggle key: " .. keyBox.Text, C.green)
+        end
+        applyKeyButton.Activated:Connect(applyKey)
+        keyBox.FocusLost:Connect(applyKey)
+        clearKeyButton.Activated:Connect(function()
+            toggleKey = nil
+            keyBox.Text = "NONE"
+            statusText("Puffshroom keybind disabled; button still works.", C.muted)
+        end)
         local function values()
             local range = tonumber(rangeBox.Text)
             range = range and range == range and math.clamp(math.floor(range + 0.5), 5, 10000) or 300
@@ -7165,7 +7257,7 @@ __EB1478_safeCall("Premium pages and extras", function()
                             local delta = position - root.Position
                             if delta.Magnitude > 4 then
                                 local arrived = moveToPoint(character, root, humanoid,
-                                    position, mode, speed, dt, currentWalk)
+                                    position, speed, dt, currentWalk)
                                 if arrived and now >= nextStatus then
                                     statusText("At " .. activePuff.Name .. " • waiting for despawn", C.green)
                                     nextStatus = now + 0.7
@@ -7196,7 +7288,7 @@ __EB1478_safeCall("Premium pages and extras", function()
                                 local cPosition = positionOf(currentC)
                                 if cPosition then
                                     local arrived = moveToPoint(character, root, humanoid,
-                                        cPosition, mode, speed, dt, currentWalk)
+                                        cPosition, speed, dt, currentWalk)
                                     if arrived then
                                         collectionCounts[currentC] = (collectionCounts[currentC] or 0) + 1
                                         currentC = nil
@@ -7221,14 +7313,23 @@ __EB1478_safeCall("Premium pages and extras", function()
                 if session == version then releaseWalk() end
             end)
         end
-        toggle.Activated:Connect(function()
+        local function togglePuffshroom()
+            if destroyed then return end
             if running then
                 stop()
                 statusText("OFF  •  Puffshroom hunt stopped.", C.muted)
             else
                 start()
             end
-        end)
+        end
+        toggle.Activated:Connect(togglePuffshroom)
+        trackServiceConnection(UserInputService.InputBegan:Connect(function(input, processed)
+            if destroyed or processed or not toggleKey then return end
+            if UserInputService:GetFocusedTextBox() or keyCaptureTarget then return end
+            if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == toggleKey then
+                togglePuffshroom()
+            end
+        end))
         for choice, button in pairs(modes) do
             button.Activated:Connect(function()
                 if destroyed or mode == choice then return end
