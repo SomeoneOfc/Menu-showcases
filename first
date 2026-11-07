@@ -1,3 +1,5 @@
+-- PUFFSHROOM HUNT: Fly/Walk/Teleport to Puffshrooms, wait for disappearance, collect C for 10 seconds, repeat.
+-- WALK NAVIGATION: C/Petal/Puff Walk uses Roblox PathfindingService with jumping, retries and obstacle detection.
 -- FIX: Fly speed can now be changed with Enter, clicking away, Apply, +10/-10, and Reset. Works on foot and while seated.
 -- VEHICLE MOVEMENT UPDATE: Fly and Noclip also follow the vehicle you are seated in; restores vehicle collisions when disabled or exiting.
 -- BSS MODES: Collectibles C and PetalPart each have TELEPORT / FLY / WALK selectors and adjustable speeds.
@@ -31,7 +33,7 @@
 -- G reuses the same GUI. Every reopen lands at UDim2.fromScale(0.5, 0.5).
 -- FPS chooser shows preferred target only; real cap must be selected in Roblox Settings.
 -- ERRORB1478 MENU - REVIEWED SAFE-LOAD BUILD
--- Install as a LocalScript in StarterPlayer > StarterPlayerScripts.
+-- Install as a LocalScript in StarterPlayer &gt; StarterPlayerScripts.
 -- Do not use loadstring/HttpGet in a normal Studio LocalScript.
 -- Error Monitor is optional and OFF by default; F9 diagnostics remain available. G moves the same GUI right, around the bottom outside the screen, and parks it left for reopening.
 -- HIDE / KEEP only animates the existing GUI; DESTROY ALL permanently removes this LocalScript, GUI, effects and listeners until next Play session.
@@ -44,7 +46,7 @@
 -- Optional character parts, humanoids, cameras, user IDs, and tool textures are checked
 -- before use where needed. Some variables intentionally start as nil until a feature is
 -- activated (for example bodyVelocity, bodyGyro, and connection handles).
--- Run this as a LocalScript in StarterPlayer > StarterPlayerScripts.
+-- Run this as a LocalScript in StarterPlayer &gt; StarterPlayerScripts.
 -- Do not wrap this file in loadstring(game:HttpGet(...))() in ordinary Roblox Studio;
 -- install it directly as a LocalScript instead.
 
@@ -107,7 +109,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local player = Players.LocalPlayer
 
 if not RunService:IsClient() or not player then
-    warn("[ErrorB1478Menu] This must be a LocalScript in StarterPlayer > StarterPlayerScripts (not a Script or ModuleScript).")
+    warn("[ErrorB1478Menu] This must be a LocalScript in StarterPlayer &gt; StarterPlayerScripts (not a Script or ModuleScript).")
     return
 end
 
@@ -142,7 +144,7 @@ if existingMenu then
         -- BindableEvent callbacks run asynchronously. Do not start a new
         -- menu until the old instance confirms destruction by disappearing.
         local deadline = os.clock() + 3
-        while existingMenu.Parent and os.clock() < deadline do
+        while existingMenu.Parent and os.clock() &lt; deadline do
             task.wait(0.03)
         end
     end
@@ -227,7 +229,7 @@ local function recordClientError(message)
     __EB1478_errorCount += 1
     local line = "#" .. tostring(__EB1478_errorCount) .. ": " .. tostring(message or "Unknown client error")
     table.insert(__EB1478_errorLines, line)
-    while #__EB1478_errorLines > 7 do table.remove(__EB1478_errorLines, 1) end
+    while #__EB1478_errorLines &gt; 7 do table.remove(__EB1478_errorLines, 1) end
     warn("[ErrorB1478Menu][F9] Client error " .. line)
     if errorMonitorEnabled then
         buildErrorMonitor()
@@ -1129,7 +1131,7 @@ local function setNoclip(enabled)
         noclipEnforceConnection = trackServiceConnection(RunService.Stepped:Connect(function()
             if destroyed or not noclip then return end
             local now = os.clock()
-            if now - lastCheck < 0.08 then return end
+            if now - lastCheck &lt; 0.08 then return end
             lastCheck = now
             -- Restore old car collisions when leaving/changing vehicles.
             syncVehicleCollision()
@@ -1281,7 +1283,7 @@ do
 
     local function applyFlySpeed(value)
         local number = tonumber(tostring(value):match("^%s*(.-)%s*$"))
-        if number and number == number and number > -math.huge and number < math.huge then
+        if number and number == number and number &gt; -math.huge and number &lt; math.huge then
             currentFlySpeed = math.clamp(math.floor(number + 0.5), 10, 500)
         end
         -- Always correct invalid input and show the actual applied value.
@@ -1418,7 +1420,7 @@ local flyConnection =
                     Vector3.new(0, 1, 0)
             end
 
-            if direction.Magnitude > 0 then
+            if direction.Magnitude &gt; 0 then
                 direction =
                     direction.Unit *
                     currentFlySpeed
@@ -1432,7 +1434,7 @@ local flyConnection =
                     -- Level the car, but let the camera choose its heading.
                     local forward = camera.CFrame.LookVector
                     local flat = Vector3.new(forward.X, 0, forward.Z)
-                    if flat.Magnitude > 0.01 then
+                    if flat.Magnitude &gt; 0.01 then
                         bodyGyro.CFrame = CFrame.lookAt(root.Position, root.Position + flat.Unit)
                     end
                 else
@@ -1809,7 +1811,7 @@ local function refreshFolders()
     table.sort(
         allFolders,
         function(a, b)
-            return a.Path < b.Path
+            return a.Path &lt; b.Path
         end
     )
 
@@ -1985,7 +1987,7 @@ showPage(homePage)
 
 --==================================================
 -- Combined script
--- KEYBINDS, RESPAWN, PANIC & FINAL SETUP
+-- KEYBINDS, RESPAWN, PANIC &amp; FINAL SETUP
 --==================================================
 
 --==================================================
@@ -2226,7 +2228,7 @@ local espRefreshConnection = trackServiceConnection(RunService.Heartbeat:Connect
         return
     end
     espRefreshElapsed += deltaTime
-    if espRefreshElapsed < 1.0 then
+    if espRefreshElapsed &lt; 1.0 then
         return
     end
     espRefreshElapsed = 0
@@ -2372,9 +2374,9 @@ setMenuVisible = function(visible)
         local bottomRight = getMenuOffscreenBottomPosition(rightPosition)
         local bottomLeft = getMenuOffscreenBottomPosition(leftPosition)
 
-        -- Visible path: original location -> past the RIGHT edge.
-        -- Hidden/off-screen path: go BELOW the viewport -> across to LEFT
-        -- -> back up to off-screen LEFT, ready for the next G press.
+        -- Visible path: original location -&gt; past the RIGHT edge.
+        -- Hidden/off-screen path: go BELOW the viewport -&gt; across to LEFT
+        -- -&gt; back up to off-screen LEFT, ready for the next G press.
         -- Nothing is hidden, disabled, destroyed or cloned.
         moveMenuTo(rightPosition, menuSlideDuration,
             Enum.EasingDirection.In, token, function()
@@ -2444,7 +2446,7 @@ local inputConnection = trackServiceConnection(UserInputService.InputBegan:Conne
             if refreshOptionsLabels then refreshOptionsLabels() end
             return
         end
-        if processed or os.clock() - lastKeyCaptureAt < 0.08 then return end
+        if processed or os.clock() - lastKeyCaptureAt &lt; 0.08 then return end
 
         -- Nil bindings are genuinely disabled. A shortcut that matches None
         -- cannot fire, and assigning None does not affect the GUI buttons.
@@ -2495,8 +2497,8 @@ local function pointWithinGui(guiObject, point)
     if not guiObject or not guiObject.Parent or not guiObject.Visible then return false end
     local topLeft = guiObject.AbsolutePosition
     local size = guiObject.AbsoluteSize
-    return point.X >= topLeft.X and point.X <= topLeft.X + size.X
-        and point.Y >= topLeft.Y and point.Y <= topLeft.Y + size.Y
+    return point.X &gt;= topLeft.X and point.X &lt;= topLeft.X + size.X
+        and point.Y &gt;= topLeft.Y and point.Y &lt;= topLeft.Y + size.Y
 end
 
 trackServiceConnection(UserInputService.InputBegan:Connect(function(input, processed)
@@ -2504,7 +2506,7 @@ trackServiceConnection(UserInputService.InputBegan:Connect(function(input, proce
     if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
     if UserInputService:GetFocusedTextBox() then return end
     if not UserInputService:IsKeyDown(teleportHoldKey) then return end
-    if os.clock() - lastClickTeleportAt < 0.2 then return end
+    if os.clock() - lastClickTeleportAt &lt; 0.2 then return end
 
     local pointer = UserInputService:GetMouseLocation()
     -- GUI uses IgnoreGuiInset=true, so its AbsolutePosition is screen-aligned.
@@ -2517,7 +2519,7 @@ trackServiceConnection(UserInputService.InputBegan:Connect(function(input, proce
     local root = getRoot()
     local humanoid = character and character:FindFirstChildOfClass("Humanoid")
     local camera = workspace.CurrentCamera
-    if not camera or not character or not root or not humanoid or humanoid.Health <= 0 then return end
+    if not camera or not character or not root or not humanoid or humanoid.Health &lt;= 0 then return end
 
     -- GetMouseLocation is viewport-based; ViewportPointToRay avoids the
     -- top-bar inset mismatch when ScreenGui.IgnoreGuiInset is true.
@@ -2549,7 +2551,7 @@ trackServiceConnection(UserInputService.InputBegan:Connect(function(input, proce
         root.AssemblyLinearVelocity = Vector3.zero
         root.AssemblyAngularVelocity = Vector3.zero
         -- Wall and ceiling: hold the clicked height until movement starts.
-        if normal.Y < 0.6 then
+        if normal.Y &lt; 0.6 then
             root.Anchored = true
             local thisRoot = root
             local released = false
@@ -2962,11 +2964,11 @@ __EB1478_safeCall("UI upgrade / responsive theme", function()
         styled[object] = true
 
         if object:IsA("TextLabel") then
-            object.Font = object.TextSize >= 18 and Enum.Font.GothamBold or Enum.Font.Gotham
+            object.Font = object.TextSize &gt;= 18 and Enum.Font.GothamBold or Enum.Font.Gotham
             if object.TextColor3 ~= UI.accent and object.TextColor3 ~= UI.success then
-                object.TextColor3 = (object.TextSize <= 12) and UI.muted or UI.text
+                object.TextColor3 = (object.TextSize &lt;= 12) and UI.muted or UI.text
             end
-            object.TextWrapped = object.TextWrapped or object.TextSize <= 13
+            object.TextWrapped = object.TextWrapped or object.TextSize &lt;= 13
             object.BackgroundTransparency = object.BackgroundTransparency
 
         elseif object:IsA("TextButton") then
@@ -2975,7 +2977,7 @@ __EB1478_safeCall("UI upgrade / responsive theme", function()
             object.TextColor3 = UI.text
             object.TextSize = math.clamp(object.TextSize, 12, 15)
             object.BorderSizePixel = 0
-            if object.BackgroundTransparency >= 1 then
+            if object.BackgroundTransparency &gt;= 1 then
                 object.BackgroundTransparency = 0
                 object.BackgroundColor3 = UI.panelSoft
             elseif object.BackgroundColor3 == Color3.fromRGB(65, 105, 180) then
@@ -3050,7 +3052,7 @@ __EB1478_safeCall("UI upgrade / responsive theme", function()
                 object.BackgroundColor3 = UI.panel
             elseif object == uiContent then
                 object.BackgroundColor3 = UI.background
-            elseif object.BackgroundTransparency < 1 then
+            elseif object.BackgroundTransparency &lt; 1 then
                 object.BackgroundColor3 = UI.panel
                 addCorner(object, 11)
                 addStroke(object, UI.border, 0.68, 1)
@@ -4246,7 +4248,7 @@ __EB1478_safeCall("Premium pages and extras", function()
             container.Parent = state.rootFolder
             local point = hitPosition + hitNormal * 0.24
             local tangent = hitNormal:Cross(Vector3.yAxis)
-            if tangent.Magnitude < 0.1 then tangent = hitNormal:Cross(Vector3.xAxis) end
+            if tangent.Magnitude &lt; 0.1 then tangent = hitNormal:Cross(Vector3.xAxis) end
             tangent = tangent.Unit
             local upward = tangent:Cross(hitNormal).Unit
             -- Each portal is an animated layered energy disc oriented to the hit surface.
@@ -4330,7 +4332,7 @@ __EB1478_safeCall("Premium pages and extras", function()
         local function makeBeam(startPoint, endPoint, color)
             if not state.rootFolder then return end
             local delta = endPoint - startPoint
-            if delta.Magnitude < 0.5 then return end
+            if delta.Magnitude &lt; 0.5 then return end
             local bolt = newPart(state.rootFolder, "PortalGunEnergyBeam",
                 Vector3.new(0.16, 0.16, delta.Magnitude),
                 CFrame.lookAt((startPoint + endPoint) / 2, endPoint), color, Enum.Material.Neon, 0.08)
@@ -4383,7 +4385,7 @@ __EB1478_safeCall("Premium pages and extras", function()
             local offset = root.Position - record.point
             local signedDistance = offset:Dot(record.normal)
             local radial = offset - record.normal * signedDistance
-            return signedDistance > -0.8 and signedDistance < 4.3 and radial.Magnitude < 2.9
+            return signedDistance &gt; -0.8 and signedDistance &lt; 4.3 and radial.Magnitude &lt; 2.9
         end
         local function promptTravel()
             if not state.experienceId then
@@ -4403,7 +4405,7 @@ __EB1478_safeCall("Premium pages and extras", function()
         local function animatePortals(deltaTime)
             state.animClock += deltaTime
             -- Throttle expensive CFrame work to about 25 updates a second.
-            if state.animClock < 0.04 then return end
+            if state.animClock &lt; 0.04 then return end
             state.animClock = 0
             local t = os.clock()
             for _, record in pairs(state.portals) do
@@ -4447,7 +4449,7 @@ __EB1478_safeCall("Premium pages and extras", function()
                 state.armed = true
                 return
             end
-            if not state.armed or os.clock() - state.lastTeleport < 1.4 then return end
+            if not state.armed or os.clock() - state.lastTeleport &lt; 1.4 then return end
             if state.travelMode then
                 if nearGreen then
                     state.armed = false
@@ -4681,7 +4683,7 @@ __EB1478_safeCall("Premium pages and extras", function()
             end)
             local volumeButton = panelButton("Volume", "VOL: 70%", 233, 176, 97)
             volumeButton.Activated:Connect(function()
-                state.intensity = state.intensity >= 1 and 0 or math.min(1, state.intensity + 0.1)
+                state.intensity = state.intensity &gt;= 1 and 0 or math.min(1, state.intensity + 0.1)
                 volumeButton.Text = "VOL: " .. math.floor(state.intensity * 100 + 0.5) .. "%"
             end)
             textLabel("UniverseHint", "OTHER EXPERIENCE   •   optional Universe ID", 213, 18, 10,
@@ -4705,7 +4707,7 @@ __EB1478_safeCall("Premium pages and extras", function()
             local apply = panelButton("ApplyUniverse", "APPLY ID", 233, 237, 97)
             apply.Activated:Connect(function()
                 local value = tonumber((idBox.Text or ""):match("^%s*(%d+)%s*$"))
-                if not value or value < 1 or value ~= math.floor(value) then
+                if not value or value &lt; 1 or value ~= math.floor(value) then
                     portalMessage("Enter a valid numeric Universe ID.", C.red)
                     return
                 end
@@ -4810,10 +4812,10 @@ __EB1478_safeCall("Premium pages and extras", function()
         nextPageButton.Text = currentFunPage == pageCount and "LAST ▶" or "NEXT ▶"
     end
     previousPageButton.Activated:Connect(function()
-        if currentFunPage > 1 then showFunPage(currentFunPage - 1) end
+        if currentFunPage &gt; 1 then showFunPage(currentFunPage - 1) end
     end)
     nextPageButton.Activated:Connect(function()
-        if currentFunPage < pageCount then showFunPage(currentFunPage + 1) end
+        if currentFunPage &lt; pageCount then showFunPage(currentFunPage + 1) end
     end)
     showFunPage(1)
     setFunStatus("Fun Zone: " .. #allFunButtons .. " features across " .. pageCount .. " pages. Portal Gun is on the last page.", C.green)
@@ -4821,7 +4823,7 @@ __EB1478_safeCall("Premium pages and extras", function()
     end)
 
     __EB1478_safeCall("Options page and keybinds", function()
-    makeHeader(optionsPage, "Options & Keybinds", "Click CHANGE to assign a key. Click NONE to remove the shortcut.")
+    makeHeader(optionsPage, "Options &amp; Keybinds", "Click CHANGE to assign a key. Click NONE to remove the shortcut.")
     local optionsStatus = makeLabel(optionsPage, "OptionsStatus", "Hold T + left-click any world surface to teleport. ESC cancels a key change.", UDim2.fromOffset(22, 100), UDim2.new(1, -44, 0, 28), 11, C.muted, false)
     optionsStatus.TextWrapped = true
     keyCaptureStatusCallback = function(message)
@@ -5087,7 +5089,7 @@ __EB1478_safeCall("Premium pages and extras", function()
         end
     end
     createWaypoint.Activated:Connect(function()
-        if #waypoints >= 100 then
+        if #waypoints &gt;= 100 then
             waypointStatus.Text = "Maximum of 100 waypoints reached."
             waypointStatus.TextColor3 = C.red
             return
@@ -5155,10 +5157,10 @@ __EB1478_safeCall("Premium pages and extras", function()
         makeLabel(row, "Level", "[" .. (kind or "INFO") .. "]", UDim2.fromOffset(8, 0), UDim2.fromOffset(78, 35), 9, logColor, true)
         local messageLabel = makeLabel(row, "Message", tostring(message), UDim2.fromOffset(87, 0), UDim2.new(1, -94, 1, 0), 10, C.text, false)
         messageLabel.TextTruncate = Enum.TextTruncate.AtEnd
-        if logCount > 200 then
+        if logCount &gt; 200 then
             local oldest
             for _, child in ipairs(consoleList:GetChildren()) do
-                if child.Name == "LogRow" and (not oldest or child.LayoutOrder < oldest.LayoutOrder) then oldest = child end
+                if child.Name == "LogRow" and (not oldest or child.LayoutOrder &lt; oldest.LayoutOrder) then oldest = child end
             end
             if oldest then oldest:Destroy() end
         end
@@ -5190,6 +5192,8 @@ __EB1478_safeCall("Premium pages and extras", function()
     addLog("Menu UI and extra pages loaded.", "SUCCESS")
 
     end)
+
+    extraCleanup.bssMotion = {}
 
     __EB1478_safeCall("BSS HiddenStickers page", function()
     makeHeader(bssPage, "BSS • Teleport Tools", "Full planters, C, PetalPart, WarningDisk, Commando Chick and more.")
@@ -5229,7 +5233,7 @@ __EB1478_safeCall("Premium pages and extras", function()
         local character = player.Character
         local root = character and character:FindFirstChild("HumanoidRootPart")
         local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-        if not root or not humanoid or humanoid.Health <= 0 then
+        if not root or not humanoid or humanoid.Health &lt;= 0 then
             bssStatus.Text = "Your character isn't ready for teleporting."
             bssStatus.TextColor3 = C.yellow
             return
@@ -5255,7 +5259,7 @@ __EB1478_safeCall("Premium pages and extras", function()
                     if position then
                         fullCount = fullCount + 1
                         local distance = (root.Position - position).Magnitude
-                        if distance < bestDistance then
+                        if distance &lt; bestDistance then
                             nearestPosition = position
                             nearestBulb = ancestor
                             bestDistance = distance
@@ -5372,7 +5376,7 @@ __EB1478_safeCall("Premium pages and extras", function()
         local character = player.Character
         local root = character and character:FindFirstChild("HumanoidRootPart")
         local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-        if not root or not humanoid or humanoid.Health <= 0 then
+        if not root or not humanoid or humanoid.Health &lt;= 0 then
             bssStatus.Text = "Your character is not ready for teleporting."
             bssStatus.TextColor3 = C.yellow
             return
@@ -5396,7 +5400,7 @@ __EB1478_safeCall("Premium pages and extras", function()
                 end
                 if targetPosition then
                     local distance = (root.Position - targetPosition).Magnitude
-                    if distance < shortestDistance then
+                    if distance &lt; shortestDistance then
                         shortestDistance = distance
                         nearestPosition = targetPosition
                         nearestName = candidate.Name
@@ -5725,7 +5729,7 @@ __EB1478_safeCall("Premium pages and extras", function()
     end)
     local function updateCollectFlySpeed()
         local entered = tonumber(collectFlySpeedBox.Text)
-        if entered and entered == entered and entered > 0 then
+        if entered and entered == entered and entered &gt; 0 then
             collectFlySpeed = math.clamp(math.floor(entered + 0.5), 5, 500)
         end
         collectFlySpeedBox.Text = tostring(collectFlySpeed)
@@ -5734,7 +5738,7 @@ __EB1478_safeCall("Premium pages and extras", function()
     collectFlySpeedBox.FocusLost:Connect(updateCollectFlySpeed)
     local function updatePetalSpeed()
         local entered = tonumber(petalSpeedBox.Text)
-        if entered and entered == entered and entered > 0 then
+        if entered and entered == entered and entered &gt; 0 then
             petalMoveSpeed = math.clamp(math.floor(entered + 0.5), 5, 500)
         end
         petalSpeedBox.Text = tostring(petalMoveSpeed)
@@ -5871,7 +5875,7 @@ __EB1478_safeCall("Premium pages and extras", function()
                 local position = getBSSPosition(object)
                 if position then
                     local distance = (position - origin).Magnitude
-                    if distance <= bestDistance then
+                    if distance &lt;= bestDistance then
                         nearest, nearestPosition, bestDistance = object, position, distance
                     end
                 end
@@ -5894,11 +5898,11 @@ __EB1478_safeCall("Premium pages and extras", function()
                 local position = getBSSPosition(object)
                 if position then
                     local offset = position - origin
-                    if math.abs(offset.X) <= radius
-                        and math.abs(offset.Y) <= radius
-                        and math.abs(offset.Z) <= radius then
+                    if math.abs(offset.X) &lt;= radius
+                        and math.abs(offset.Y) &lt;= radius
+                        and math.abs(offset.Z) &lt;= radius then
                         local distance = offset.Magnitude
-                        if distance < nearestDistance then
+                        if distance &lt; nearestDistance then
                             nearest, nearestPosition, nearestDistance = object, position, distance
                         end
                     end
@@ -5909,7 +5913,7 @@ __EB1478_safeCall("Premium pages and extras", function()
     end
 
     -- Search the box centered on the local player's HumanoidRootPart.
-    -- Example: origin (0,0,0), RANGE 150 => X/Y/Z must EACH be between -150 and 150.
+    -- Example: origin (0,0,0), RANGE 150 =&gt; X/Y/Z must EACH be between -150 and 150.
     -- Among all matching C instances, pick the nearest in actual 3D distance.
     local function findNearestCollectableInBox(origin, radius)
         -- The game's folder may be spelled Collectibles or Collectables.
@@ -5927,18 +5931,18 @@ __EB1478_safeCall("Premium pages and extras", function()
             if not position then return end
             positionedCount = positionedCount + 1
             local offset = position - origin
-            if math.abs(offset.X) <= radius
-                and math.abs(offset.Y) <= radius
-                and math.abs(offset.Z) <= radius then
+            if math.abs(offset.X) &lt;= radius
+                and math.abs(offset.Y) &lt;= radius
+                and math.abs(offset.Z) &lt;= radius then
                 inRangeCount = inRangeCount + 1
                 -- Do not select this specific C after successfully TP'ing to it 3 times.
                 -- Continue scanning ALL other C instances for an eligible target.
-                if cTeleportCount(object, position, false) >= maxTeleportsPerC then
+                if cTeleportCount(object, position, false) &gt;= maxTeleportsPerC then
                     exhaustedCount = exhaustedCount + 1
                     return
                 end
                 local distance = offset.Magnitude
-                if distance < bestDistance then
+                if distance &lt; bestDistance then
                     nearest, nearestPosition, bestDistance = object, position, distance
                 end
             end
@@ -5963,7 +5967,7 @@ __EB1478_safeCall("Premium pages and extras", function()
         local character = verifiedPlayer.Character
         local root = character and character:FindFirstChild("HumanoidRootPart")
         local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-        if not root or not root:IsA("BasePart") or not humanoid or humanoid.Health <= 0 then
+        if not root or not root:IsA("BasePart") or not humanoid or humanoid.Health &lt;= 0 then
             return nil, nil, username
         end
         return character, root, username
@@ -6045,31 +6049,113 @@ __EB1478_safeCall("Premium pages and extras", function()
     local function makeModeLabel(kind)
         return movementModes[kind] == "Teleport" and "TP" or string.upper(movementModes[kind])
     end
+    -- Reusable obstacle-aware walker. A path is computed only when needed,
+    -- not every Heartbeat. Pathfinding waypoints marked Jump trigger a jump;
+    -- a short forward raycast also helps with small ledges and stairs.
+    -- This changes WALK for C, PetalPart, and the Puffshroom hunt.
+    local PathfindingService = game:GetService("PathfindingService")
+    local function walkBSSWithJumps(character, root, humanoid, destination, speed, info)
+        if info.cancelled then return false end
+        applyBSSWalk(info.owner, humanoid, math.clamp(speed, 5, 500))
+        local displacement = destination - root.Position
+        local horizontal = Vector3.new(displacement.X, 0, displacement.Z).Magnitude
+        local closeEnough = horizontal &lt;= 4 and math.abs(displacement.Y) &lt;= 7
+        if closeEnough then return true end
+        local now = os.clock()
+        local targetChanged = (not info.pathDestination) or
+            (info.pathDestination - destination).Magnitude &gt; 7
+        if targetChanged then
+            info.waypoints = nil
+            info.waypointIndex = 1
+            info.nextPathTime = 0
+            info.pathDestination = destination
+        end
+        if not info.waypoints and now &gt;= (info.nextPathTime or 0) then
+            info.nextPathTime = now + 1.6 -- throttle expensive computations
+            local path = PathfindingService:CreatePath({
+                AgentRadius = 2, AgentHeight = 5, AgentCanJump = true,
+                AgentCanClimb = true, WaypointSpacing = 4,
+            })
+            local ok = pcall(function()
+                path:ComputeAsync(root.Position, destination)
+            end)
+            if info.cancelled then return false end
+            if ok and path.Status == Enum.PathStatus.Success then
+                info.waypoints = path:GetWaypoints()
+                info.waypointIndex = 1
+            end
+        end
+        if info.cancelled then return false end
+        local waypoint = info.waypoints and info.waypoints[info.waypointIndex or 1]
+        while waypoint do
+            local diff = waypoint.Position - root.Position
+            local horizontalWaypoint = Vector3.new(diff.X, 0, diff.Z).Magnitude
+            if horizontalWaypoint &gt; 2.6 or math.abs(diff.Y) &gt; 5 then break end
+            info.waypointIndex += 1
+            waypoint = info.waypoints[info.waypointIndex]
+        end
+        -- When a path isn't available, use MoveTo directly as a fallback.
+        local nextPoint = waypoint and waypoint.Position or destination
+        local rayDelta = nextPoint - root.Position
+        local flat = Vector3.new(rayDelta.X, 0, rayDelta.Z)
+        local shouldJump = waypoint and waypoint.Action == Enum.PathWaypointAction.Jump
+        if flat.Magnitude &gt; 0.2 then
+            local params = RaycastParams.new()
+            params.FilterType = Enum.RaycastFilterType.Exclude
+            params.FilterDescendantsInstances = {character}
+            local obstacle = workspace:Raycast(root.Position + Vector3.new(0, 1, 0), flat.Unit * 3, params)
+            if obstacle and obstacle.Instance and obstacle.Instance.CanCollide then
+                shouldJump = true
+            end
+        end
+        if shouldJump and now &gt;= (info.nextJump or 0) then
+            humanoid.Jump = true
+            info.nextJump = now + 0.7
+        end
+        if now &gt;= (info.nextMove or 0) then
+            humanoid:MoveTo(nextPoint)
+            info.nextMove = now + 0.35
+        end
+        -- Re-path if blocked or stuck, without an endless MoveTo wait.
+        if not info.progressPosition then
+            info.progressPosition = root.Position
+            info.progressAt = now
+        elseif now - (info.progressAt or 0) &gt;= 2 then
+            if (root.Position - info.progressPosition).Magnitude &lt; 1.5 then
+                info.waypoints = nil
+                info.nextPathTime = 0
+                if now &gt;= (info.nextJump or 0) then
+                    humanoid.Jump = true
+                    info.nextJump = now + 0.7
+                end
+            end
+            info.progressPosition = root.Position
+            info.progressAt = now
+        end
+        return false
+    end
     local function moveBSSByMode(character, root, humanoid, position, mode, speed, deltaTime, walkInfo)
+        if walkInfo and walkInfo.cancelled then return false, math.huge end
         local delta = position - root.Position
         local remaining = delta.Magnitude
         if mode == "Teleport" then
             return moveToBSSPosition(position), remaining
         elseif mode == "Fly" then
-            if remaining > 0.01 then
+            if remaining &gt; 0.01 then
                 local step = math.min(remaining, speed * math.clamp(deltaTime, 0, 0.1))
                 character:PivotTo(CFrame.new(root.Position + delta.Unit * step) * character:GetPivot().Rotation)
                 root.AssemblyLinearVelocity = Vector3.zero
                 root.AssemblyAngularVelocity = Vector3.zero
             end
-            return remaining <= math.max(0.01, speed * math.clamp(deltaTime, 0, 0.1)), remaining
+            return remaining &lt;= math.max(0.01, speed * math.clamp(deltaTime, 0, 0.1)), remaining
         else
-            -- MoveTo uses ordinary humanoid walking: it will not fly or jump
-            -- through walls. If the destination cannot be reached, the target
-            -- is not counted as visited.
-            applyBSSWalk(walkInfo.owner, humanoid, speed)
-            if remaining > 3 and os.clock() >= walkInfo.nextMove then
-                humanoid:MoveTo(position)
-                walkInfo.nextMove = os.clock() + 0.6
-            end
-            return remaining <= 3, remaining
+            return walkBSSWithJumps(character, root, humanoid, position, speed, walkInfo), remaining
         end
     end
+    extraCleanup.bssMotion.move = moveBSSByMode
+    extraCleanup.bssMotion.getPosition = getBSSPosition
+    extraCleanup.bssMotion.getCharacter = getBSSLocalCharacter
+    extraCleanup.bssMotion.releaseWalk = releaseBSSWalk
 
     -- C scanner always checks every loaded C and respects the 3-arrival cap.
     -- Target scans are throttled to 0.1s; Fly/Walk movement uses Heartbeat.
@@ -6103,7 +6189,7 @@ __EB1478_safeCall("Premium pages and extras", function()
                     local character, root, username = getBSSLocalCharacter()
                     if not character then
                         currentTarget = nil
-                        if os.clock() - lastStatusTime >= 0.5 then
+                        if os.clock() - lastStatusTime &gt;= 0.5 then
                             collectState.Text = "ON  •  Waiting for " .. username .. "'s character..."
                             lastStatusTime = os.clock()
                         end
@@ -6112,7 +6198,7 @@ __EB1478_safeCall("Premium pages and extras", function()
                     local humanoid = character:FindFirstChildOfClass("Humanoid")
                     if not humanoid then return end
                     local value = tonumber(collectFlySpeedBox.Text)
-                    if value and value == value and value > 0 then
+                    if value and value == value and value &gt; 0 then
                         collectFlySpeed = math.clamp(value, 5, 500)
                     end
                     value = tonumber(collectablesRadiusInput.Text)
@@ -6125,7 +6211,7 @@ __EB1478_safeCall("Premium pages and extras", function()
                         currentTarget = nil
                     end
                     local now = os.clock()
-                    if not currentTarget and now >= nextScanTime then
+                    if not currentTarget and now &gt;= nextScanTime then
                         nextScanTime = now + 0.1
                         local target, _, _, found, positioned, inRange, folder, exhausted =
                             findNearestCollectableInBox(root.Position, collectablesRadius)
@@ -6135,8 +6221,8 @@ __EB1478_safeCall("Premium pages and extras", function()
                         elseif target then
                             currentTarget = target
                             walkInfo.nextMove = 0
-                        elseif now - lastStatusTime > 0.4 then
-                            if inRange > 0 and exhausted == inRange then
+                        elseif now - lastStatusTime &gt; 0.4 then
+                            if inRange &gt; 0 and exhausted == inRange then
                                 collectState.Text = string.format("ON  •  All %d nearby C objects visited 3 times", exhausted)
                                 collectState.TextColor3 = C.green
                             else
@@ -6159,7 +6245,7 @@ __EB1478_safeCall("Premium pages and extras", function()
                         currentTarget = nil
                         nextScanTime = os.clock() + 0.1
                         lastStatusTime = os.clock()
-                    elseif now - lastStatusTime >= 0.4 then
+                    elseif now - lastStatusTime &gt;= 0.4 then
                         collectState.Text = string.format("ON  •  %s %.0f studs to C at %g studs/sec",
                             movementModes.C, remaining, collectFlySpeed)
                         collectState.TextColor3 = C.green
@@ -6211,7 +6297,7 @@ __EB1478_safeCall("Premium pages and extras", function()
                     local character, root = getBSSLocalCharacter()
                     if not character then
                         currentTarget = nil
-                        if os.clock() - lastStatusTime > 0.5 then
+                        if os.clock() - lastStatusTime &gt; 0.5 then
                             petalState.Text = "ON  •  Waiting for your character..."
                             lastStatusTime = os.clock()
                         end
@@ -6220,7 +6306,7 @@ __EB1478_safeCall("Premium pages and extras", function()
                     local humanoid = character:FindFirstChildOfClass("Humanoid")
                     if not humanoid then return end
                     local value = tonumber(petalSpeedBox.Text)
-                    if value and value == value and value > 0 then
+                    if value and value == value and value &gt; 0 then
                         petalMoveSpeed = math.clamp(value, 5, 500)
                     end
                     value = tonumber(petalRadiusInput.Text)
@@ -6233,7 +6319,7 @@ __EB1478_safeCall("Premium pages and extras", function()
                         or not getBSSPosition(currentTarget)) then
                         currentTarget = nil
                     end
-                    if not currentTarget and now >= nextScanTime then
+                    if not currentTarget and now &gt;= nextScanTime then
                         nextScanTime = now + 0.1
                         local target, _, _, found = findNearestPetal(root.Position, petalRadius)
                         if not workspace:FindFirstChild("Particles") then
@@ -6242,7 +6328,7 @@ __EB1478_safeCall("Premium pages and extras", function()
                         elseif target then
                             currentTarget = target
                             walkInfo.nextMove = 0
-                        elseif now - lastStatusTime >= 0.4 then
+                        elseif now - lastStatusTime &gt;= 0.4 then
                             petalState.Text = string.format("ON  •  %d PetalPart found; none in range", found)
                             petalState.TextColor3 = C.yellow
                             lastStatusTime = now
@@ -6259,7 +6345,7 @@ __EB1478_safeCall("Premium pages and extras", function()
                         currentTarget = nil
                         nextScanTime = os.clock() + 0.1
                         lastStatusTime = os.clock()
-                    elseif now - lastStatusTime >= 0.4 then
+                    elseif now - lastStatusTime &gt;= 0.4 then
                         petalState.Text = string.format("ON  •  %s %.0f studs to Petal at %g studs/sec",
                             movementModes.Petal, remaining, petalMoveSpeed)
                         petalState.TextColor3 = C.green
@@ -6380,7 +6466,7 @@ __EB1478_safeCall("Premium pages and extras", function()
                 if part then table.insert(objects, {object = object, part = part}) end
             end
         end
-        table.sort(objects, function(a, b) return a.object:GetFullName() < b.object:GetFullName() end)
+        table.sort(objects, function(a, b) return a.object:GetFullName() &lt; b.object:GetFullName() end)
         for index, entry in ipairs(objects) do
             local object = entry.object
             local row = Instance.new("Frame")
@@ -6393,7 +6479,7 @@ __EB1478_safeCall("Premium pages and extras", function()
             addCorner(row, 9)
             addOutline(row, C.border, 0.6)
             local displayName = object.Name
-            if #displayName > 28 then displayName = string.sub(displayName, 1, 25) .. "..." end
+            if #displayName &gt; 28 then displayName = string.sub(displayName, 1, 25) .. "..." end
             makeLabel(row, "ObjectName", displayName, UDim2.fromOffset(11, 4), UDim2.new(1, -135, 0, 22), 12, C.text, true)
             makeLabel(row, "ObjectType", object.ClassName .. "  •  " .. object:GetFullName(), UDim2.fromOffset(11, 27), UDim2.new(1, -135, 0, 16), 9, C.muted, false)
             local teleport = makeButton(row, "TeleportToObject", "TELEPORT", UDim2.new(1, -108, 0, 7), UDim2.fromOffset(96, 36), true)
@@ -6417,7 +6503,7 @@ __EB1478_safeCall("Premium pages and extras", function()
             end)
         end
         bssStatus.Text = #objects .. " teleportable object(s) found in HiddenStickers."
-        bssStatus.TextColor3 = #objects > 0 and C.green or C.yellow
+        bssStatus.TextColor3 = #objects &gt; 0 and C.green or C.yellow
     end
     refreshBSS.Activated:Connect(refreshBSSObjects)
     refreshBSSObjects()
@@ -6523,7 +6609,7 @@ __EB1478_safeCall("Premium pages and extras", function()
         local function getHeight()
             if UserInputService:GetFocusedTextBox() ~= heightInput then
                 local value = tonumber(heightInput.Text)
-                if value and value >= 1 and value <= 500 and value == value then
+                if value and value &gt;= 1 and value &lt;= 500 and value == value then
                     hoverHeight = value
                 end
                 heightInput.Text = tostring(hoverHeight)
@@ -6583,7 +6669,7 @@ __EB1478_safeCall("Premium pages and extras", function()
             local char = player.Character
             local root = char and char:FindFirstChild("HumanoidRootPart")
             local hum = char and char:FindFirstChildOfClass("Humanoid")
-            if not root or not hum or hum.Health <= 0 then return nil, nil end
+            if not root or not hum or hum.Health &lt;= 0 then return nil, nil end
             return char, root
         end
         local function moveCharacter(pos)
@@ -6646,7 +6732,7 @@ __EB1478_safeCall("Premium pages and extras", function()
                             appearedAt = os.clock()
                         end
                         local remaining = 3 - (os.clock() - appearedAt)
-                        if remaining > 0 then
+                        if remaining &gt; 0 then
                             showStatus(string.format("Monster detected • %.1fs until hover", remaining), C.yellow)
                             return
                         end
@@ -6776,6 +6862,339 @@ __EB1478_safeCall("Premium pages and extras", function()
         registerCleanup(function()
             stopDig()
         end)
+    end)
+
+    -- Puffshroom Hunt runs in its own protected block so mistakes here cannot
+    -- stop the main menu or other BSS features from loading.
+    __EB1478_safeCall("BSS Puffshroom Hunt", function()
+        local card = Instance.new("Frame")
+        card.Name = "BSSPuffshroomHuntCard"
+        card.BackgroundColor3 = C.panel
+        card.BorderSizePixel = 0
+        card.Size = UDim2.new(1, -40, 0, 274)
+        card.Position = UDim2.fromOffset(20, math.max(154, bssPage.CanvasSize.Y.Offset + 12))
+        card.Parent = bssPage
+        addCorner(card, 12)
+        addOutline(card, C.border, 0.3)
+        bssPage.CanvasSize = UDim2.fromOffset(0, card.Position.Y.Offset + 290)
+
+        makeLabel(card, "PuffTitle", "PUFFSHROOM HUNT  /  AUTO C COLLECT",
+            UDim2.fromOffset(13, 8), UDim2.new(1, -26, 0, 25), 12, C.text, true)
+        makeLabel(card, "PuffModeLabel", "MOVEMENT MODE",
+            UDim2.fromOffset(13, 38), UDim2.new(1, -26, 0, 20), 10, C.muted, true)
+        local mode = "Fly"
+        local modes = {}
+        for index, choice in ipairs({"Teleport", "Fly", "Walk"}) do
+            local button = makeButton(card, "Puff" .. choice, string.upper(choice),
+                UDim2.new((index - 1) / 3, 12 - (index - 1) * 4, 0, 61),
+                UDim2.new(1/3, -20, 0, 34), false)
+            button.TextSize = 11
+            modes[choice] = button
+        end
+        local function recolourModes()
+            for choice, button in pairs(modes) do
+                button.BackgroundColor3 = choice == mode and C.accent or C.panel2
+                button.TextColor3 = choice == mode and C.text or C.muted
+            end
+        end
+        recolourModes()
+
+        local toggle = makeButton(card, "PuffHuntToggle", "AUTO PUFFSHROOM HUNT  •  OFF",
+            UDim2.fromOffset(13, 104), UDim2.new(1, -26, 0, 42), true)
+        toggle.TextSize = 13
+        toggle.Font = Enum.Font.GothamBold
+        makeLabel(card, "PuffRangeLabel", "RANGE (X/Y/Z)",
+            UDim2.fromOffset(14, 154), UDim2.fromOffset(123, 26), 10, C.muted, true)
+        makeLabel(card, "PuffSpeedLabel", "SPEED (ST/S)",
+            UDim2.new(0.53, 0, 0, 154), UDim2.fromOffset(116, 26), 10, C.muted, true)
+        local function numericBox(name, start, x)
+            local box = Instance.new("TextBox")
+            box.Name = name
+            box.Position = UDim2.new(x, 0, 0, 182)
+            box.Size = UDim2.new(0.38, -16, 0, 30)
+            box.BackgroundColor3 = C.panel2
+            box.BorderSizePixel = 0
+            box.ClearTextOnFocus = false
+            box.Text = tostring(start)
+            box.PlaceholderText = tostring(start)
+            box.Font = Enum.Font.GothamSemibold
+            box.TextColor3 = C.text
+            box.PlaceholderColor3 = C.muted
+            box.TextSize = 12
+            box.Parent = card
+            addCorner(box, 7)
+            addOutline(box, C.border, 0.25)
+            return box
+        end
+        local rangeBox = numericBox("PuffHuntRange", 300, 0.035)
+        local speedBox = numericBox("PuffHuntSpeed", 80, 0.53)
+        makeLabel(card, "PuffCollectionWindow", "AFTER PUFF DESPAWNS: COLLECT C FOR 10 SECONDS",
+            UDim2.fromOffset(13, 219), UDim2.new(1, -26, 0, 19), 10, C.muted, true)
+        local status = makeLabel(card, "PuffHuntStatus", "OFF  •  Choose a movement mode, then start.",
+            UDim2.fromOffset(13, 240), UDim2.new(1, -26, 0, 27), 11, C.muted, false)
+        status.TextWrapped = true
+
+        local running = false
+        local version = 0
+        local currentWalk = nil
+        local function statusText(message, color)
+            if destroyed or not card.Parent then return end
+            status.Text = message
+            status.TextColor3 = color or C.muted
+        end
+        local function values()
+            local range = tonumber(rangeBox.Text)
+            range = range and range == range and math.clamp(math.floor(range + 0.5), 5, 10000) or 300
+            local speed = tonumber(speedBox.Text)
+            speed = speed and speed == speed and math.clamp(math.floor(speed + 0.5), 5, 500) or 80
+            return range, speed
+        end
+        local function makeValidBox(box, value)
+            box.Text = tostring(value)
+        end
+        for _, box in ipairs({rangeBox, speedBox}) do
+            box.FocusLost:Connect(function()
+                local range, speed = values()
+                makeValidBox(rangeBox, range)
+                makeValidBox(speedBox, speed)
+            end)
+        end
+        local function positionOf(instance)
+            local getter = extraCleanup.bssMotion.getPosition
+            return getter and getter(instance) or nil
+        end
+        local function withinRange(fromPosition, toPosition, range)
+            local difference = toPosition - fromPosition
+            return math.abs(difference.X) &lt;= range and math.abs(difference.Y) &lt;= range
+                and math.abs(difference.Z) &lt;= range
+        end
+        local function findPuff(fromPosition, range, visited)
+            local happenings = workspace:FindFirstChild("Happenings")
+            local folder = happenings and happenings:FindFirstChild("Puffshrooms")
+            if not folder then return nil, nil, false end
+            local closest, closestPosition, best = nil, nil, math.huge
+            -- Prefer each top-level puffshroom model/part as ONE target.
+            for _, item in ipairs(folder:GetChildren()) do
+                -- Ignore persistent organisational folders; individual
+                -- physical Puffshrooms are models, parts or attachments.
+                if not visited[item] and (item:IsA("Model") or item:IsA("BasePart")
+                    or item:IsA("Attachment")) then
+                    local position = positionOf(item)
+                    if position and withinRange(fromPosition, position, range) then
+                        local distance = (position - fromPosition).Magnitude
+                        if distance &lt; best then
+                            closest, closestPosition, best = item, position, distance
+                        end
+                    end
+                end
+            end
+            -- Some experiences nest the individual puffshrooms in subfolders.
+            if not closest then
+                for _, item in ipairs(folder:GetDescendants()) do
+                    if (item:IsA("Model") or item:IsA("BasePart")) and not visited[item] then
+                        -- Prefer the enclosing Puffshroom model, not an
+                        -- arbitrary particle or body part inside it.
+                        local candidate = item
+                        local ancestor = item.Parent
+                        while ancestor and ancestor ~= folder do
+                            if ancestor:IsA("Model") then candidate = ancestor end
+                            ancestor = ancestor.Parent
+                        end
+                        local position = positionOf(candidate)
+                        if not visited[candidate] and position and withinRange(fromPosition, position, range) then
+                            local distance = (position - fromPosition).Magnitude
+                            if distance &lt; best then
+                                closest, closestPosition, best = candidate, position, distance
+                            end
+                        end
+                    end
+                end
+            end
+            return closest, closestPosition, true
+        end
+        local function findC(fromPosition, range, counts)
+            local folder = workspace:FindFirstChild("Collectibles") or workspace:FindFirstChild("Collectables")
+            if not folder then return nil, nil end
+            local closest, position, best = nil, nil, math.huge
+            for _, item in ipairs(folder:GetDescendants()) do
+                if item.Name == "C" and (counts[item] or 0) &lt; 3 then
+                    local point = positionOf(item)
+                    if point and withinRange(fromPosition, point, range) then
+                        local distance = (point - fromPosition).Magnitude
+                        if distance &lt; best then
+                            closest, position, best = item, point, distance
+                        end
+                    end
+                end
+            end
+            return closest, position
+        end
+        local function stop()
+            running = false
+            version += 1
+            if currentWalk then currentWalk.cancelled = true end
+            currentWalk = nil
+            if extraCleanup.bssMotion.releaseWalk then
+                extraCleanup.bssMotion.releaseWalk("Puff")
+            end
+            if not destroyed and toggle.Parent then
+                toggle.Text = "AUTO PUFFSHROOM HUNT  •  OFF"
+                toggle.BackgroundColor3 = C.accent
+            end
+        end
+        local function start()
+            if destroyed or running then return end
+            if not extraCleanup.bssMotion.move or not extraCleanup.bssMotion.getCharacter then
+                statusText("BSS movement isn't ready; see the first F9 error.", C.red)
+                return
+            end
+            running = true
+            version += 1
+            local session = version
+            toggle.Text = "AUTO PUFFSHROOM HUNT  •  ON"
+            toggle.BackgroundColor3 = C.green
+            local phase = "PUFF"
+            local activePuff = nil
+            local visitedPuffs = {}
+            local collectionUntil = 0
+            local collectionCounts = {}
+            local currentC = nil
+            currentWalk = {owner = "Puff", nextMove = 0}
+            statusText("ON  •  Searching Workspace.Happenings.Puffshrooms...", C.green)
+            task.spawn(function()
+                local nextScan = 0
+                local nextStatus = 0
+                while running and session == version and not destroyed do
+                    local dt = RunService.Heartbeat:Wait()
+                    if not running or session ~= version or destroyed then break end
+                    local ok, err = pcall(function()
+                        local character, root = extraCleanup.bssMotion.getCharacter()
+                        if not character then
+                            if os.clock() &gt;= nextStatus then
+                                statusText("Waiting for your Roblox character...", C.yellow)
+                                nextStatus = os.clock() + 0.5
+                            end
+                            return
+                        end
+                        local humanoid = character:FindFirstChildOfClass("Humanoid")
+                        if not humanoid then return end
+                        local range, speed = values()
+                        local now = os.clock()
+                        if phase == "PUFF" then
+                            local happeningRoot = workspace:FindFirstChild("Happenings")
+                            local puffFolder = happeningRoot and happeningRoot:FindFirstChild("Puffshrooms")
+                            if activePuff and (not activePuff.Parent or not puffFolder
+                                or not activePuff:IsDescendantOf(puffFolder)) then
+                                visitedPuffs[activePuff] = true
+                                activePuff = nil
+                                phase = "COLLECT"
+                                currentC = nil
+                                collectionCounts = {}
+                                collectionUntil = now + 10
+                                currentWalk = {owner = "Puff", nextMove = 0}
+                                nextScan = 0
+                                statusText("Puffshroom disappeared • collecting C for 10s", C.green)
+                                return
+                            end
+                            if not activePuff and now &gt;= nextScan then
+                                nextScan = now + 0.2
+                                local item, _, folderExists = findPuff(root.Position, range, visitedPuffs)
+                                activePuff = item
+                                currentWalk = {owner = "Puff", nextMove = 0}
+                                if not item and now &gt;= nextStatus then
+                                    statusText(folderExists and "Waiting for a Puffshroom in range..."
+                                        or "Missing Workspace.Happenings.Puffshrooms", C.yellow)
+                                    nextStatus = now + 0.7
+                                end
+                            end
+                            if not activePuff then return end
+                            local position = positionOf(activePuff)
+                            if not position then
+                                -- Skip this target for now; it may be streaming in.
+                                activePuff = nil
+                                nextScan = now + 0.5
+                                return
+                            end
+                            local delta = position - root.Position
+                            if delta.Magnitude &gt; 4 then
+                                local arrived = extraCleanup.bssMotion.move(character, root, humanoid,
+                                    position, mode, speed, dt, currentWalk)
+                                if arrived and now &gt;= nextStatus then
+                                    statusText("At " .. activePuff.Name .. " • waiting for despawn", C.green)
+                                    nextStatus = now + 0.7
+                                end
+                            elseif now &gt;= nextStatus then
+                                statusText("At " .. activePuff.Name .. " • waiting for despawn", C.green)
+                                nextStatus = now + 0.7
+                            end
+                        else
+                            if now &gt;= collectionUntil then
+                                phase = "PUFF"
+                                activePuff = nil
+                                currentC = nil
+                                currentWalk = {owner = "Puff", nextMove = 0}
+                                nextScan = 0
+                                statusText("10 seconds finished • finding next Puffshroom", C.green)
+                                return
+                            end
+                            if currentC and (not currentC.Parent or not currentC:IsDescendantOf(workspace)) then
+                                currentC = nil
+                            end
+                            if not currentC and now &gt;= nextScan then
+                                nextScan = now + 0.1
+                                currentC = findC(root.Position, range, collectionCounts)
+                                currentWalk = {owner = "Puff", nextMove = 0}
+                            end
+                            if currentC then
+                                local cPosition = positionOf(currentC)
+                                if cPosition then
+                                    local arrived = extraCleanup.bssMotion.move(character, root, humanoid,
+                                        cPosition, mode, speed, dt, currentWalk)
+                                    if arrived then
+                                        collectionCounts[currentC] = (collectionCounts[currentC] or 0) + 1
+                                        currentC = nil
+                                        nextScan = now + 0.1
+                                    end
+                                else
+                                    currentC = nil
+                                end
+                            end
+                            if now &gt;= nextStatus then
+                                statusText(string.format("Collecting C • %.1fs left • %s", math.max(0, collectionUntil - now), mode), C.green)
+                                nextStatus = now + 0.35
+                            end
+                        end
+                    end)
+                    if not ok then
+                        warn("[ErrorB1478Menu][Puffshroom Hunt] " .. tostring(err))
+                        statusText("Puffshroom error • check F9", C.red)
+                        task.wait(0.3)
+                    end
+                end
+                if session == version and extraCleanup.bssMotion.releaseWalk then
+                    extraCleanup.bssMotion.releaseWalk("Puff")
+                end
+            end)
+        end
+        toggle.Activated:Connect(function()
+            if running then
+                stop()
+                statusText("OFF  •  Puffshroom hunt stopped.", C.muted)
+            else
+                start()
+            end
+        end)
+        for choice, button in pairs(modes) do
+            button.Activated:Connect(function()
+                if destroyed or mode == choice then return end
+                local wasRunning = running
+                if wasRunning then stop() end
+                mode = choice
+                recolourModes()
+                if wasRunning then start() end
+            end)
+        end
+        registerCleanup(stop)
     end)
 
     __EB1478_safeCall("Premium menu styling and dragging", function()
@@ -7117,7 +7536,7 @@ __EB1478_safeCall("Studio edition UI and Toolkit", function()
     local reticleStyle = 1
     local function updateReticle()
         for i, part in ipairs(reticleParts) do
-            part.Visible = reticleStyle == 1 or (reticleStyle == 2 and i == 5) or (reticleStyle == 3 and i < 5)
+            part.Visible = reticleStyle == 1 or (reticleStyle == 2 and i == 5) or (reticleStyle == 3 and i &lt; 5)
         end
     end
     updateReticle()
@@ -7242,7 +7661,7 @@ __EB1478_safeCall("Studio edition UI and Toolkit", function()
             if not target:IsDescendantOf(workspace) or monoHighlights[target] then continue end
             local count = 0
             for _ in pairs(monoHighlights) do count += 1 end
-            if count >= MAX_MONO_HIGHLIGHTS then break end
+            if count &gt;= MAX_MONO_HIGHLIGHTS then break end
             local highlight = Instance.new("Highlight")
             highlight.Name = "TargetOutline"
             highlight.Adornee = target
@@ -7296,7 +7715,7 @@ __EB1478_safeCall("Studio edition UI and Toolkit", function()
         local elapsed = 0
         monoRefreshConnection = RunService.Heartbeat:Connect(function(dt)
             elapsed += dt
-            if elapsed < 4 then return end
+            if elapsed &lt; 4 then return end
             elapsed = 0
             rescanMonochrome() -- Also catches objects that get renamed.
         end)
@@ -7361,8 +7780,8 @@ __EB1478_safeCall("Studio edition UI and Toolkit", function()
         local text = preferredFps and (tostring(preferredFps) .. " FPS") or "Roblox default"
         fpsSelection.Text = "Selected target: " .. text
         fpsPickerButton.Text = preferredFps and ("MAX FPS  /  " .. preferredFps) or "MAX FPS  /  ROBLOX"
-        utilityStatus.Text = "Target: " .. text .. ". Apply it in Roblox Settings > Maximum Frame Rate."
-        print("[ErrorB1478Menu] Preferred FPS: " .. text .. ". Set the real cap in Roblox Settings > Maximum Frame Rate.")
+        utilityStatus.Text = "Target: " .. text .. ". Apply it in Roblox Settings &gt; Maximum Frame Rate."
+        print("[ErrorB1478Menu] Preferred FPS: " .. text .. ". Set the real cap in Roblox Settings &gt; Maximum Frame Rate.")
     end
 
     for i, choice in ipairs(fpsPreferenceChoices) do
@@ -7377,7 +7796,7 @@ __EB1478_safeCall("Studio edition UI and Toolkit", function()
         end)
     end
     local fpsInstructions = label(fpsCard, "Instructions",
-        "To apply: Esc > Settings > Maximum Frame Rate. Pick the same value there. Options vary by device.",
+        "To apply: Esc &gt; Settings &gt; Maximum Frame Rate. Pick the same value there. Options vary by device.",
         UDim2.fromOffset(20, 247), UDim2.new(1, -40, 0, 62), 12, COLORS.muted)
     fpsInstructions.ZIndex = 122
     fpsInstructions.TextWrapped = true
@@ -7463,9 +7882,9 @@ __EB1478_safeCall("Studio edition UI and Toolkit", function()
     local avgFps = 60
     local statsConnection = trackServiceConnection(RunService.RenderStepped:Connect(function(dt)
         if destroyed then return end
-        if dt > 0 then avgFps = avgFps * 0.88 + math.min(240, 1 / dt) * 0.12 end
+        if dt &gt; 0 then avgFps = avgFps * 0.88 + math.min(240, 1 / dt) * 0.12 end
         acc += dt
-        if acc < 0.45 then return end
+        if acc &lt; 0.45 then return end
         acc = 0
         if not toolkitPage.Visible and not showHud then return end
         local p, speed = nil, 0
@@ -7606,7 +8025,7 @@ __EB1478_safeCall("Studio edition UI and Toolkit", function()
             local haystack = string.lower(cmd[1] .. " " .. cmd[2] .. " " .. cmd[4])
             if query == "" or string.find(haystack, query, 1, true) then
                 count += 1
-                if count > 6 then break end
+                if count &gt; 6 then break end
                 local btn = action(paletteList, "Result" .. count, cmd[1], UDim2.fromOffset(0, (count - 1) * 50), UDim2.new(1, 0, 0, 44), false)
                 btn.TextXAlignment = Enum.TextXAlignment.Left
                 btn.Text = "  " .. cmd[1] .. "     /     " .. cmd[2]
@@ -7650,7 +8069,7 @@ __EB1478_safeCall("Studio edition UI and Toolkit", function()
         local ctrlDown = UserInputService:IsKeyDown(Enum.KeyCode.LeftControl)
             or UserInputService:IsKeyDown(Enum.KeyCode.RightControl)
         if commandSearchKey and input.KeyCode == commandSearchKey and ctrlDown
-            and os.clock() - lastKeyCaptureAt >= 0.08 then
+            and os.clock() - lastKeyCaptureAt &gt;= 0.08 then
             if paletteShade.Visible then closePalette() else openPalette() end
             return
         end
@@ -7658,7 +8077,7 @@ __EB1478_safeCall("Studio edition UI and Toolkit", function()
         local altDown = UserInputService:IsKeyDown(Enum.KeyCode.LeftAlt)
             or UserInputService:IsKeyDown(Enum.KeyCode.RightAlt)
         if pageNavigationEnabled and altDown and menuOpen
-            and os.clock() - lastKeyCaptureAt >= 0.08 then
+            and os.clock() - lastKeyCaptureAt &gt;= 0.08 then
             local index = ({[Enum.KeyCode.One] = 1, [Enum.KeyCode.Two] = 2,
                 [Enum.KeyCode.Three] = 3, [Enum.KeyCode.Four] = 4,
                 [Enum.KeyCode.Five] = 5, [Enum.KeyCode.Six] = 6,
@@ -7919,7 +8338,7 @@ __EB1478_safeCall("Local admin announcement preview", function()
             setStatus("Type an announcement first.", false)
             return
         end
-        if #message > 200 then
+        if #message &gt; 200 then
             setStatus("Keep announcements to 200 characters or fewer.", false)
             return
         end
@@ -7939,7 +8358,7 @@ __EB1478_safeCall("Local admin announcement preview", function()
     local function openSecret()
         if destroyed then return end
         if shade.Visible then closePanel(); return end
-        if os.clock() - lastOpenAt < 0.28 then return end
+        if os.clock() - lastOpenAt &lt; 0.28 then return end
         lastOpenAt = os.clock()
         rolesBox.Text = ""
         setPage("command")
@@ -8029,7 +8448,7 @@ if not __EB1478_entryOk then
         banner.TextWrapped = true
         banner.Font = Enum.Font.GothamBold
         banner.TextSize = 13
-        banner.Text = "MENU STARTUP ERROR. Open F9 > Client Output and copy the first red error.\n" .. string.sub(tostring(__EB1478_entryError), 1, 360)
+        banner.Text = "MENU STARTUP ERROR. Open F9 &gt; Client Output and copy the first red error.\n" .. string.sub(tostring(__EB1478_entryError), 1, 360)
         banner.Parent = screen
     end)
 end
