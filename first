@@ -1,3 +1,4 @@
+-- BSS AREA RING: New Auto Move card (Teleport/Fly/Walk, range/speed/keybind). Pursues rings when CoreStats.Pollen > 50% of CoreStats.Capacity.
 -- REPAIR: Puffshroom feature isolated; walking pathfinding is asynchronous.
 -- C/Petal walk has non-blocking jump assist. Use F9 Client Output for any game-specific errors.
 -- FIX: Fly speed can now be changed with Enter, clicking away, Apply, +10/-10, and Reset. Works on foot and while seated.
@@ -7341,6 +7342,512 @@ __EB1478_safeCall("Premium pages and extras", function()
             end)
         end
         registerCleanup(stop)
+    end)
+
+
+    -- AreaRing automation is isolated so a missing game-specific CoreStats value
+    -- cannot prevent the rest of the BSS page or main menu from loading.
+    __EB1478_safeCall("BSS AreaRing auto movement", function()
+        local PathfindingService = game:GetService("PathfindingService")
+        local card = Instance.new("Frame")
+        card.Name = "BSSAreaRingAutoCard"
+        card.BackgroundColor3 = C.panel
+        card.BorderSizePixel = 0
+        card.Size = UDim2.new(1, -40, 0, 351)
+        card.Position = UDim2.fromOffset(20, math.max(154, bssPage.CanvasSize.Y.Offset + 12))
+        card.Parent = bssPage
+        addCorner(card, 12)
+        addOutline(card, C.border, 0.3)
+        bssPage.CanvasSize = UDim2.fromOffset(0, card.Position.Y.Offset + 370)
+
+        makeLabel(card, "RingTitle", "AREA RING  /  AUTO MOVE",
+            UDim2.fromOffset(13, 8), UDim2.new(1, -26, 0, 26), 13, C.text, true)
+        makeLabel(card, "RingDescription",
+            "Nearest Workspace.Particles.AreaRing  |  Pollen must be ABOVE 50% capacity",
+            UDim2.fromOffset(13, 36), UDim2.new(1, -26, 0, 24), 10, C.muted, false)
+
+        local mode = "Fly"
+        local modeButtons = {}
+        for index, choice in ipairs({"Teleport", "Fly", "Walk"}) do
+            local button = makeButton(card, "RingMode" .. choice, string.upper(choice),
+                UDim2.new((index - 1) / 3, 13 - ((index - 1) * 4), 0, 68),
+                UDim2.new(1/3, -20, 0, 34), false)
+            button.TextSize = 11
+            modeButtons[choice] = button
+        end
+        local function refreshModeButtons()
+            for choice, button in pairs(modeButtons) do
+                button.BackgroundColor3 = choice == mode and C.accent or C.panel2
+                button.TextColor3 = choice == mode and C.text or C.muted
+            end
+        end
+        refreshModeButtons()
+
+        local toggle = makeButton(card, "RingAutoToggle", "AREA RING AUTO MOVE  •  OFF",
+            UDim2.fromOffset(13, 110), UDim2.new(1, -26, 0, 40), true)
+        toggle.Font = Enum.Font.GothamBold
+        toggle.TextSize = 13
+        makeLabel(card, "RingRangeLabel", "RANGE  (X / Y / Z)",
+            UDim2.fromOffset(13, 158), UDim2.new(0.46, 0, 0, 22), 10, C.muted, true)
+        makeLabel(card, "RingSpeedLabel", "MOVE SPEED (STUDS/S)",
+            UDim2.new(0.52, 0, 0, 158), UDim2.new(0.45, 0, 0, 22), 10, C.muted, true)
+
+        local function makeValueBox(name, defaultValue, x)
+            local box = Instance.new("TextBox")
+            box.Name = name
+            box.Position = UDim2.new(x, 0, 0, 183)
+            box.Size = UDim2.new(0.43, -14, 0, 32)
+            box.BackgroundColor3 = C.panel2
+            box.BorderSizePixel = 0
+            box.ClearTextOnFocus = false
+            box.Text = tostring(defaultValue)
+            box.PlaceholderText = tostring(defaultValue)
+            box.Font = Enum.Font.GothamSemibold
+            box.TextSize = 12
+            box.TextColor3 = C.text
+            box.PlaceholderColor3 = C.muted
+            box.Parent = card
+            addCorner(box, 7)
+            addOutline(box, C.border, 0.25)
+            return box
+        end
+        local rangeBox = makeValueBox("AreaRingRange", 300, 0.035)
+        local speedBox = makeValueBox("AreaRingSpeed", 80, 0.53)
+        makeLabel(card, "RingKeyLabel", "TOGGLE KEYBIND",
+            UDim2.fromOffset(13, 220), UDim2.new(1, -26, 0, 18), 10, C.muted, true)
+        local keyBox = Instance.new("TextBox")
+        keyBox.Name = "AreaRingToggleKeybind"
+        keyBox.Position = UDim2.fromOffset(13, 241)
+        keyBox.Size = UDim2.new(0.46, -10, 0, 31)
+        keyBox.BackgroundColor3 = C.panel2
+        keyBox.BorderSizePixel = 0
+        keyBox.ClearTextOnFocus = false
+        keyBox.Text = "NONE"
+        keyBox.PlaceholderText = "F9, K, NONE..."
+        keyBox.Font = Enum.Font.GothamSemibold
+        keyBox.TextSize = 12
+        keyBox.TextColor3 = C.text
+        keyBox.PlaceholderColor3 = C.muted
+        keyBox.Parent = card
+        addCorner(keyBox, 7)
+        addOutline(keyBox, C.border, 0.25)
+        local applyKey = makeButton(card, "AreaRingApplyKey", "APPLY KEY",
+            UDim2.new(0.49, 0, 0, 241), UDim2.new(0.29, -4, 0, 31), false)
+        applyKey.TextSize = 11
+        local clearKey = makeButton(card, "AreaRingClearKey", "NONE",
+            UDim2.new(0.79, 0, 0, 241), UDim2.new(0.21, -12, 0, 31), false)
+        clearKey.TextSize = 11
+
+        local pollenLabel = makeLabel(card, "AreaRingPollenStatus",
+            "POLLEN  •  Reading CoreStats...",
+            UDim2.fromOffset(13, 281), UDim2.new(1, -26, 0, 21), 11, C.muted, true)
+        local status = makeLabel(card, "AreaRingMovementStatus",
+            "OFF  •  Waiting for you to enable AreaRing movement.",
+            UDim2.fromOffset(13, 308), UDim2.new(1, -26, 0, 34), 11, C.muted, false)
+
+        local running = false
+        local version = 0
+        local toggleKey = nil
+        local lastMessage = ""
+        local walkHumanoid = nil
+        local oldWalkSpeed = nil
+        local appliedWalkSpeed = nil
+        local waypoints = nil
+        local waypointIndex = 1
+        local lastPathAt = 0
+        local pathGeneration = 0
+        local calculatingPath = false
+        local lastMoveAt = 0
+        local lastJumpAt = 0
+        local lastTarget = nil
+        local lastDestination = nil
+
+        local function writeStatus(message, color)
+            if message ~= lastMessage then
+                lastMessage = message
+                status.Text = message
+                status.TextColor3 = color or C.muted
+            end
+        end
+        local function numericSetting(box, minValue, maxValue, defaultValue)
+            local n = tonumber(box.Text)
+            if not n or n ~= n or n == math.huge or n == -math.huge then n = defaultValue end
+            n = math.clamp(n, minValue, maxValue)
+            if not box:IsFocused() then box.Text = tostring(math.floor(n * 10 + 0.5) / 10) end
+            return n
+        end
+        rangeBox.FocusLost:Connect(function() numericSetting(rangeBox, 5, 10000, 300) end)
+        speedBox.FocusLost:Connect(function() numericSetting(speedBox, 5, 500, 80) end)
+
+        local function parseNumber(value)
+            if typeof(value) == "number" then return value end
+            if typeof(value) ~= "string" then return nil end
+            local normalized = value:gsub("[, _]", "")
+            local plain = tonumber(normalized)
+            if plain then return plain end
+            local amount, suffix = normalized:match("^([%d%.]+)([kKmMbBtT])$")
+            if amount then
+                local multiplier = ({K=1e3, M=1e6, B=1e9, T=1e12})[suffix:upper()]
+                return tonumber(amount) * multiplier
+            end
+            return nil
+        end
+        local function readStat(core, name)
+            local stat = core:FindFirstChild(name)
+            if not stat then
+                for _, child in ipairs(core:GetChildren()) do
+                    if child.Name:lower() == name:lower() then stat = child; break end
+                end
+            end
+            if stat then
+                local ok, value = pcall(function() return stat.Value end)
+                if ok then return parseNumber(value) end
+            end
+            return parseNumber(core:GetAttribute(name))
+        end
+        local function getPollenRatio()
+            local core = player:FindFirstChild("CoreStats") or player:FindFirstChild("CoreStat")
+                or player:FindFirstChild("Corestats")
+            if not core then return nil, nil, "CoreStats not found on local player" end
+            local pollen = readStat(core, "Pollen")
+            local capacity = readStat(core, "Capacity")
+            if not pollen or not capacity or capacity <= 0 then
+                return nil, nil, "Pollen/Capacity values not found in CoreStats"
+            end
+            return pollen, capacity, nil
+        end
+
+        local function positionOf(target)
+            if not target then return nil end
+            if target:IsA("BasePart") then return target.Position end
+            if target:IsA("Attachment") then return target.WorldPosition end
+            if target:IsA("Model") and target:FindFirstChildWhichIsA("BasePart", true) then
+                return target:GetPivot().Position
+            end
+            for _, child in ipairs(target:GetDescendants()) do
+                if child:IsA("BasePart") then return child.Position end
+                if child:IsA("Attachment") then return child.WorldPosition end
+            end
+            local ancestor = target.Parent
+            while ancestor and ancestor ~= workspace do
+                if ancestor:IsA("Attachment") then return ancestor.WorldPosition end
+                if ancestor:IsA("BasePart") then return ancestor.Position end
+                ancestor = ancestor.Parent
+            end
+            return nil
+        end
+        local function nearestAreaRing(origin, radius)
+            local particles = workspace:FindFirstChild("Particles")
+            if not particles then return nil, nil, "Workspace.Particles is missing" end
+            local nearest, position, bestDistance = nil, nil, math.huge
+            local count = 0
+            for _, obj in ipairs(particles:GetDescendants()) do
+                if obj.Name == "AreaRing" then
+                    count += 1
+                    local pos = positionOf(obj)
+                    if pos then
+                        local offset = pos - origin
+                        if math.abs(offset.X) <= radius and math.abs(offset.Y) <= radius
+                            and math.abs(offset.Z) <= radius then
+                            local distance = offset.Magnitude
+                            if distance < bestDistance then
+                                nearest, position, bestDistance = obj, pos, distance
+                            end
+                        end
+                    end
+                end
+            end
+            if not nearest then
+                return nil, nil, string.format("No AreaRing in range (%d found total)", count)
+            end
+            return nearest, position, nil
+        end
+
+        local function stopWalking()
+            pathGeneration += 1
+            calculatingPath = false
+            waypoints, waypointIndex = nil, 1
+            lastPathAt = 0
+            if walkHumanoid and walkHumanoid.Parent then
+                local character = walkHumanoid.Parent
+                local root = character:FindFirstChild("HumanoidRootPart")
+                if root then pcall(function() walkHumanoid:MoveTo(root.Position) end) end
+                if oldWalkSpeed and appliedWalkSpeed
+                    and math.abs(walkHumanoid.WalkSpeed - appliedWalkSpeed) < 0.01 then
+                    pcall(function() walkHumanoid.WalkSpeed = oldWalkSpeed end)
+                end
+            end
+            walkHumanoid, oldWalkSpeed, appliedWalkSpeed = nil, nil, nil
+        end
+        local function setWalkSpeed(humanoid, speed)
+            if walkHumanoid ~= humanoid then
+                stopWalking()
+                walkHumanoid = humanoid
+                oldWalkSpeed = humanoid.WalkSpeed
+            end
+            appliedWalkSpeed = math.clamp(speed, 5, 200)
+            if humanoid.WalkSpeed ~= appliedWalkSpeed then
+                humanoid.WalkSpeed = appliedWalkSpeed
+            end
+        end
+        local function askForPath(character, humanoid, root, destination, myVersion)
+            if calculatingPath then return end
+            calculatingPath = true
+            lastPathAt = os.clock()
+            pathGeneration += 1
+            local request = pathGeneration
+            local startPosition = root.Position
+            task.spawn(function()
+                local newWaypoints = nil
+                local success, err = pcall(function()
+                    local path = PathfindingService:CreatePath({
+                        AgentRadius = 2, AgentHeight = 5,
+                        AgentCanJump = true, WaypointSpacing = 4,
+                    })
+                    path:ComputeAsync(startPosition, destination)
+                    if path.Status == Enum.PathStatus.Success then
+                        newWaypoints = path:GetWaypoints()
+                    end
+                end)
+                if not success then
+                    warn("[ErrorB1478Menu][AreaRing Walk] " .. tostring(err))
+                end
+                if request ~= pathGeneration or not running or myVersion ~= version
+                    or mode ~= "Walk" then return end
+                waypoints = newWaypoints
+                waypointIndex = newWaypoints and 2 or 1
+                calculatingPath = false
+            end)
+        end
+        local function walkTo(character, root, humanoid, destination, speed, now, myVersion)
+            setWalkSpeed(humanoid, speed)
+            if not calculatingPath and (lastPathAt == 0 or now - lastPathAt > 1.5
+                or (lastDestination and (lastDestination - destination).Magnitude > 10)) then
+                lastDestination = destination
+                askForPath(character, humanoid, root, destination, myVersion)
+            end
+            local waypoint = waypoints and waypoints[waypointIndex]
+            if waypoint and (root.Position - waypoint.Position).Magnitude <= 3.5 then
+                waypointIndex += 1
+                waypoint = waypoints[waypointIndex]
+            end
+            local nextPosition = waypoint and waypoint.Position or destination
+            if waypoint and waypoint.Action == Enum.PathWaypointAction.Jump then
+                humanoid.Jump = true
+            end
+            if now - lastMoveAt >= 0.38 then
+                humanoid:MoveTo(nextPosition)
+                lastMoveAt = now
+            end
+            -- Jump over local small obstacles even when pathfinding has not returned.
+            local flat = Vector3.new(destination.X - root.Position.X, 0, destination.Z - root.Position.Z)
+            if flat.Magnitude > 3 and now - lastJumpAt >= 0.75 then
+                local params = RaycastParams.new()
+                params.FilterType = Enum.RaycastFilterType.Exclude
+                params.FilterDescendantsInstances = {character}
+                local hit = workspace:Raycast(root.Position + Vector3.new(0, 1, 0), flat.Unit * 3.5, params)
+                if hit and hit.Instance and hit.Instance.CanCollide then
+                    humanoid.Jump = true
+                    lastJumpAt = now
+                end
+            end
+        end
+
+        local function stop()
+            running = false
+            version += 1
+            lastTarget, lastDestination = nil, nil
+            stopWalking()
+            toggle.Text = "AREA RING AUTO MOVE  •  OFF"
+            toggle.BackgroundColor3 = C.accent
+            writeStatus("OFF  •  AreaRing automation stopped.", C.muted)
+        end
+        local function start()
+            if running or destroyed then return end
+            running = true
+            version += 1
+            local myVersion = version
+            toggle.Text = "AUTO " .. string.upper(mode) .. " TO AREA RING  •  ON"
+            toggle.BackgroundColor3 = C.green
+            writeStatus("ON  •  Waiting for Pollen to exceed 50% of Capacity...", C.green)
+            task.spawn(function()
+                local lastScan = 0
+                local target, targetPosition = nil, nil
+                local lastStatus = 0
+                while running and not destroyed and myVersion == version do
+                    local dt = RunService.Heartbeat:Wait()
+                    if not running or destroyed or myVersion ~= version then break end
+                    local ok, err = pcall(function()
+                        local now = os.clock()
+                        local character = player.Character
+                        local root = character and character:FindFirstChild("HumanoidRootPart")
+                        local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+                        if not root or not humanoid or humanoid.Health <= 0 then
+                            if mode == "Walk" and walkHumanoid then stopWalking() end
+                            if now - lastStatus >= 0.6 then
+                                writeStatus("Waiting for your character to be ready...", C.yellow)
+                                lastStatus = now
+                            end
+                            return
+                        end
+                        if now - lastScan >= 0.25 then
+                            lastScan = now
+                            local pollen, capacity, reason = getPollenRatio()
+                            if not pollen then
+                                target, targetPosition = nil, nil
+                                if mode == "Walk" and walkHumanoid then stopWalking() end
+                                pollenLabel.Text = "POLLEN  •  Cannot read CoreStats"
+                                writeStatus(reason or "Waiting for CoreStats...", C.yellow)
+                                return
+                            end
+                            local percent = 100 * pollen / capacity
+                            pollenLabel.Text = string.format("POLLEN  •  %.1f%%  (%.0f / %.0f)", percent, pollen, capacity)
+                            if pollen <= capacity * 0.5 then
+                                target, targetPosition = nil, nil
+                                if mode == "Walk" and walkHumanoid then stopWalking() end
+                                writeStatus("Waiting for pollen ABOVE 50% capacity...", C.yellow)
+                                return
+                            end
+                            local radius = numericSetting(rangeBox, 5, 10000, 300)
+                            local newTarget, newPosition, reasonForNoTarget = nearestAreaRing(root.Position, radius)
+                            if newTarget ~= target then
+                                lastTarget, lastDestination = newTarget, nil
+                                if mode == "Walk" then
+                                    -- Recalculate the route for the new target.
+                                    pathGeneration += 1
+                                    calculatingPath = false
+                                    waypoints = nil
+                                    lastPathAt = 0
+                                end
+                            end
+                            target, targetPosition = newTarget, newPosition
+                            if not target then
+                                if mode == "Walk" and walkHumanoid then stopWalking() end
+                                writeStatus(reasonForNoTarget or "No AreaRing in range.", C.yellow)
+                            end
+                        end
+                        if not target or not target.Parent or not targetPosition then return end
+                        -- A moving AreaRing can update between scans.
+                        local pos = positionOf(target) or targetPosition
+                        targetPosition = pos
+                        local offset = pos - root.Position
+                        local distance = offset.Magnitude
+                        if distance <= 3 then
+                            if mode == "Walk" and walkHumanoid then stopWalking() end
+                            if now - lastStatus >= 0.65 then
+                                writeStatus("Reached nearest AreaRing  •  " .. mode, C.green)
+                                lastStatus = now
+                            end
+                            return
+                        end
+                        local speed = numericSetting(speedBox, 5, 500, 80)
+                        if mode == "Teleport" then
+                            character:PivotTo(CFrame.new(pos) * character:GetPivot().Rotation)
+                            root.AssemblyLinearVelocity = Vector3.zero
+                            root.AssemblyAngularVelocity = Vector3.zero
+                        elseif mode == "Fly" then
+                            local step = math.min(distance, speed * math.clamp(dt, 0, 0.1))
+                            character:PivotTo(CFrame.new(root.Position + offset.Unit * step)
+                                * character:GetPivot().Rotation)
+                            root.AssemblyLinearVelocity = Vector3.zero
+                            root.AssemblyAngularVelocity = Vector3.zero
+                        else
+                            walkTo(character, root, humanoid, pos, speed, now, myVersion)
+                        end
+                        if now - lastStatus >= 0.65 then
+                            writeStatus(string.format("%s  •  %s  •  %.0f studs away", mode, target.Name, distance), C.green)
+                            lastStatus = now
+                        end
+                    end)
+                    if not ok then
+                        warn("[ErrorB1478Menu][AreaRing] " .. tostring(err))
+                        writeStatus("AreaRing encountered an error; see F9.", C.red)
+                        task.wait(0.25)
+                    end
+                end
+                if myVersion == version then stopWalking() end
+            end)
+        end
+        local function toggleAreaRing()
+            if destroyed then return end
+            if running then stop() else start() end
+        end
+        toggle.Activated:Connect(toggleAreaRing)
+        for choice, button in pairs(modeButtons) do
+            button.Activated:Connect(function()
+                if destroyed or mode == choice then return end
+                local wasRunning = running
+                if wasRunning then stop() end
+                mode = choice
+                refreshModeButtons()
+                if wasRunning then start() end
+            end)
+        end
+        local function parseKey(text)
+            local value = tostring(text or ""):gsub("^%s+", ""):gsub("%s+$", "")
+            if value == "" or value:upper() == "NONE" then return nil, true end
+            local upper = value:upper()
+            local special = { ["'"] = "Quote", [";"] = "Semicolon", ["\\"] = "BackSlash",
+                ["SPACE"] = "Space", ["ENTER"] = "Return" }
+            local candidate = special[upper] or ((#value == 1) and upper or (value:sub(1, 1):upper() .. value:sub(2)))
+            local ok, key = pcall(function() return Enum.KeyCode[candidate] end)
+            return (ok and key or nil), (ok and key ~= nil)
+        end
+        local function displayKey(key)
+            return key and key.Name or "NONE"
+        end
+        local function applyKeybind()
+            local desired, valid = parseKey(keyBox.Text)
+            if not valid then
+                writeStatus("Invalid shortcut. Try F9, K, or NONE.", C.yellow)
+            elseif desired then
+                local reserved = {G=true, F=true, N=true, J=true, T=true, P=true,
+                    Quote=true, BackSlash=true, Semicolon=true, End=true}
+                if reserved[desired.Name] then
+                    writeStatus("Shortcut already reserved by the menu.", C.yellow)
+                else
+                    local collision = false
+                    for _, other in ipairs(bssPage:GetDescendants()) do
+                        if other ~= keyBox and other:IsA("TextBox")
+                            and (other.Name:find("Keybind") or other.Name:find("KeyBox")) then
+                            local assigned = parseKey(other.Text)
+                            if assigned == desired then collision = true; break end
+                        end
+                    end
+                    if collision then
+                        writeStatus("That shortcut is already used in BSS.", C.yellow)
+                    else
+                        toggleKey = desired
+                        writeStatus("AreaRing toggle key saved: " .. displayKey(toggleKey), C.green)
+                    end
+                end
+            else
+                toggleKey = nil
+                writeStatus("AreaRing shortcut disabled; button still works.", C.muted)
+            end
+            keyBox.Text = displayKey(toggleKey)
+        end
+        applyKey.Activated:Connect(function()
+            applyKeybind()
+            if keyBox:IsFocused() then keyBox:ReleaseFocus() end
+        end)
+        clearKey.Activated:Connect(function()
+            toggleKey = nil
+            keyBox.Text = "NONE"
+            writeStatus("AreaRing shortcut disabled; button still works.", C.muted)
+        end)
+        keyBox.FocusLost:Connect(function(enterPressed)
+            if enterPressed then applyKeybind() end
+        end)
+        trackServiceConnection(UserInputService.InputBegan:Connect(function(input, processed)
+            if destroyed or processed or not toggleKey then return end
+            if UserInputService:GetFocusedTextBox() then return end
+            if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == toggleKey then
+                toggleAreaRing()
+            end
+        end))
+        registerCleanup(stop)
+        print("[ErrorB1478Menu][BSS] AreaRing automation ready (pollen > 50%, teleport/fly/walk).")
     end)
 
 
