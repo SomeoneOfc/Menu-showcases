@@ -1,5 +1,5 @@
--- PUFFSHROOM HUNT: Fly/Walk/Teleport to Puffshrooms, wait for disappearance, collect C for 10 seconds, repeat.
--- WALK NAVIGATION: C/Petal/Puff Walk uses Roblox PathfindingService with jumping, retries and obstacle detection.
+-- REPAIR: Puffshroom feature isolated; walking pathfinding is asynchronous.
+-- C/Petal walk has non-blocking jump assist. Use F9 Client Output for any game-specific errors.
 -- FIX: Fly speed can now be changed with Enter, clicking away, Apply, +10/-10, and Reset. Works on foot and while seated.
 -- VEHICLE MOVEMENT UPDATE: Fly and Noclip also follow the vehicle you are seated in; restores vehicle collisions when disabled or exiting.
 -- BSS MODES: Collectibles C and PetalPart each have TELEPORT / FLY / WALK selectors and adjustable speeds.
@@ -5193,8 +5193,6 @@ __EB1478_safeCall("Premium pages and extras", function()
 
     end)
 
-    extraCleanup.bssMotion = {}
-
     __EB1478_safeCall("BSS HiddenStickers page", function()
     makeHeader(bssPage, "BSS • Teleport Tools", "Full planters, C, PetalPart, WarningDisk, Commando Chick and more.")
     local bssStatus = makeLabel(bssPage, "BSSStatus", "Checking workspace.HiddenStickers…", UDim2.fromOffset(22, 104), UDim2.new(1, -235, 0, 34), 11, C.muted, false)
@@ -6049,93 +6047,7 @@ __EB1478_safeCall("Premium pages and extras", function()
     local function makeModeLabel(kind)
         return movementModes[kind] == "Teleport" and "TP" or string.upper(movementModes[kind])
     end
-    -- Reusable obstacle-aware walker. A path is computed only when needed,
-    -- not every Heartbeat. Pathfinding waypoints marked Jump trigger a jump;
-    -- a short forward raycast also helps with small ledges and stairs.
-    -- This changes WALK for C, PetalPart, and the Puffshroom hunt.
-    local PathfindingService = game:GetService("PathfindingService")
-    local function walkBSSWithJumps(character, root, humanoid, destination, speed, info)
-        if info.cancelled then return false end
-        applyBSSWalk(info.owner, humanoid, math.clamp(speed, 5, 500))
-        local displacement = destination - root.Position
-        local horizontal = Vector3.new(displacement.X, 0, displacement.Z).Magnitude
-        local closeEnough = horizontal &lt;= 4 and math.abs(displacement.Y) &lt;= 7
-        if closeEnough then return true end
-        local now = os.clock()
-        local targetChanged = (not info.pathDestination) or
-            (info.pathDestination - destination).Magnitude &gt; 7
-        if targetChanged then
-            info.waypoints = nil
-            info.waypointIndex = 1
-            info.nextPathTime = 0
-            info.pathDestination = destination
-        end
-        if not info.waypoints and now &gt;= (info.nextPathTime or 0) then
-            info.nextPathTime = now + 1.6 -- throttle expensive computations
-            local path = PathfindingService:CreatePath({
-                AgentRadius = 2, AgentHeight = 5, AgentCanJump = true,
-                AgentCanClimb = true, WaypointSpacing = 4,
-            })
-            local ok = pcall(function()
-                path:ComputeAsync(root.Position, destination)
-            end)
-            if info.cancelled then return false end
-            if ok and path.Status == Enum.PathStatus.Success then
-                info.waypoints = path:GetWaypoints()
-                info.waypointIndex = 1
-            end
-        end
-        if info.cancelled then return false end
-        local waypoint = info.waypoints and info.waypoints[info.waypointIndex or 1]
-        while waypoint do
-            local diff = waypoint.Position - root.Position
-            local horizontalWaypoint = Vector3.new(diff.X, 0, diff.Z).Magnitude
-            if horizontalWaypoint &gt; 2.6 or math.abs(diff.Y) &gt; 5 then break end
-            info.waypointIndex += 1
-            waypoint = info.waypoints[info.waypointIndex]
-        end
-        -- When a path isn't available, use MoveTo directly as a fallback.
-        local nextPoint = waypoint and waypoint.Position or destination
-        local rayDelta = nextPoint - root.Position
-        local flat = Vector3.new(rayDelta.X, 0, rayDelta.Z)
-        local shouldJump = waypoint and waypoint.Action == Enum.PathWaypointAction.Jump
-        if flat.Magnitude &gt; 0.2 then
-            local params = RaycastParams.new()
-            params.FilterType = Enum.RaycastFilterType.Exclude
-            params.FilterDescendantsInstances = {character}
-            local obstacle = workspace:Raycast(root.Position + Vector3.new(0, 1, 0), flat.Unit * 3, params)
-            if obstacle and obstacle.Instance and obstacle.Instance.CanCollide then
-                shouldJump = true
-            end
-        end
-        if shouldJump and now &gt;= (info.nextJump or 0) then
-            humanoid.Jump = true
-            info.nextJump = now + 0.7
-        end
-        if now &gt;= (info.nextMove or 0) then
-            humanoid:MoveTo(nextPoint)
-            info.nextMove = now + 0.35
-        end
-        -- Re-path if blocked or stuck, without an endless MoveTo wait.
-        if not info.progressPosition then
-            info.progressPosition = root.Position
-            info.progressAt = now
-        elseif now - (info.progressAt or 0) &gt;= 2 then
-            if (root.Position - info.progressPosition).Magnitude &lt; 1.5 then
-                info.waypoints = nil
-                info.nextPathTime = 0
-                if now &gt;= (info.nextJump or 0) then
-                    humanoid.Jump = true
-                    info.nextJump = now + 0.7
-                end
-            end
-            info.progressPosition = root.Position
-            info.progressAt = now
-        end
-        return false
-    end
     local function moveBSSByMode(character, root, humanoid, position, mode, speed, deltaTime, walkInfo)
-        if walkInfo and walkInfo.cancelled then return false, math.huge end
         local delta = position - root.Position
         local remaining = delta.Magnitude
         if mode == "Teleport" then
@@ -6149,13 +6061,28 @@ __EB1478_safeCall("Premium pages and extras", function()
             end
             return remaining &lt;= math.max(0.01, speed * math.clamp(deltaTime, 0, 0.1)), remaining
         else
-            return walkBSSWithJumps(character, root, humanoid, position, speed, walkInfo), remaining
+            -- Non-blocking obstacle/jump assist; never yields in the C/Petal loop.
+            applyBSSWalk(walkInfo.owner, humanoid, speed)
+            if remaining &gt; 3 and os.clock() &gt;= (walkInfo.nextJump or 0) then
+                local flat = Vector3.new(delta.X, 0, delta.Z)
+                if flat.Magnitude &gt; 1 then
+                    local cast = RaycastParams.new()
+                    cast.FilterType = Enum.RaycastFilterType.Exclude
+                    cast.FilterDescendantsInstances = {character}
+                    local hit = workspace:Raycast(root.Position + Vector3.new(0, 1, 0), flat.Unit * 3.5, cast)
+                    if hit and hit.Instance and hit.Instance.CanCollide then
+                        humanoid.Jump = true
+                        walkInfo.nextJump = os.clock() + 0.8
+                    end
+                end
+            end
+            if remaining &gt; 3 and os.clock() &gt;= walkInfo.nextMove then
+                humanoid:MoveTo(position)
+                walkInfo.nextMove = os.clock() + 0.6
+            end
+            return remaining &lt;= 3, remaining
         end
     end
-    extraCleanup.bssMotion.move = moveBSSByMode
-    extraCleanup.bssMotion.getPosition = getBSSPosition
-    extraCleanup.bssMotion.getCharacter = getBSSLocalCharacter
-    extraCleanup.bssMotion.releaseWalk = releaseBSSWalk
 
     -- C scanner always checks every loaded C and respects the 3-arrival cap.
     -- Target scans are throttled to 0.1s; Fly/Walk movement uses Heartbeat.
@@ -6864,8 +6791,6 @@ __EB1478_safeCall("Premium pages and extras", function()
         end)
     end)
 
-    -- Puffshroom Hunt runs in its own protected block so mistakes here cannot
-    -- stop the main menu or other BSS features from loading.
     __EB1478_safeCall("BSS Puffshroom Hunt", function()
         local card = Instance.new("Frame")
         card.Name = "BSSPuffshroomHuntCard"
@@ -6959,9 +6884,139 @@ __EB1478_safeCall("Premium pages and extras", function()
                 makeValidBox(speedBox, speed)
             end)
         end
-        local function positionOf(instance)
-            local getter = extraCleanup.bssMotion.getPosition
-            return getter and getter(instance) or nil
+        -- Standalone target and motion helpers. No dependency on the C/Petal
+        -- setup, so a failure in those features cannot break this card.
+        local pathService = game:GetService("PathfindingService")
+        local originalHumanoid, originalWalkSpeed = nil, nil
+        local pathToken = 0
+        local function releaseWalk()
+            pathToken += 1
+            if originalHumanoid and originalHumanoid.Parent and originalWalkSpeed then
+                pcall(function() originalHumanoid.WalkSpeed = originalWalkSpeed end)
+            end
+            originalHumanoid, originalWalkSpeed = nil, nil
+        end
+        local function characterParts()
+            local character = player.Character
+            local root = character and character:FindFirstChild("HumanoidRootPart")
+            local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+            if character and root and root:IsA("BasePart") and humanoid and humanoid.Health &gt; 0 then
+                return character, root, humanoid
+            end
+            return nil, nil, nil
+        end
+        local function positionOf(item)
+            if not item then return nil end
+            if item:IsA("BasePart") then return item.Position end
+            if item:IsA("Attachment") then return item.WorldPosition end
+            if item:IsA("Model") then
+                local part = item:FindFirstChildWhichIsA("BasePart", true)
+                if part then return part.Position end
+            end
+            -- Folder/particle containers still resolve to a physical child.
+            local part = item:FindFirstChildWhichIsA("BasePart", true)
+            if part then return part.Position end
+            local attachment = item:FindFirstChildWhichIsA("Attachment", true)
+            if attachment then return attachment.WorldPosition end
+            local parent = item.Parent
+            if parent and parent:IsA("BasePart") then return parent.Position end
+            if parent and parent:IsA("Attachment") then return parent.WorldPosition end
+            return nil
+        end
+        -- Pathfinding runs in a separate task. Calling ComputeAsync from
+        -- Heartbeat can stack yielding updates and make the menu appear frozen.
+        local function moveToPoint(character, root, humanoid, destination, speed, deltaTime, info)
+            if info.cancelled then return false end
+            local displacement = destination - root.Position
+            local remaining = displacement.Magnitude
+            local reach = 3.5
+            if remaining &lt;= reach then return true end
+            if mode == "Teleport" then
+                character:PivotTo(CFrame.new(destination) * character:GetPivot().Rotation)
+                root.AssemblyLinearVelocity = Vector3.zero
+                return true
+            elseif mode == "Fly" then
+                local step = math.min(remaining, speed * math.clamp(deltaTime, 0, 0.1))
+                if step &gt; 0 and remaining &gt; 0.01 then
+                    character:PivotTo(CFrame.new(root.Position + displacement.Unit * step) * character:GetPivot().Rotation)
+                    root.AssemblyLinearVelocity = Vector3.zero
+                end
+                return remaining &lt;= math.max(reach, step)
+            end
+            if originalHumanoid ~= humanoid then
+                releaseWalk()
+                originalHumanoid, originalWalkSpeed = humanoid, humanoid.WalkSpeed
+            end
+            humanoid.WalkSpeed = math.clamp(speed, 5, 500)
+            local now = os.clock()
+            local destinationChanged = not info.destination or
+                (info.destination - destination).Magnitude &gt;= 7
+            if destinationChanged then
+                info.destination = destination
+                info.waypoints = nil
+                info.waypointIndex = 1
+                info.nextPath = 0
+            end
+            -- Only one path computation at a time. Work happens asynchronously.
+            if not info.pending and not info.waypoints and now &gt;= (info.nextPath or 0) then
+                info.pending = true
+                info.nextPath = now + 1.5
+                local thisToken = pathToken
+                local thisInfo = info
+                local startPosition = root.Position
+                local goal = destination
+                task.spawn(function()
+                    local success, waypoints = pcall(function()
+                        local path = pathService:CreatePath({AgentCanJump = true,
+                            AgentCanClimb = true, AgentRadius = 2, AgentHeight = 5})
+                        path:ComputeAsync(startPosition, goal)
+                        if path.Status == Enum.PathStatus.Success then
+                            return path:GetWaypoints()
+                        end
+                        return nil
+                    end)
+                    if thisToken ~= pathToken or thisInfo.cancelled then return end
+                    thisInfo.pending = false
+                    if success and waypoints and #waypoints &gt; 0 then
+                        thisInfo.waypoints = waypoints
+                        thisInfo.waypointIndex = 1
+                    end
+                end)
+            end
+            local waypoint = info.waypoints and info.waypoints[info.waypointIndex or 1]
+            while waypoint and (root.Position - waypoint.Position).Magnitude &lt;= 3.5 do
+                info.waypointIndex += 1
+                waypoint = info.waypoints[info.waypointIndex]
+            end
+            local point = waypoint and waypoint.Position or destination
+            local flat = Vector3.new(point.X - root.Position.X, 0, point.Z - root.Position.Z)
+            local jumpNeeded = waypoint and waypoint.Action == Enum.PathWaypointAction.Jump
+            if flat.Magnitude &gt; 1 then
+                local cast = RaycastParams.new()
+                cast.FilterType = Enum.RaycastFilterType.Exclude
+                cast.FilterDescendantsInstances = {character}
+                local hit = workspace:Raycast(root.Position + Vector3.new(0, 1, 0), flat.Unit * 3.5, cast)
+                if hit and hit.Instance and hit.Instance.CanCollide then jumpNeeded = true end
+            end
+            if jumpNeeded and now &gt;= (info.nextJump or 0) then
+                humanoid.Jump = true
+                info.nextJump = now + 0.7
+            end
+            if now &gt;= (info.nextMove or 0) then
+                humanoid:MoveTo(point)
+                info.nextMove = now + 0.35
+            end
+            if not info.lastProgress then
+                info.lastProgress, info.lastPosition = now, root.Position
+            elseif now - info.lastProgress &gt; 2 then
+                if (root.Position - info.lastPosition).Magnitude &lt; 1.5 then
+                    info.waypoints = nil
+                    info.nextPath = 0
+                    humanoid.Jump = true
+                end
+                info.lastProgress, info.lastPosition = now, root.Position
+            end
+            return false
         end
         local function withinRange(fromPosition, toPosition, range)
             local difference = toPosition - fromPosition
@@ -7034,9 +7089,7 @@ __EB1478_safeCall("Premium pages and extras", function()
             version += 1
             if currentWalk then currentWalk.cancelled = true end
             currentWalk = nil
-            if extraCleanup.bssMotion.releaseWalk then
-                extraCleanup.bssMotion.releaseWalk("Puff")
-            end
+            releaseWalk()
             if not destroyed and toggle.Parent then
                 toggle.Text = "AUTO PUFFSHROOM HUNT  •  OFF"
                 toggle.BackgroundColor3 = C.accent
@@ -7044,10 +7097,6 @@ __EB1478_safeCall("Premium pages and extras", function()
         end
         local function start()
             if destroyed or running then return end
-            if not extraCleanup.bssMotion.move or not extraCleanup.bssMotion.getCharacter then
-                statusText("BSS movement isn't ready; see the first F9 error.", C.red)
-                return
-            end
             running = true
             version += 1
             local session = version
@@ -7068,7 +7117,7 @@ __EB1478_safeCall("Premium pages and extras", function()
                     local dt = RunService.Heartbeat:Wait()
                     if not running or session ~= version or destroyed then break end
                     local ok, err = pcall(function()
-                        local character, root = extraCleanup.bssMotion.getCharacter()
+                        local character, root, humanoid = characterParts()
                         if not character then
                             if os.clock() &gt;= nextStatus then
                                 statusText("Waiting for your Roblox character...", C.yellow)
@@ -7076,8 +7125,6 @@ __EB1478_safeCall("Premium pages and extras", function()
                             end
                             return
                         end
-                        local humanoid = character:FindFirstChildOfClass("Humanoid")
-                        if not humanoid then return end
                         local range, speed = values()
                         local now = os.clock()
                         if phase == "PUFF" then
@@ -7117,7 +7164,7 @@ __EB1478_safeCall("Premium pages and extras", function()
                             end
                             local delta = position - root.Position
                             if delta.Magnitude &gt; 4 then
-                                local arrived = extraCleanup.bssMotion.move(character, root, humanoid,
+                                local arrived = moveToPoint(character, root, humanoid,
                                     position, mode, speed, dt, currentWalk)
                                 if arrived and now &gt;= nextStatus then
                                     statusText("At " .. activePuff.Name .. " • waiting for despawn", C.green)
@@ -7148,7 +7195,7 @@ __EB1478_safeCall("Premium pages and extras", function()
                             if currentC then
                                 local cPosition = positionOf(currentC)
                                 if cPosition then
-                                    local arrived = extraCleanup.bssMotion.move(character, root, humanoid,
+                                    local arrived = moveToPoint(character, root, humanoid,
                                         cPosition, mode, speed, dt, currentWalk)
                                     if arrived then
                                         collectionCounts[currentC] = (collectionCounts[currentC] or 0) + 1
@@ -7171,9 +7218,7 @@ __EB1478_safeCall("Premium pages and extras", function()
                         task.wait(0.3)
                     end
                 end
-                if session == version and extraCleanup.bssMotion.releaseWalk then
-                    extraCleanup.bssMotion.releaseWalk("Puff")
-                end
+                if session == version then releaseWalk() end
             end)
         end
         toggle.Activated:Connect(function()
@@ -7196,6 +7241,7 @@ __EB1478_safeCall("Premium pages and extras", function()
         end
         registerCleanup(stop)
     end)
+
 
     __EB1478_safeCall("Premium menu styling and dragging", function()
     main.BackgroundColor3 = C.background
