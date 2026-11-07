@@ -1,3 +1,7 @@
+-- SHARED ANTI-IDLE UPDATE: Adds an optional best-effort idle guard in BSS.
+-- Covers all fly/walk/teleport features using one Player.Idled listener.
+-- Roblox controls the 20-minute disconnect; synthetic input may be unsupported.
+-- No guaranteed bypass. If unsupported, shows a warning instead of crashing.
 -- BSS AREA RING: New Auto Move card (Teleport/Fly/Walk, range/speed/keybind). Pursues rings when CoreStats.Pollen > 50% of CoreStats.Capacity.
 -- REPAIR: Puffshroom feature isolated; walking pathfinding is asynchronous.
 -- C/Petal walk has non-blocking jump assist. Use F9 Client Output for any game-specific errors.
@@ -4736,6 +4740,7 @@ __EB1478_safeCall("Premium pages and extras", function()
                 portalConnect(UserInputService.InputBegan:Connect(function(input, processed)
                     if not state.enabled or UserInputService:GetFocusedTextBox() then return end
                     -- The default Roblox camera can consume RMB; still allow firing when the Tool is equipped.
+                    if gui and gui:GetAttribute("AntiIdleSyntheticInput") then return end
                     if input.UserInputType == Enum.UserInputType.MouseButton2 then
                         aimPortal("Blue")
                     end
@@ -7850,6 +7855,112 @@ __EB1478_safeCall("Premium pages and extras", function()
         print("[ErrorB1478Menu][BSS] AreaRing automation ready (pollen > 50%, teleport/fly/walk).")
     end)
 
+
+    -- One shared anti-idle listener covers all movement tools (C, PetalPart,
+    -- Puffshroom, AreaRing, WarningDisk, Commando, on-foot Fly and vehicle Fly).
+    -- Auto-moving a character alone does not reset Roblox's idle timer.
+    -- VirtualUser is client-restricted in some environments, so use pcall,
+    -- show accurate status, and NEVER promise a guaranteed bypass.
+    __EB1478_safeCall("BSS shared anti-idle guard", function()
+        local card = Instance.new("Frame")
+        card.Name = "BSSAntiIdleCard"
+        card.Size = UDim2.new(1, -40, 0, 139)
+        card.Position = UDim2.fromOffset(20, math.max(154, bssPage.CanvasSize.Y.Offset + 12))
+        card.BackgroundColor3 = C.panel
+        card.BorderSizePixel = 0
+        card.Parent = bssPage
+        addCorner(card, 12)
+        addOutline(card, C.border, 0.3)
+        bssPage.CanvasSize = UDim2.fromOffset(0, card.Position.Y.Offset + 155)
+
+        makeLabel(card, "AntiIdleTitle", "ANTI-IDLE  /  SHARED MOVEMENT GUARD",
+            UDim2.fromOffset(13, 7), UDim2.new(1, -26, 0, 23), 12, C.text, true)
+        local toggle = makeButton(card, "AntiIdleToggle", "ANTI-IDLE  •  ON",
+            UDim2.fromOffset(13, 36), UDim2.new(1, -26, 0, 36), true)
+        toggle.Font = Enum.Font.GothamBold
+        toggle.TextSize = 12
+        local status = makeLabel(card, "AntiIdleStatus",
+            "ON  •  Waits for Roblox's idle event; best-effort, client-dependent.",
+            UDim2.fromOffset(13, 80), UDim2.new(1, -26, 0, 48), 10, C.muted, false)
+        status.TextWrapped = true
+        local enabled = true
+        local disposed = false
+        local lastAttemptAt = -math.huge
+        local hasWarned = false
+        local resetPulseToken = 0
+
+        local function display(message, color)
+            if disposed or destroyed then return end
+            status.Text = message
+            status.TextColor3 = color or C.muted
+        end
+
+        -- Player.Idled only reports inactivity. It does not itself cancel an
+        -- AFK disconnect. Where permitted, VirtualUser can attempt synthetic
+        -- input. If this client forbids it, notify instead of crashing.
+        local function onIdled(secondsIdle)
+            if destroyed or disposed or not enabled then return end
+            if os.clock() - lastAttemptAt < 65 then return end
+            lastAttemptAt = os.clock()
+
+            -- Avoid accidentally firing the menu's right-click Portal Gun
+            -- while the anti-idle attempt is being made.
+            resetPulseToken += 1
+            local pulse = resetPulseToken
+            if gui and gui.Parent then gui:SetAttribute("AntiIdleSyntheticInput", true) end
+            task.delay(0.45, function()
+                if pulse == resetPulseToken and gui and gui.Parent then
+                    gui:SetAttribute("AntiIdleSyntheticInput", false)
+                end
+            end)
+
+            local success, err = pcall(function()
+                local virtualUser = game:GetService("VirtualUser")
+                virtualUser:CaptureController()
+                local camera = workspace.CurrentCamera
+                virtualUser:ClickButton2(Vector2.new(0, 0), camera and camera.CFrame or CFrame.new())
+            end)
+            if success then
+                display(string.format("Input attempt sent after %.0fs idle. Roblox may still disconnect.",
+                    tonumber(secondsIdle) or 0), C.green)
+                print("[ErrorB1478Menu][AntiIdle] VirtualUser input attempt sent.")
+            else
+                display("Virtual input blocked on this client. Press a real key to avoid idle disconnect.", C.yellow)
+                if not hasWarned then
+                    hasWarned = true
+                    warn("[ErrorB1478Menu][AntiIdle] VirtualUser unavailable; cannot prevent Roblox's idle disconnect: " .. tostring(err))
+                    pcall(function()
+                        game:GetService("StarterGui"):SetCore("SendNotification", {
+                            Title = "Error_B1478 • Idle warning",
+                            Text = "Automatic anti-idle isn't supported here. Interact with Roblox to stay connected.",
+                            Duration = 12,
+                        })
+                    end)
+                end
+            end
+        end
+
+        trackServiceConnection(player.Idled:Connect(onIdled))
+        toggle.Activated:Connect(function()
+            if destroyed or disposed then return end
+            enabled = not enabled
+            toggle.Text = enabled and "ANTI-IDLE  •  ON" or "ANTI-IDLE  •  OFF"
+            toggle.BackgroundColor3 = enabled and C.green or C.accent
+            if enabled then
+                display("ON  •  Watches all movement tools. Works only if virtual input is permitted.", C.muted)
+            else
+                display("OFF  •  Automatic idle-input attempts disabled.", C.muted)
+            end
+        end)
+        toggle.BackgroundColor3 = C.green
+        registerCleanup(function()
+            enabled = false
+            disposed = true
+            resetPulseToken += 1
+            if gui and gui.Parent then gui:SetAttribute("AntiIdleSyntheticInput", false) end
+        end)
+        print("[ErrorB1478Menu][AntiIdle] Shared idle monitor installed. Virtual input support is client-dependent.")
+    end)
 
     __EB1478_safeCall("Premium menu styling and dragging", function()
     main.BackgroundColor3 = C.background
